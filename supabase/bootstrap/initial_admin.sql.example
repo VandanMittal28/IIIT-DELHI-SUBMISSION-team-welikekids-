@@ -1,0 +1,34 @@
+-- Run only as a trusted database operator after the person has accepted an Auth invitation.
+-- Replace every ALL_CAPS value. This file is not a migration and must never contain credentials.
+begin;
+
+do $$
+declare
+  target_user_id uuid;
+  target_college_id uuid;
+begin
+  select id into target_user_id
+  from auth.users
+  where lower(email) = lower('ADMIN_EMAIL_ADDRESS')
+  limit 1;
+
+  if target_user_id is null then
+    raise exception 'The invited Auth user does not exist; no administrator was created.';
+  end if;
+
+  insert into public.colleges (slug, name, timezone, latitude, longitude)
+  values ('COLLEGE_SLUG', 'COLLEGE_DISPLAY_NAME', 'Asia/Kolkata', null, null)
+  on conflict (slug) do update set name = excluded.name
+  returning id into target_college_id;
+
+  insert into public.college_memberships (college_id, user_id, is_admin, status, invited_by)
+  values (target_college_id, target_user_id, true, 'active', target_user_id)
+  on conflict (college_id, user_id) do update
+    set is_admin = true, status = 'active', updated_at = now();
+
+  update public.profiles
+  set college_id = target_college_id, updated_at = now()
+  where id = target_user_id;
+end $$;
+
+commit;

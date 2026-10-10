@@ -1,0 +1,62 @@
+name: Sidequest
+options:
+  bundleIdPrefix: in.sidequest
+  deploymentTarget:
+    iOS: "17.0"
+packages:
+  Supabase:
+    url: https://github.com/supabase/supabase-swift
+    exactVersion: 2.55.3
+settings:
+  base:
+    SWIFT_VERSION: 6.0
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+targets:
+  Sidequest:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sidequest
+        excludes:
+          - Info.plist
+    info:
+      path: Sidequest/Info.plist
+      properties:
+        CFBundleDisplayName: Sidequest
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSCameraUsageDescription: Sidequest uses the camera for on-device venue guidance and event pass scanning.
+        NSLocationWhenInUseUsageDescription: Sidequest uses your location for outdoor campus navigation when you choose to navigate.
+        SUPABASE_URL: $(SUPABASE_URL)
+        SUPABASE_PUBLISHABLE_KEY: $(SUPABASE_PUBLISHABLE_KEY)
+    configFiles:
+      Debug: Config/Sidequest.xcconfig
+      Release: Config/Sidequest.xcconfig
+    dependencies:
+      - package: Supabase
+        product: Supabase
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: in.sidequest.student
+        PRODUCT_NAME: Sidequest
+        TARGETED_DEVICE_FAMILY: "1"
+  SidequestTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [SidequestTests]
+    dependencies:
+      - target: Sidequest
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: in.sidequest.student.tests
+schemes:
+  Sidequest:
+    build:
+      targets:
+        Sidequest: all
+        SidequestTests: [test]
+    test:
+      targets:
+        - SidequestTests

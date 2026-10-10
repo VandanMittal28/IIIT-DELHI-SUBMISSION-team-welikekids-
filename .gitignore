@@ -1,0 +1,10 @@
+.DS_Store
+.env
+.env.local
+admin/.next/
+admin/node_modules/
+ios/build/
+ios/DerivedData/
+ios/*.xcworkspace/xcuserdata/
+ios/*.xcodeproj/xcuserdata/
+supabase/.temp/
