@@ -1,14 +1,18 @@
 import SwiftUI
 
 struct RootView: View {
+    @Environment(AppModel.self) private var model
     var body: some View {
-        TabView {
+        @Bindable var model=model
+        TabView(selection:$model.selectedTab) {
             DiscoverView().tabItem { Label("Discover", systemImage: "sparkle.magnifyingglass") }
+                .tag(0)
             MyJourneyView()
                 .tabItem { Label("My Journey", systemImage: "point.topleft.down.to.point.bottomright.curvepath") }
-            NavigateView().tabItem { Label("Navigate", systemImage: "location.north.line.fill") }
-            CommunityView().tabItem { Label("Community", systemImage: "person.3") }
-            AccountView().tabItem { Label("Profile", systemImage: "person.crop.circle") }
+                .tag(1)
+            NavigateView().tabItem { Label("Navigate", systemImage: "location.north.line.fill") }.tag(2)
+            CommunityView().tabItem { Label("Community", systemImage: "person.3") }.tag(3)
+            AccountView().tabItem { Label("Profile", systemImage: "person.crop.circle") }.tag(4)
         }
     }
 }

@@ -39,6 +39,7 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [inviteCode,setInviteCode]=useState("");
 
   const loadData = useCallback(async (activeUser: User) => {
     const supabase = getSupabase();
@@ -66,7 +67,7 @@ export default function Home() {
     setOrganizations(orgs);
     setDraft((current) => ({ ...current, organizationId: current.organizationId || orgs[0]?.id || "" }));
     const [eventsResult, feedResult, registrationResult] = await Promise.all([
-      supabase.from("events").select("id,title,category,status,organization_id,college_id").order("created_at", { ascending: false }),
+      supabase.from("events").select("id,title,description,category,eligibility,price_minor,status,organization_id,college_id").order("created_at", { ascending: false }),
       supabase.from("published_event_feed").select("*").order("starts_at", { ascending: true }).limit(8),
       supabase.from("edition_registration_summary").select("edition_id,event_id,capacity,registered_count,waitlisted_count,cancelled_count"),
     ]);
@@ -138,6 +139,8 @@ export default function Home() {
     setBusy(false);
   }
 
+  async function acceptInvitation(event:FormEvent){event.preventDefault();setError(null);const{error:acceptError}=await getSupabase().rpc("accept_role_invitation",{p_token:inviteCode});if(acceptError)setError(messageFrom(acceptError));else if(user){setNotice("Invitation accepted. Your scoped access is active.");setInviteCode("");await loadData(user)}}
+
   if (!configured) return <main className={styles.center}><section className={styles.authCard}><Brand /><p className={styles.eyebrow}>Setup required</p><h1>Connect the Sidequest backend</h1><p>Copy <code>.env.local.example</code> to <code>.env.local</code> and add the authorized Supabase URL and publishable key. No demo data will be substituted.</p></section></main>;
   if (!authReady) return <main className={styles.center}><p>Checking your session…</p></main>;
   if (!user) return <main className={styles.center}><section className={styles.authCard}><Brand /><p className={styles.eyebrow}>Organizer access</p><h1>Make campus happen.</h1><p>Sign in with an account invited by your organization or college administrator.</p><form onSubmit={signIn} className={styles.stack}><label>Email<input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label><label>Password<input required minLength={8} type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>{error && <Alert>{error}</Alert>}<button disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button></form></section></main>;
@@ -147,6 +150,7 @@ export default function Home() {
     <main className={styles.dashboard}>
       <section className={styles.hero}><div><p className={styles.eyebrow}>Event operations</p><h1>Your campus, in motion.</h1><p>Create the source of truth once. Sidequest carries it to every student.</p></div><div className={styles.stats}><span><strong>{events.length}</strong> managed</span><span><strong>{published.length}</strong> live</span><span><strong>{registeredTotal}</strong> registered</span><span><strong>{waitlistedTotal}</strong> waiting</span></div></section>
       {error && <Alert>{error}</Alert>}{notice && <div className={styles.notice}>{notice}</div>}
+      <details className={styles.panel}><summary>Accept an organization invitation</summary><form onSubmit={acceptInvitation} className={styles.stack}><label>One-time invitation code<input required value={inviteCode} onChange={e=>setInviteCode(e.target.value)} placeholder="Invitation UUID" /></label><button>Accept invitation</button></form></details>
       {organizations.length === 0 ? <section className={styles.empty}><h2>No organizer access yet</h2><p>Your account is valid, but it has no active organizer membership. Ask a college administrator to invite you; Sidequest will not grant access from profile metadata.</p></section> : <div className={styles.columns}>
         <section className={styles.panel}><div className={styles.panelHead}><p className={styles.eyebrow}>New event</p><h2>Create the first edition</h2></div><form onSubmit={createEvent} className={styles.formGrid}>
           <label className={styles.full}>Organization<select required value={draft.organizationId} onChange={(e) => setDraft({ ...draft, organizationId: e.target.value })}>{organizations.map((org) => <option value={org.id} key={org.id}>{org.name}</option>)}</select></label>
@@ -168,7 +172,7 @@ export default function Home() {
         <section className={styles.panel}><div className={styles.panelHead}><p className={styles.eyebrow}>Student view</p><h2>Live discovery</h2></div>{published.length === 0 ? <p className={styles.muted}>No published events. Students see a useful empty state, never fictional recommendations.</p> : <div className={styles.list}>{published.map((item) => <article key={item.id} className={styles.feedCard}><p>{item.college_name} · {item.category}</p><h3>{item.title}</h3><span>{item.starts_at ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.starts_at)) : "Schedule pending"}</span></article>)}</div>}</section></aside>
       </div>}
       {events.length > 0 && <section className={styles.operations}><div className={styles.sectionTitle}><p className={styles.eyebrow}>Live event operations</p><h2>Volunteer and response desk</h2><p>Every action below confirms against the authoritative backend. Realtime is only a refresh signal.</p></div><div className={styles.volunteerGrid}><VolunteerScanner onRecorded={() => user && void loadData(user)} /><OperationsPanel eventIds={managedEventIds} /></div><ManagementPanel events={events} organizations={organizations} onChanged={() => user && void loadData(user)} /></section>}
-      {adminCollegeIds.length > 0 && <section className={styles.operations}><CampusEditor collegeIds={adminCollegeIds} /></section>}
+      {adminCollegeIds.length > 0 && <section className={styles.operations}><CampusEditor collegeIds={adminCollegeIds} onChanged={() => user && void loadData(user)} /></section>}
     </main>
   </div>;
 }

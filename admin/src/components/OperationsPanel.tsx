@@ -6,6 +6,8 @@ import { getSupabase } from "@/lib/supabase";
 type Edition = { id: string; event_id: string; label: string; starts_at: string };
 type Report = { id: string; edition_id: string; category: string; description: string; priority: string; status: string; created_at: string };
 type Occupancy = { edition_id: string; estimated_inside: number; freshness_at: string | null };
+type DiscussionMessage = { id:string; body:string; status:string; created_at:string; channel_id:string };
+type ReviewSummary = { event_id:string; sample_size:number; average_rating:number };
 
 export function OperationsPanel({ eventIds }: { eventIds: string[] }) {
   const [editions, setEditions] = useState<Edition[]>([]);
@@ -14,6 +16,7 @@ export function OperationsPanel({ eventIds }: { eventIds: string[] }) {
   const [editionId, setEditionId] = useState("");
   const [title, setTitle] = useState(""); const [body, setBody] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [discussion,setDiscussion]=useState<DiscussionMessage[]>([]); const [reviews,setReviews]=useState<ReviewSummary[]>([]);
 
   const load = useCallback(async () => {
     if (eventIds.length === 0) { setEditions([]); setReports([]); setOccupancy([]); return; }
@@ -23,15 +26,20 @@ export function OperationsPanel({ eventIds }: { eventIds: string[] }) {
     const rows = editionResult.data as Edition[]; setEditions(rows); setEditionId((current) => current || rows[0]?.id || "");
     if (!rows.length) return;
     const ids = rows.map((row) => row.id);
-    const [reportResult, occupancyResult] = await Promise.all([
+    const channelResult=await supabase.from("channels").select("id").in("edition_id",ids);
+    const channelIds=(channelResult.data??[]).map(row=>row.id);
+    const [reportResult, occupancyResult, discussionResult, reviewResult] = await Promise.all([
       supabase.from("reports").select("id,edition_id,category,description,priority,status,created_at").in("edition_id", ids).order("created_at", { ascending: false }),
       supabase.from("edition_occupancy").select("edition_id,estimated_inside,freshness_at").in("edition_id", ids),
+      channelIds.length?supabase.from("messages").select("id,body,status,created_at,channel_id").in("channel_id",channelIds).order("created_at",{ascending:false}).limit(50):Promise.resolve({data:[],error:null}),
+      supabase.from("event_review_summary").select("event_id,sample_size,average_rating").in("event_id",eventIds),
     ]);
-    if (reportResult.error || occupancyResult.error) setMessage(reportResult.error?.message ?? occupancyResult.error?.message ?? "Could not refresh operations.");
-    else { setReports(reportResult.data as Report[]); setOccupancy(occupancyResult.data as Occupancy[]); }
+    if (reportResult.error || occupancyResult.error || discussionResult.error || reviewResult.error || channelResult.error) setMessage(reportResult.error?.message ?? occupancyResult.error?.message ?? discussionResult.error?.message ?? reviewResult.error?.message ?? channelResult.error?.message ?? "Could not refresh operations.");
+    else { setReports(reportResult.data as Report[]); setOccupancy(occupancyResult.data as Occupancy[]); setDiscussion(discussionResult.data as DiscussionMessage[]); setReviews(reviewResult.data as ReviewSummary[]); }
   }, [eventIds]);
 
   useEffect(() => { const timer = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(timer); }, [load]);
+  useEffect(()=>{const supabase=getSupabase();const channel=supabase.channel(`admin-operations-${eventIds.join("-")}`).on("postgres_changes",{event:"*",schema:"public",table:"reports"},()=>void load()).on("postgres_changes",{event:"*",schema:"public",table:"attendance_transitions"},()=>void load()).on("postgres_changes",{event:"*",schema:"public",table:"messages"},()=>void load()).subscribe();return()=>{void supabase.removeChannel(channel)}},[eventIds,load]);
 
   async function announce(event: FormEvent) {
     event.preventDefault(); setMessage(null);
@@ -40,17 +48,21 @@ export function OperationsPanel({ eventIds }: { eventIds: string[] }) {
   }
 
   async function advance(report: Report) {
-    const next: Record<string, string> = { submitted: "acknowledged", acknowledged: "in_progress", assigned: "in_progress", in_progress: "resolved" };
+    const next: Record<string, string> = { submitted: "acknowledged", acknowledged: "assigned", assigned: "in_progress", in_progress: "resolved" };
     if (!next[report.status]) return;
-    const { error } = await getSupabase().rpc("transition_report", { p_report_id: report.id, p_status: next[report.status], p_assignee_id: null, p_note: "Updated from Sidequest Admin" });
+    const assignee=next[report.status]==="assigned"?window.prompt("Assignee account UUID"):null;if(next[report.status]==="assigned"&&!assignee)return;
+    const { error } = await getSupabase().rpc("transition_report", { p_report_id: report.id, p_status: next[report.status], p_assignee_id: assignee, p_note: "Updated from Sidequest Admin" });
     if (error) setMessage(error.message); else { setMessage("Report status persisted and the student was notified."); await load(); }
   }
 
   return <section className="ops-grid">
     <article className="ops-card"><div className="ops-heading"><div><p className="ops-kicker">Attendance</p><h2>Occupancy</h2></div><button className="secondary" onClick={() => void load()}>Refresh</button></div>
       {occupancy.length === 0 ? <p className="helper">No attendance transitions recorded.</p> : occupancy.map((item) => <div className="metric" key={item.edition_id}><strong>{item.estimated_inside}</strong><span>estimated inside<br />{item.freshness_at ? `Updated ${new Date(item.freshness_at).toLocaleString("en-IN")}` : "No scans yet"}</span></div>)}
+      <button className="secondary" disabled={!editionId} onClick={()=>{const delta=window.prompt("Correction amount, such as -1 or 2");const reason=window.prompt("Auditable reason (at least 5 characters)");if(delta&&reason)void getSupabase().rpc("correct_occupancy",{p_edition_id:editionId,p_delta:Number(delta),p_reason:reason}).then(({error})=>{if(error)setMessage(error.message);else{setMessage("Audited occupancy correction persisted.");void load()}})}}>Record correction</button>
     </article>
     <article className="ops-card"><p className="ops-kicker">Official updates</p><h2>Publish announcement</h2><form onSubmit={announce} className="ops-form"><label className="field">Edition<select required value={editionId} onChange={(e) => setEditionId(e.target.value)}>{editions.map((edition) => <option key={edition.id} value={edition.id}>{edition.label} · {new Date(edition.starts_at).toLocaleDateString("en-IN")}</option>)}</select></label><label className="field">Title<input required minLength={2} value={title} onChange={(e) => setTitle(e.target.value)} /></label><label className="field">Message<textarea required minLength={2} value={body} onChange={(e) => setBody(e.target.value)} /></label><button disabled={!editionId}>Publish and notify</button></form></article>
     <article className="ops-card ops-wide"><p className="ops-kicker">Assigned queue</p><h2>Reports</h2>{reports.length === 0 ? <p className="helper">No submitted reports.</p> : reports.map((report) => <div className="report-row" key={report.id}><div><strong>{report.category}</strong><p>{report.description}</p><small>{report.priority} · {report.status.replaceAll("_", " ")}</small></div>{report.status !== "resolved" && <button onClick={() => void advance(report)}>Advance status</button>}</div>)}{message && <p role="status" className={message.startsWith("Not") ? "error-text" : "success-text"}>{message}</p>}</article>
+    <article className="ops-card"><p className="ops-kicker">Discussion moderation</p><h2>Recent messages</h2>{discussion.length===0?<p className="helper">No discussion messages.</p>:discussion.map(item=><div className="report-row" key={item.id}><div><p>{item.body}</p><small>{new Date(item.created_at).toLocaleString("en-IN")}</small></div><button className="secondary" onClick={()=>void getSupabase().rpc("moderate_message",{p_message_id:item.id,p_status:"hidden"}).then(({error})=>{if(error)setMessage(error.message);else void load()})}>Hide</button></div>)}</article>
+    <article className="ops-card"><p className="ops-kicker">Verified feedback</p><h2>Review insight</h2>{reviews.length===0?<p className="helper">No eligible reviews yet.</p>:reviews.map(item=><div className="metric" key={item.event_id}><strong>{Number(item.average_rating).toFixed(1)}</strong><span>average rating<br />{item.sample_size} verified {item.sample_size===1?"review":"reviews"}</span></div>)}</article>
   </section>;
 }

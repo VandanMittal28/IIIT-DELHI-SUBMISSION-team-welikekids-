@@ -50,7 +50,7 @@ Authenticated RPC with `p_registration_id`. A student may cancel only their own 
 
 ## `my_journey`
 
-Authenticated, security-invoker view of the caller’s registrations, waitlist positions, event timeline, and active pass tokens. Underlying table policies are authoritative; clients refetch this view after mutations and reconnects.
+Authenticated, security-invoker view of the caller’s registrations, registration deadlines, waitlist positions, event timeline, and active pass tokens. Underlying table policies are authoritative; clients refetch this view after mutations and reconnects.
 
 ## `edition_registration_summary`
 
@@ -62,10 +62,13 @@ Authenticated, security-invoker organizer/volunteer projection of capacity and a
 - `create_route_draft`, `add_route_node`, and `add_route_edge` author a versioned graph. `publish_route_version` refuses an empty graph and records physical-validation state.
 - `calculate_route(start, destination, accessible_only)` is read-only and uses the latest published graph. It excludes active closures and returns ordered nodes, edges, instructions, distance, floor transitions, route version, and physical-validation state. `NO_ROUTE` is an honest 404.
 - `add_route_closure` persists the closure, increments the campus route-change sequence, and requires clients to refetch/recalculate.
+- `set_venue_navigation` links each venue to a same-campus destination landmark and optional designated gate. Those identifiers are projected through discovery and `my_journey`; changing a session venue therefore changes the student’s backend-provided navigation destination without an app release.
 
 ## Attendance and occupancy
 
 `record_attendance(pass_token, action, client_request_id)` accepts `enter`, `exit`, or `reenter`. The opaque token contains no identity data. The server validates event staff scope, the pass, the allowed state transition, and re-entry rules. `(scanned_by, client_request_id)` makes retries idempotent. `edition_occupancy` derives the current estimate and freshness from persisted transitions and audited corrections.
+
+`correct_occupancy(edition_id, delta, reason)` stores an attributed correction; it never rewrites scan history. `get_registration_roster(edition_id)` returns the scoped registration/waitlist/pass roster only after server-side event-staff authorization.
 
 ## Reports, community, and reviews
 
@@ -77,7 +80,9 @@ Authenticated, security-invoker organizer/volunteer projection of capacity and a
 
 ## Management
 
-`assign_context_role`, `assign_event_staff`, `add_event_cohost`, `update_event_details`, `update_edition_capacity`, `create_event_session`, `cancel_event`, and campus/venue authoring RPCs repeat contextual authorization server-side and write audit records for sensitive actions.
+`create_organization`, `assign_context_role`, `assign_event_staff`, `add_event_cohost`, `update_event_details`, `approve_event`, `update_edition_capacity`, `create_event_edition`, `create_event_session`, `set_event_cover_image`, `cancel_event`, and campus/venue authoring RPCs repeat contextual authorization server-side and write audit records for sensitive actions.
+
+`create_role_invitation` returns a one-time token whose hash—not the raw token—is stored. It is bound to a normalized email, role, organization, inviter, and seven-day expiry. `accept_role_invitation` requires a signed-in Auth user whose verified account email matches, consumes the token once, and activates the scoped membership. Neither endpoint can grant college-administrator authority.
 
 ## Notifications
 

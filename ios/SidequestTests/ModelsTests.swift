@@ -17,7 +17,7 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(registration.status, "registered")
         XCTAssertNotNil(registration.passToken)
 
-        let journeyJSON = #"{"registration_id":"00000000-0000-0000-0000-000000000010","status":"registered","edition_id":"00000000-0000-0000-0000-000000000002","event_id":"00000000-0000-0000-0000-000000000001","title":"Real event","category":"Workshop","event_status":"published","organization_name":"Club","starts_at":"2026-10-12T10:00:00Z","ends_at":"2026-10-12T11:00:00Z","pass_token":"00000000-0000-0000-0000-000000000011","pass_status":"active","waitlist_position":null}"#.data(using: .utf8)!
+        let journeyJSON = #"{"registration_id":"00000000-0000-0000-0000-000000000010","status":"registered","edition_id":"00000000-0000-0000-0000-000000000002","event_id":"00000000-0000-0000-0000-000000000001","title":"Real event","category":"Workshop","event_status":"published","organization_name":"Club","registration_opens_at":"2026-10-01T10:00:00Z","registration_closes_at":"2026-10-11T10:00:00Z","starts_at":"2026-10-12T10:00:00Z","ends_at":"2026-10-12T11:00:00Z","pass_token":"00000000-0000-0000-0000-000000000011","pass_status":"active","waitlist_position":null}"#.data(using: .utf8)!
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let journey = try decoder.decode(JourneyItem.self, from: journeyJSON)

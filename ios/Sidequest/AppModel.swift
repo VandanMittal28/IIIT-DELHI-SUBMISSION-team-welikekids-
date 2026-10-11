@@ -10,6 +10,7 @@ enum LoadState: Equatable {
 @Observable
 final class AppModel {
     private(set) var events: [EventFeedItem] = []
+    private(set) var eventImageURLs: [UUID: URL] = [:]
     private(set) var eventState: LoadState = .idle
     private(set) var isAuthenticated = false
     private(set) var canLoadMore = false
@@ -17,8 +18,11 @@ final class AppModel {
     private(set) var journeyState: LoadState = .idle
     private(set) var registrationStates: [UUID: LoadState] = [:]
     private(set) var landmarks: [Landmark] = []
+    private(set) var landmarkPhotoURLs: [UUID: URL] = [:]
     private(set) var navigationState: LoadState = .idle
     private(set) var routePlan: RoutePlan?
+    private(set) var floorPlans: [UUID: FloorPlan] = [:]
+    private(set) var floorPlanURLs: [UUID: URL] = [:]
     private(set) var announcements: [Announcement] = []
     private(set) var communityMessages: [CommunityMessage] = []
     private(set) var reports: [EventReport] = []
@@ -26,6 +30,7 @@ final class AppModel {
     private(set) var channels: [CommunityChannel] = []
     private(set) var profile: StudentProfile?
     private(set) var colleges: [CollegeOption] = []
+    private(set) var campuses: [CampusPoint] = []
     private(set) var organizations: [OrganizationProfile] = []
     private(set) var followedOrganizationIds: Set<UUID> = []
     private(set) var communityState: LoadState = .idle
@@ -34,12 +39,16 @@ final class AppModel {
     var collegeFilter = ""
     var freeOnly = false
     var upcomingDays = 0
+    var selectedTab = 0
+    private(set) var pendingNavigationDestinationId: UUID?
     private(set) var savedEventIds: Set<UUID> = []
 
     let configuration: BackendConfiguration
     private let client: SupabaseClient?
     private let pageSize = 20
     private var page = 0
+    private var liveChannel: RealtimeChannelV2?
+    private var liveUpdateTasks: [Task<Void, Never>] = []
 
     init(bundle: Bundle = .main) {
         configuration = BackendConfiguration(bundle: bundle)
@@ -53,7 +62,7 @@ final class AppModel {
     func restoreSession() async {
         guard let client else { return }
         isAuthenticated = (try? await client.auth.session) != nil
-        if isAuthenticated, journeyState == .idle { await reloadJourney(); await reloadSavedEvents(); await reloadProfile() }
+        if isAuthenticated, journeyState == .idle { await reloadJourney(); await reloadSavedEvents(); await reloadProfile(); await startLiveUpdates() }
     }
 
     func signIn(email: String, password: String) async throws {
@@ -63,6 +72,7 @@ final class AppModel {
         await reloadJourney()
         await reloadSavedEvents()
         await reloadProfile()
+        await startLiveUpdates()
     }
 
     func signOut() async {
@@ -73,6 +83,7 @@ final class AppModel {
         journeyState = .idle
         savedEventIds = []
         profile = nil
+        await stopLiveUpdates()
     }
 
     func reloadEvents() async {
@@ -96,7 +107,7 @@ final class AppModel {
         do {
             var query = client
                 .from("published_event_feed")
-                .select("id,edition_id,title,description,category,organization_name,college_name,starts_at,ends_at,price_minor,currency,eligibility")
+                .select("id,edition_id,title,description,category,organization_name,college_name,starts_at,ends_at,price_minor,currency,eligibility,cover_image_path,venue_name,destination_landmark_id,designated_gate_landmark_id")
             let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmedSearch.isEmpty {
                 let safeSearch = trimmedSearch.replacingOccurrences(of: "%", with: "")
@@ -116,12 +127,24 @@ final class AppModel {
                 .execute()
                 .value
             events = reset ? response : events + response
+            await loadEventImages(for: events)
+            if reset { campuses = (try? await client.from("campuses").select("id,name,latitude,longitude").order("name").execute().value) ?? [] }
             canLoadMore = response.count == pageSize
             eventState = .loaded
         } catch {
             if !reset { page = max(0, page - 1) }
             eventState = .failed(error.localizedDescription)
         }
+    }
+
+    private func loadEventImages(for events: [EventFeedItem]) async {
+        guard let client else { return }
+        var urls = eventImageURLs.filter { event in events.contains { $0.id == event.key } }
+        for event in events where urls[event.id] == nil {
+            guard let path = event.coverImagePath else { continue }
+            urls[event.id] = try? await client.storage.from("event-media").createSignedURL(path: path, expiresIn: 3600)
+        }
+        eventImageURLs = urls
     }
 
     func reloadJourney() async {
@@ -138,7 +161,7 @@ final class AppModel {
         do {
             let response: [JourneyItem] = try await client
                 .from("my_journey")
-                .select("registration_id,status,edition_id,event_id,title,category,event_status,organization_name,starts_at,ends_at,pass_token,pass_status,waitlist_position")
+                .select("registration_id,status,edition_id,event_id,title,category,event_status,organization_name,registration_opens_at,registration_closes_at,starts_at,ends_at,pass_token,pass_status,waitlist_position,venue_name,destination_landmark_id,designated_gate_landmark_id")
                 .order("starts_at", ascending: true)
                 .execute()
                 .value
@@ -223,8 +246,14 @@ final class AppModel {
             landmarks = try await client.from("landmarks")
                 .select("id,campus_id,floor_id,name,coordinate_kind,latitude,longitude,x_pixels,y_pixels,reference_photo_path,facing_degrees,facing_instruction")
                 .eq("is_active", value: true).order("name").execute().value
+            var urls: [UUID: URL] = [:]
+            for landmark in landmarks {
+                guard let path = landmark.referencePhotoPath else { continue }
+                urls[landmark.id] = try? await client.storage.from("campus-media").createSignedURL(path: path, expiresIn: 3600)
+            }
+            landmarkPhotoURLs = urls
             navigationState = .loaded
-        } catch { navigationState = .failed(error.localizedDescription) }
+        } catch { landmarkPhotoURLs = [:]; navigationState = .failed(error.localizedDescription) }
     }
 
     func calculateRoute(from start: Landmark, to destination: Landmark, accessibleOnly: Bool) async {
@@ -233,15 +262,38 @@ final class AppModel {
         navigationState = .loading
         routePlan = nil
         do {
-            routePlan = try await client.rpc("calculate_route", params: RouteRequest(
+            let calculated: RoutePlan = try await client.rpc("calculate_route", params: RouteRequest(
                 pStartLandmarkId: start.id, pDestinationLandmarkId: destination.id,
                 pAccessibleOnly: accessibleOnly
             )).execute().value
+            routePlan = calculated
+            await loadFloorPlans(for: calculated)
             navigationState = .loaded
         } catch { navigationState = .failed(error.localizedDescription) }
     }
 
-    func clearRoute() { routePlan = nil }
+    func clearRoute() { routePlan = nil; floorPlans = [:]; floorPlanURLs = [:] }
+    func prepareNavigation(to landmarkId: UUID) { pendingNavigationDestinationId = landmarkId; selectedTab = 2 }
+    func consumeNavigationDestination() { pendingNavigationDestinationId = nil }
+
+    private func loadFloorPlans(for plan: RoutePlan) async {
+        guard let client else { return }
+        let ids = Array(Set(plan.nodes.compactMap(\.floorId)))
+        guard !ids.isEmpty else { floorPlans = [:]; floorPlanURLs = [:]; return }
+        do {
+            let rows: [FloorPlan] = try await client.from("floors")
+                .select("id,name,level,floor_plan_path,image_width_pixels,image_height_pixels")
+                .in("id", values: ids).eq("is_published", value: true).execute().value
+            floorPlans = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
+            var urls: [UUID: URL] = [:]
+            for floor in rows {
+                urls[floor.id] = try await client.storage.from("campus-media").createSignedURL(path: floor.floorPlanPath, expiresIn: 3600)
+            }
+            floorPlanURLs = urls
+        } catch {
+            floorPlans = [:]; floorPlanURLs = [:]
+        }
+    }
 
     func reloadCommunity() async {
         guard let client else { communityState = .failed(SidequestError.notConfigured.localizedDescription); return }
@@ -261,6 +313,31 @@ final class AppModel {
             (announcements, communityMessages, reports, notifications, channels) = try await (announcementRows, messageRows, reportRows, notificationRows, channelRows)
             communityState = .loaded
         } catch { communityState = .failed(error.localizedDescription) }
+    }
+
+    private func startLiveUpdates() async {
+        guard let client, isAuthenticated, liveChannel == nil else { return }
+        let channel = client.channel("sidequest-authoritative-refresh")
+        let communityChanges = ["announcements", "messages", "reports", "notifications"].map { channel.postgresChange(AnyAction.self, schema: "public", table: $0) }
+        let journeyChanges = ["registrations", "attendance_transitions", "event_sessions"].map { channel.postgresChange(AnyAction.self, schema: "public", table: $0) }
+        let routeChanges = channel.postgresChange(AnyAction.self, schema: "public", table: "route_closures")
+        let venueChanges = channel.postgresChange(AnyAction.self, schema: "public", table: "event_sessions")
+        do {
+            try await channel.subscribeWithError()
+            liveChannel = channel
+            for stream in communityChanges { liveUpdateTasks.append(Task { for await _ in stream { await self.reloadCommunity() } }) }
+            for stream in journeyChanges { liveUpdateTasks.append(Task { for await _ in stream { await self.reloadJourney() } }) }
+            liveUpdateTasks.append(Task { for await _ in routeChanges { self.clearRoute(); await self.reloadLandmarks() } })
+            liveUpdateTasks.append(Task { for await _ in venueChanges { self.clearRoute(); await self.reloadEvents() } })
+        } catch {
+            await client.removeChannel(channel)
+        }
+    }
+
+    private func stopLiveUpdates() async {
+        liveUpdateTasks.forEach { $0.cancel() }; liveUpdateTasks = []
+        if let liveChannel, let client { await client.removeChannel(liveChannel) }
+        liveChannel = nil
     }
 
     func postMessage(channelId: UUID, body: String) async throws {

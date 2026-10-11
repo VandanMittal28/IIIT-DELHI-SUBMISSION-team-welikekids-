@@ -38,6 +38,14 @@ Opaque passes resolve server-side to a registration. `record_attendance` enforce
 
 User-visible notification rows and per-device delivery jobs are committed with the triggering business change. A service-role-only worker claims jobs with `SKIP LOCKED`, delivers through APNs, and records retry state with exponential backoff. The in-app inbox remains authoritative when push permission or delivery is unavailable.
 
+### ADR-010 — Attendance ordering uses wall-clock transition time
+
+PostgreSQL `now()` is constant for an entire transaction and cannot order multiple scans made inside that transaction. Attendance inserts therefore use `clock_timestamp()` and then order by `recorded_at, id`. The ledger remains immutable, retries remain keyed independently, and enter/exit/re-entry validation always sees the transition that was actually recorded last.
+
+### ADR-011 — Private media is authorized by its owning record
+
+Storage objects remain in private buckets and clients receive short-lived signed URLs. Published event covers and active published campus references are readable through record-aware policies. Draft event media is limited to event managers; report evidence is limited to the reporter and edition managers. A signed-in account alone never grants blanket media access.
+
 ## Environments
 
 - Local source and builds do not contain credentials or operational fixtures.

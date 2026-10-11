@@ -27,7 +27,7 @@ struct MyJourneyView: View {
                             ContentUnavailableView("No registrations yet", systemImage: "ticket", description: Text("Register for a published event and it will appear here."))
                         } else {
                             List(model.journey) { item in
-                                JourneyCard(item: item, cancel: { await cancel(item) })
+                                JourneyCard(item: item, conflicts: conflicts(for:item), cancel: { await cancel(item) })
                                     .listRowBackground(Color.clear)
                                     .listRowSeparator(.hidden)
                             }
@@ -50,11 +50,13 @@ struct MyJourneyView: View {
         do { try await model.cancel(item) }
         catch { errorMessage = error.localizedDescription }
     }
+    private func conflicts(for item:JourneyItem)->[JourneyItem]{model.journey.filter{$0.id != item.id && $0.status=="registered" && item.startsAt < $0.endsAt && $0.startsAt < item.endsAt}}
 }
 
 private struct JourneyCard: View {
     @Environment(AppModel.self) private var model
     let item: JourneyItem
+    let conflicts:[JourneyItem]
     let cancel: () async -> Void
     @State private var isCancelling = false
     @State private var reviewing = false
@@ -71,6 +73,10 @@ private struct JourneyCard: View {
             Text(item.title).font(.title3.bold())
             Label(item.startsAt.formatted(date: .abbreviated, time: .shortened), systemImage: "calendar")
             Text(item.organizationName).font(.subheadline).foregroundStyle(.secondary)
+            if let venue=item.venueName { Label(venue,systemImage:"mappin.and.ellipse") }
+            if let destination=item.destinationLandmarkId { Button("Navigate to venue"){model.prepareNavigation(to:destination)}.buttonStyle(.bordered) }
+            if !conflicts.isEmpty { Label("Schedule conflict with \(conflicts.map(\.title).joined(separator: ", "))",systemImage:"exclamationmark.triangle.fill").font(.footnote).foregroundStyle(.orange) }
+            if item.registrationClosesAt > .now { Label("Registration closes \(item.registrationClosesAt.formatted(.relative(presentation:.named)))",systemImage:"bell").font(.footnote).foregroundStyle(.secondary) }
 
             if let token = item.passToken, item.status == "registered" {
                 Divider()

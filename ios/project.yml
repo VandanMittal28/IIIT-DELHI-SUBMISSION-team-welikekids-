@@ -51,6 +51,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: in.sidequest.student.tests
+        GENERATE_INFOPLIST_FILE: YES
 schemes:
   Sidequest:
     build:

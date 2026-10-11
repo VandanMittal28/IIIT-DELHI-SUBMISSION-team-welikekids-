@@ -1,3 +1,4 @@
+import MapKit
 import SwiftUI
 
 struct DiscoverView: View {
@@ -6,6 +7,7 @@ struct DiscoverView: View {
     @State private var showFilters = false
     @State private var compareIds: Set<UUID> = []
     @State private var showComparison = false
+    @State private var showMap = false
 
     var body: some View {
         @Bindable var model = model
@@ -28,7 +30,7 @@ struct DiscoverView: View {
                         ScrollView {
                             LazyVStack(spacing: 14) {
                                 ForEach(model.events) { event in
-                                    NavigationLink(value: event) { EventCard(event: event, isSaved: model.savedEventIds.contains(event.id)) }.buttonStyle(.plain)
+                                    NavigationLink(value: event) { EventCard(event: event, imageURL: model.eventImageURLs[event.id], isSaved: model.savedEventIds.contains(event.id)) }.buttonStyle(.plain)
                                 }
                                 if model.canLoadMore {
                                     Button("Show more") { Task { await model.loadNextPage() } }
@@ -49,11 +51,13 @@ struct DiscoverView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button { showFilters=true } label: { Image(systemName:"line.3.horizontal.decrease.circle") }.accessibilityLabel("Event filters")
+                    Button { showMap=true } label: { Image(systemName:"map") }.accessibilityLabel("Discover colleges on map")
                     if !compareIds.isEmpty { Button("Compare \(compareIds.count)") { showComparison=true } }
                 }
             }
             .sheet(isPresented:$showFilters) { EventFiltersView() }
             .sheet(isPresented:$showComparison) { CompareEventsView(events:model.events.filter{compareIds.contains($0.id)}) }
+            .sheet(isPresented:$showMap) { CampusDiscoveryMap(campuses:model.campuses) }
             .searchable(text: $model.searchText, prompt: "Search published events")
             .onChange(of: model.searchText) {
                 searchTask?.cancel()
@@ -68,11 +72,26 @@ struct DiscoverView: View {
     }
 }
 
+private struct CampusDiscoveryMap:View{
+    @Environment(\.dismiss) private var dismiss;let campuses:[CampusPoint]
+    var body:some View{NavigationStack{Group{if campuses.isEmpty{ContentUnavailableView("No mapped campuses",systemImage:"map",description:Text("Published campus coordinates will appear here."))}else{Map{ForEach(campuses){campus in Marker(campus.name,coordinate:.init(latitude:campus.latitude,longitude:campus.longitude))}}}}.navigationTitle("Campus discovery").toolbar{ToolbarItem(placement:.confirmationAction){Button("Done"){dismiss()}}}}}
+}
+
 private struct EventCard: View {
     let event: EventFeedItem
+    let imageURL: URL?
     let isSaved: Bool
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if let imageURL {
+                AsyncImage(url: imageURL) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    ProgressView().frame(maxWidth: .infinity, minHeight: 150)
+                }
+                .frame(height: 170).frame(maxWidth: .infinity).clipped()
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+            }
             HStack { Text(event.category.uppercased()).font(.caption.bold()).foregroundStyle(.secondary); Spacer(); Text(event.priceLabel).font(.subheadline.bold()) }
             Text(event.title).font(.title2.bold()).foregroundStyle(Color.sidequestInk)
             Text(event.description).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
@@ -93,11 +112,16 @@ private struct EventDetailView: View {
 
     var body: some View {
         ScrollView { VStack(alignment: .leading, spacing: 20) {
+            if let imageURL=model.eventImageURLs[event.id] {
+                AsyncImage(url:imageURL) { image in image.resizable().scaledToFill() } placeholder: { ProgressView().frame(maxWidth:.infinity,minHeight:180) }
+                    .frame(height:220).frame(maxWidth:.infinity).clipped().clipShape(RoundedRectangle(cornerRadius:18))
+            }
             Text(event.category.uppercased()).font(.caption.bold()).foregroundStyle(.secondary)
             Text(event.title).font(.largeTitle.bold())
             Label(event.startsAt.formatted(date: .complete, time: .shortened), systemImage: "calendar")
             Label(event.organizationName, systemImage: "person.3")
             Label(event.collegeName, systemImage: "building.columns")
+            if let venue=event.venueName { Label(venue,systemImage:"mappin.and.ellipse") }
             Text(event.description).font(.body).lineSpacing(5)
             HStack {
                 Button(model.savedEventIds.contains(event.id) ? "Saved" : "Save event", systemImage:model.savedEventIds.contains(event.id) ? "bookmark.fill":"bookmark") { Task { do { try await model.toggleSaved(eventId:event.id) } catch { errorMessage=error.localizedDescription } } }.buttonStyle(.bordered)
@@ -105,6 +129,7 @@ private struct EventDetailView: View {
                     .buttonStyle(.bordered)
             }
             if let eligibility = event.eligibility { GroupBox("Eligibility") { Text(eligibility).frame(maxWidth: .infinity, alignment: .leading) } }
+            if let destination=event.destinationLandmarkId { Button("Navigate to venue",systemImage:"location.north.fill"){model.prepareNavigation(to:destination)}.buttonStyle(.borderedProminent) }
             if let registration = model.registration(for: event.editionId) {
                 Label(registration.status == "registered" ? "Registered — pass is in My Journey" : "Waitlisted — position \(registration.waitlistPosition ?? 0)", systemImage: registration.status == "registered" ? "checkmark.seal.fill" : "clock.badge")
                     .foregroundStyle(registration.status == "registered" ? .green : .orange)

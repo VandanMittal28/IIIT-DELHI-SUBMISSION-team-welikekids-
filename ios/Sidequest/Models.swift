@@ -13,9 +13,15 @@ struct EventFeedItem: Decodable, Identifiable, Equatable, Hashable {
     let priceMinor: Int
     let currency: String
     let eligibility: String?
+    let coverImagePath: String?
+    let venueName: String?
+    let destinationLandmarkId: UUID?
+    let designatedGateLandmarkId: UUID?
 
     enum CodingKeys: String, CodingKey {
         case id, title, description, category, currency, eligibility
+        case coverImagePath = "cover_image_path"
+        case venueName = "venue_name", destinationLandmarkId = "destination_landmark_id", designatedGateLandmarkId = "designated_gate_landmark_id"
         case editionId = "edition_id"
         case organizationName = "organization_name"
         case collegeName = "college_name"
@@ -28,6 +34,10 @@ struct EventFeedItem: Decodable, Identifiable, Equatable, Hashable {
         guard priceMinor > 0 else { return "Free" }
         return (Double(priceMinor) / 100).formatted(.currency(code: currency))
     }
+}
+
+struct CampusPoint: Decodable, Identifiable, Equatable {
+    let id: UUID; let name: String; let latitude: Double; let longitude: Double
 }
 
 struct RegistrationResult: Decodable, Equatable {
@@ -56,11 +66,16 @@ struct JourneyItem: Decodable, Identifiable, Equatable {
     let category: String
     let eventStatus: String
     let organizationName: String
+    let registrationOpensAt: Date
+    let registrationClosesAt: Date
     let startsAt: Date
     let endsAt: Date
     let passToken: UUID?
     let passStatus: String?
     let waitlistPosition: Int?
+    let venueName: String?
+    let destinationLandmarkId: UUID?
+    let designatedGateLandmarkId: UUID?
 
     enum CodingKeys: String, CodingKey {
         case status, title, category
@@ -69,11 +84,14 @@ struct JourneyItem: Decodable, Identifiable, Equatable {
         case eventId = "event_id"
         case eventStatus = "event_status"
         case organizationName = "organization_name"
+        case registrationOpensAt = "registration_opens_at"
+        case registrationClosesAt = "registration_closes_at"
         case startsAt = "starts_at"
         case endsAt = "ends_at"
         case passToken = "pass_token"
         case passStatus = "pass_status"
         case waitlistPosition = "waitlist_position"
+        case venueName = "venue_name", destinationLandmarkId = "destination_landmark_id", designatedGateLandmarkId = "designated_gate_landmark_id"
     }
 }
 
@@ -142,6 +160,19 @@ struct RouteEdge: Decodable, Identifiable, Equatable {
     enum CodingKeys: String, CodingKey {
         case id, kind, instruction
         case distanceMeters = "distance_meters", fromNodeId = "from_node_id", toNodeId = "to_node_id"
+    }
+}
+
+struct FloorPlan: Decodable, Identifiable, Equatable {
+    let id: UUID
+    let name: String
+    let level: Int
+    let floorPlanPath: String
+    let imageWidthPixels: Int
+    let imageHeightPixels: Int
+    enum CodingKeys: String, CodingKey {
+        case id, name, level
+        case floorPlanPath = "floor_plan_path", imageWidthPixels = "image_width_pixels", imageHeightPixels = "image_height_pixels"
     }
 }
 

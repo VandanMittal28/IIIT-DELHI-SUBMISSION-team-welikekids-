@@ -8,7 +8,7 @@ Verified locally on 2026-10-11 (Asia/Kolkata).
 - `npm run build` — passed with Next.js 16.4.0 and TypeScript.
 - `npm audit --omit=dev` — 0 vulnerabilities.
 - Browser exercise at `http://localhost:3000` — connected organizer sign-in rendered against the authorized Supabase project with no substituted event data.
-- Responsive volunteer/operations source includes camera QR decoding with manual fallback, confirmed-only scan feedback, occupancy freshness, reports, announcements, scoped management, protected uploads, and Leaflet map authoring. Authenticated exercise is blocked by the empty Auth tenant.
+- Responsive volunteer/operations source includes camera QR decoding with manual fallback, confirmed-only scan feedback, occupancy freshness/corrections, reports and assignments, announcements, moderation, registration rosters, editions/co-hosts, approval/cancellation, protected uploads, and Leaflet/floor-plan graph authoring. Authenticated exercise is blocked by the empty Auth tenant.
 - Full audit — 5 high findings confined to the ESLint development dependency glob chain. The reported npm remediation is an inappropriate major downgrade; this remains an explicit tooling risk rather than a shipped runtime dependency.
 
 ## Native iOS
@@ -18,7 +18,7 @@ Verified locally on 2026-10-11 (Asia/Kolkata).
 - Installed simulator app launched against the remote Supabase project and rendered “Nothing published yet” from the authoritative empty feed.
 - Initial launch exposed an invalid Xcode URL expansion; the local `.xcconfig` URL is now escaped correctly and the relaunch remained running.
 - Registration client build — passed with persistent retry IDs, shared `my_journey` reads, cancellation, and opaque QR pass rendering.
-- Latest simulator launch shows five native tabs and the authoritative empty discovery state. Navigation uses MapKit, native speech, camera permission handling, and ARKit world tracking only for physically validated routes. Community, reports, inbox, follows, profile preferences, saved events, comparison, and verified reviews are connected to Supabase.
+- Latest simulator launch shows five native tabs and the authoritative empty discovery state. Published event covers and landmark reference photos load from short-lived signed URLs when present. Navigation uses MapKit, published floor-plan imagery with stored indoor coordinates, native speech, camera permission/tracking-interruption handling, and ARKit world tracking only for physically validated routes. Campus map discovery, conflict/deadline warnings, Realtime-triggered refetch, community, reports, inbox, follows, profile preferences, saved events, comparison, and verified reviews are connected to Supabase.
 - Physical iPhone verification — not performed. Implemented camera, ARKit, scanning, voice, location, and APNs behaviors remain unverified on hardware.
 
 ## Database
@@ -38,20 +38,23 @@ The foundation and advisor-hardening migrations were also applied to authorized 
 - Remote state: 12 public tables, 13 RLS policies, 33 public indexes, 2 privileged RPCs, 0 Auth users, and 0 colleges, organizations, or events.
 - Data API: anonymous `published_event_feed` returned HTTP 200 with `[]`; anonymous `create_event` returned HTTP 401 (`permission denied`) and persisted nothing.
 - Performance advisor: no missing foreign-key-index or overlapping-policy warnings remain. Unused-index notices are expected while the database is empty.
-- Security advisor: two warnings identify the intentional authenticated `SECURITY DEFINER` RPCs (`create_event`, `publish_event`). Their execution is revoked from `PUBLIC` and `anon`; each requires `auth.uid()`, performs contextual authorization, and has an empty fixed `search_path`. This is an accepted, documented boundary for the transactional API—not a clean-advisor claim.
+- Security advisor initially identified the intentional authenticated `SECURITY DEFINER` RPC boundary. The complete hosted schema now reports 0 errors and 43 warnings in that single reviewed category. Execution is revoked from `PUBLIC` and `anon`; every endpoint requires `auth.uid()`, performs contextual authorization, and has a fixed empty `search_path`. This is an accepted, documented boundary for the transactional API—not a clean-warning claim.
 
 Remote authenticated authoring is still pending because the project has no Auth users. Operational content was not fabricated to bypass that prerequisite.
 
 ## Operational platform
 
-- Hosted migrations through `notification_delivery_worker` applied and recorded in migration history.
+- Hosted migrations through `route_read_policy_consolidation` applied and recorded in migration history.
 - Anonymous landmark discovery returns HTTP 200 with an empty array. Anonymous `create_campus` and `record_attendance` return HTTP 401; no mutation is persisted.
 - Operational schema includes buildings/floors/landmarks, versioned route graph and closures, attendance ledger/corrections, announcements/channels/messages/follows, report workflow/history, verified reviews, device tokens/inbox/delivery jobs, audit records, co-hosts, and saved events.
-- Storage buckets for event, campus, and report media are private with scoped write policies.
+- Storage buckets for event, campus, and report media are private with scoped writes. Published event/floor/landmark media can be signed for authorized public rendering; draft event media remains staff-scoped, and report evidence is limited to its reporter and edition managers.
 - Security-advisor actionable findings from the operational migration were resolved: missing FK indexes added, server-only tables have explicit deny policies, and read-only route calculation is security invoker.
 - APNs Edge Function source and service-role-only claim/complete functions are implemented. Deployment/receipt verification is blocked by unavailable Apple credentials.
-- Full current migration chain executes on PostgreSQL 17. The isolated operational suite passes registration/pass issuance, idempotent entry, exit/re-entry, occupancy, report transitions, attendance-gated review/sample size, graph routing, and active-closure no-route behavior; its transaction rolls back all fixtures.
-- Current hosted advisors: 0 security errors, 0 performance errors, and 0 performance warnings. The 34 security warnings are one reviewed category: authenticated callers can execute the intentionally privileged transaction RPCs described in ADR-005.
+- Full current migration chain executes on PostgreSQL 17. The isolated operational suite passes event update/edition/media workflows, cross-role denial, registration roster, registration/pass issuance, retry and duplicate scan behavior, exit/re-entry ordering, occupancy corrections, exact report assignment transitions, attendance-gated review/sample size, graph routing, active-closure no-route behavior, and report-media cross-user denial; its transaction rolls back all fixtures.
+- The release suite exposed and fixed transaction-timestamp ambiguity in attendance ordering. Each transition now records `clock_timestamp()` and the complete suite passes.
+- Expiring email-bound organization invitation creation/acceptance passes locally. Anonymous invitation creation returns HTTP 401 on the hosted project.
+- Published event discovery with venue/destination columns returns HTTP 200 from the hosted API; the empty authorized database returns `[]` rather than fixtures.
+- Current hosted advisors: 0 security errors, 0 performance errors, and 0 performance warnings. The 43 security warnings are one reviewed category: authenticated callers can execute the intentionally privileged transaction RPCs described in ADR-005.
 
 ## Registration and passes
 

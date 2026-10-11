@@ -3,7 +3,9 @@ export type Organization = { id: string; name: string; college_id: string };
 export type EventRecord = {
   id: string;
   title: string;
+  description?: string;
   category: string;
+  eligibility?: string | null;
   status?: "draft" | "pending_approval" | "published" | "cancelled";
   organization_id: string;
   college_id?: string;
