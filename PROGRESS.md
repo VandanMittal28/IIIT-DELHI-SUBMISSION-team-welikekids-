@@ -1,6 +1,6 @@
 # Sidequest implementation progress
 
-Last updated: 2026-10-11 (Asia/Kolkata)
+Last updated: 2026-10-12 (Asia/Kolkata)
 
 ## Acceptance checklist
 
@@ -25,6 +25,7 @@ Last updated: 2026-10-11 (Asia/Kolkata)
 - [x] Indoor floor-plan rendering, campus map discovery, schedule-conflict/deadline warnings, Realtime invalidation/refetch, and AR tracking interruption handling implemented.
 - [x] Protected Storage buckets with published-media and report-evidence read boundaries, persistent notification inbox/jobs, APNs device registration, and retryable delivery worker source implemented.
 - [x] Admin website deployed to Vercel from GitHub `main` with the `admin` root and production Supabase configuration.
+- [x] Temporary college-issued username login added on top of Supabase Auth; no password is stored in source control.
 - [ ] Authenticated real-data staging journey, physical-iPhone verification, APNs worker deployment, and iOS production release authorization.
 
 ## Completed slice acceptance criteria
@@ -70,7 +71,7 @@ Last updated: 2026-10-11 (Asia/Kolkata)
 
 ## Current blockers and next task
 
-- Blocker: the authorized project has no Auth users. A trusted initial administrator must be invited through Supabase Auth before the real organizer-create → student-discover journey can be exercised. No password should be shared in chat.
+- Pending verification: a temporary Auth user now exists; its scoped college-administrator membership and live sign-in still need final verification.
 - Security action: rotate the database password that was accidentally posted in chat; it was not stored or used by this implementation.
 - Blocker: no authorized Apple APNs signing key/team configuration is available, so the delivery worker source is not deployed and push receipt is unverified. The durable inbox and retry jobs are deployed.
 - Vercel production: `https://sidequest-admin-rho.vercel.app`, connected to GitHub `main`; pushes create deployments from the `admin` root.

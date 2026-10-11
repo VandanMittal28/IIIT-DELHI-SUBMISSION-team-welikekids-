@@ -24,11 +24,16 @@ function messageFrom(error: unknown) {
   return "Something went wrong. Please try again.";
 }
 
+function authEmail(identifier: string) {
+  const normalized = identifier.trim().toLowerCase();
+  return normalized.includes("@") ? normalized : `${normalized.replace(/\s+/g, "")}@sidequest.local`;
+}
+
 export default function Home() {
   const configured = backendConfiguration().isConfigured;
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(!configured);
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [events, setEvents] = useState<EventRecord[]>([]);
@@ -98,7 +103,7 @@ export default function Home() {
 
   async function signIn(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError(null);
-    const { data, error: signInError } = await getSupabase().auth.signInWithPassword({ email, password });
+    const { data, error: signInError } = await getSupabase().auth.signInWithPassword({ email: authEmail(identifier), password });
     if (signInError) setError(messageFrom(signInError));
     else if (data.user) {
       setUser(data.user);
@@ -143,7 +148,7 @@ export default function Home() {
 
   if (!configured) return <main className={styles.center}><section className={styles.authCard}><Brand /><p className={styles.eyebrow}>Setup required</p><h1>Connect the Sidequest backend</h1><p>Copy <code>.env.local.example</code> to <code>.env.local</code> and add the authorized Supabase URL and publishable key. No demo data will be substituted.</p></section></main>;
   if (!authReady) return <main className={styles.center}><p>Checking your session…</p></main>;
-  if (!user) return <main className={styles.center}><section className={styles.authCard}><Brand /><p className={styles.eyebrow}>Organizer access</p><h1>Make campus happen.</h1><p>Sign in with an account invited by your organization or college administrator.</p><form onSubmit={signIn} className={styles.stack}><label>Email<input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label><label>Password<input required minLength={8} type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>{error && <Alert>{error}</Alert>}<button disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button></form></section></main>;
+  if (!user) return <main className={styles.center}><section className={styles.authCard}><Brand /><p className={styles.eyebrow}>Organizer access</p><h1>Make campus happen.</h1><p>Sign in with the username and password assigned by your college administrator.</p><form onSubmit={signIn} className={styles.stack}><label>Username<input required autoComplete="username" value={identifier} onChange={(e) => setIdentifier(e.target.value)} /></label><label>Password<input required minLength={6} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>{error && <Alert>{error}</Alert>}<button disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button></form></section></main>;
 
   return <div className={styles.shell}>
     <header className={styles.header}><Brand /><div className={styles.user}><span>{user.email}</span><button className={styles.ghost} onClick={() => void getSupabase().auth.signOut()}>Sign out</button></div></header>

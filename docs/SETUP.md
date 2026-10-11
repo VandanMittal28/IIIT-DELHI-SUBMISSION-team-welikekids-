@@ -24,6 +24,8 @@
 6. Create organizations and invitations through the admin workflows as they become available. Never seed fictional operational content into production.
 7. For push delivery, configure the Edge Function secrets from `supabase/functions/.env.example`, deploy `deliver-notifications`, and schedule it only in the authorized environment. Apple Developer APNs credentials are required.
 
+The admin form accepts either an email address or a college-issued username. A username is normalized by removing spaces and appending `@sidequest.local` before Supabase Auth is called. Create the matching internal Auth email as a trusted operator; never expose this convention as a public self-registration path. Passwords belong only in Supabase Auth and must not be committed to the repository.
+
 ## Admin website
 
 ```sh
