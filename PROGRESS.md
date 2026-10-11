@@ -16,7 +16,11 @@ Last updated: 2026-10-11 (Asia/Kolkata)
 - [x] Atomic registration, FIFO waitlisting, cancellation/promotion, opaque passes, organizer counts, and native My Journey implemented and deployed.
 - [ ] Admin authentication and event authoring verified against the backend.
 - [x] Native iOS discovery and honest empty state verified against the same backend; authenticated iOS flow remains pending.
-- [ ] Registration, pass, timeline, navigation, attendance, reports, community, reviews, analytics, and release workflows.
+- [x] Registration, opaque pass, cancellation/promotion, and personal timeline implemented.
+- [x] Campus/landmark authoring, versioned graph routing, closures, MapKit/text/voice fallback, and validation-gated ARKit implemented.
+- [x] Camera pass scanning, controlled attendance transitions, derived occupancy, reports, announcements, persistent channels, verified reviews, and sample-size analytics implemented.
+- [x] Protected Storage buckets, persistent notification inbox/jobs, APNs device registration, and retryable delivery worker source implemented.
+- [ ] Authenticated real-data staging journey, physical-iPhone verification, APNs worker deployment, public admin deployment, and production release authorization.
 
 ## Completed slice acceptance criteria
 
@@ -49,6 +53,8 @@ Last updated: 2026-10-11 (Asia/Kolkata)
 - Supabase performance advisor: missing foreign-key indexes and overlapping event policies resolved. Remaining notices are expected unused-index information on a new empty database.
 - Supabase security advisor: four reviewed warnings remain for the intentionally authenticated, `SECURITY DEFINER` transaction RPCs. All revoke `PUBLIC`/`anon`, require `auth.uid()`, repeat contextual authorization, and fix `search_path`.
 - Registration migration executed on PostgreSQL 17: confirmed registration, idempotent retry, waitlisting, cancellation, pass revocation, and FIFO promotion all passed.
+- Current full migration chain and operational integration suite pass on PostgreSQL 17, including attendance state/idempotency, occupancy, reports, reviews, routing, and closure invalidation.
+- Hosted advisors after the full schema: 0 security errors; 0 performance errors/warnings. All 34 security warnings are reviewed authenticated `SECURITY DEFINER` transaction endpoints under ADR-005.
 - Concurrent capacity test: 10 simultaneous requests against capacity 3 produced exactly 3 registrations and 7 waitlist entries.
 - Admin registration/capacity counts compile against the shared RLS-scoped summary; native My Journey builds with persistent request IDs and on-device QR pass rendering.
 - Remote registration schema: 14 public RLS-enabled tables. Advisors report only expected unused-index information plus four reviewed privileged-RPC warnings.
@@ -56,8 +62,11 @@ Last updated: 2026-10-11 (Asia/Kolkata)
 - Migration syntax executed successfully on a disposable PostgreSQL 17 cluster: 12 tables, 13 RLS policies, and 2 privileged RPCs created.
 - Database behavior verified locally: ordinary student event creation denied; organizer creation succeeded; identical request replay returned the same event/edition with one row each; publish made exactly one event visible through the anonymous discovery view.
 
-## Blockers and next task
+## Current blockers and next task
 
 - Blocker: the authorized project has no Auth users. A trusted initial administrator must be invited through Supabase Auth before the real organizer-create → student-discover journey can be exercised. No password should be shared in chat.
 - Security action: rotate the database password that was accidentally posted in chat; it was not stored or used by this implementation.
-- Next: securely invite and bootstrap the initial administrator, exercise remote event authoring → discovery → registration → pass, then implement campus authoring, graph routing, and navigation.
+- Blocker: no authorized Apple APNs signing key/team configuration is available, so the delivery worker source is not deployed and push receipt is unverified. The durable inbox and retry jobs are deployed.
+- Blocker: no authorized Vercel or other public web deployment target was supplied. Admin is verified locally at `http://localhost:3000` only.
+- Blocker: physical route data and validation have not been supplied; no route is marked physically validated and AR behavior remains unverified.
+- Next: invite/bootstrap a trusted administrator, enter authorized real college/event/route data through the admin, add student and volunteer accounts, and run the complete persisted staging journey on a physical iPhone.

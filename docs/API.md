@@ -55,3 +55,30 @@ Authenticated, security-invoker view of the caller’s registrations, waitlist p
 ## `edition_registration_summary`
 
 Authenticated, security-invoker organizer/volunteer projection of capacity and actual registered, waitlisted, and cancelled counts. RLS prevents unrelated organizations and colleges from seeing an edition’s counts.
+
+## Navigation
+
+- `create_campus`, `create_building`, `create_floor`, and `create_landmark` require contextual college-administrator authority.
+- `create_route_draft`, `add_route_node`, and `add_route_edge` author a versioned graph. `publish_route_version` refuses an empty graph and records physical-validation state.
+- `calculate_route(start, destination, accessible_only)` is read-only and uses the latest published graph. It excludes active closures and returns ordered nodes, edges, instructions, distance, floor transitions, route version, and physical-validation state. `NO_ROUTE` is an honest 404.
+- `add_route_closure` persists the closure, increments the campus route-change sequence, and requires clients to refetch/recalculate.
+
+## Attendance and occupancy
+
+`record_attendance(pass_token, action, client_request_id)` accepts `enter`, `exit`, or `reenter`. The opaque token contains no identity data. The server validates event staff scope, the pass, the allowed state transition, and re-entry rules. `(scanned_by, client_request_id)` makes retries idempotent. `edition_occupancy` derives the current estimate and freshness from persisted transitions and audited corrections.
+
+## Reports, community, and reviews
+
+- `submit_report` requires event access. `transition_report` enforces submitted → acknowledged → assigned/in progress → resolved, stores history, and queues a student notification.
+- `publish_announcement` and `change_session_venue` commit authoritative rows before queuing delivery work.
+- `post_message` requires channel access; `moderate_message` preserves the row and changes its visibility state.
+- `submit_review` requires an attendance entry, supports update-by-the-same-attendee, and enforces one review per user/event. `event_review_summary` includes the actual sample size.
+- `toggle_organization_follow`, `saved_events`, and `my_community_channels` persist student personalization without using profile metadata for authorization.
+
+## Management
+
+`assign_context_role`, `assign_event_staff`, `add_event_cohost`, `update_event_details`, `update_edition_capacity`, `create_event_session`, `cancel_event`, and campus/venue authoring RPCs repeat contextual authorization server-side and write audit records for sensitive actions.
+
+## Notifications
+
+`register_device_token` persists an APNs token. Business operations create `notifications` plus idempotent per-device delivery jobs. `claim_notification_jobs` and `complete_notification_job` are executable only by `service_role`; clients cannot forge delivery state. The Edge Function retries failures and the iOS inbox works independently of APNs permission.

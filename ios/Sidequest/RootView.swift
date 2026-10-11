@@ -6,18 +6,10 @@ struct RootView: View {
             DiscoverView().tabItem { Label("Discover", systemImage: "sparkle.magnifyingglass") }
             MyJourneyView()
                 .tabItem { Label("My Journey", systemImage: "point.topleft.down.to.point.bottomright.curvepath") }
-            ConnectedSoonView(title: "Community is being connected", detail: "Discussions and announcements will use persistent backend channels—not sample conversations.")
-                .tabItem { Label("Community", systemImage: "person.3") }
+            NavigateView().tabItem { Label("Navigate", systemImage: "location.north.line.fill") }
+            CommunityView().tabItem { Label("Community", systemImage: "person.3") }
             AccountView().tabItem { Label("Profile", systemImage: "person.crop.circle") }
         }
-    }
-}
-
-struct ConnectedSoonView: View {
-    let title: String
-    let detail: String
-    var body: some View {
-        ContentUnavailableView(title, systemImage: "link.badge.plus", description: Text(detail))
     }
 }
 

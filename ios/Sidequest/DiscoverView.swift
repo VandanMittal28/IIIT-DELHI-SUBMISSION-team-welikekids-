@@ -3,6 +3,9 @@ import SwiftUI
 struct DiscoverView: View {
     @Environment(AppModel.self) private var model
     @State private var searchTask: Task<Void, Never>?
+    @State private var showFilters = false
+    @State private var compareIds: Set<UUID> = []
+    @State private var showComparison = false
 
     var body: some View {
         @Bindable var model = model
@@ -25,7 +28,7 @@ struct DiscoverView: View {
                         ScrollView {
                             LazyVStack(spacing: 14) {
                                 ForEach(model.events) { event in
-                                    NavigationLink(value: event) { EventCard(event: event) }.buttonStyle(.plain)
+                                    NavigationLink(value: event) { EventCard(event: event, isSaved: model.savedEventIds.contains(event.id)) }.buttonStyle(.plain)
                                 }
                                 if model.canLoadMore {
                                     Button("Show more") { Task { await model.loadNextPage() } }
@@ -38,7 +41,19 @@ struct DiscoverView: View {
             }
             .background(Color.sidequestMist)
             .navigationTitle("Discover")
-            .navigationDestination(for: EventFeedItem.self) { EventDetailView(event: $0) }
+            .navigationDestination(for: EventFeedItem.self) { selectedEvent in
+                EventDetailView(event: selectedEvent, comparing: compareIds.contains(selectedEvent.id)) { comparing in
+                    if comparing { compareIds.insert(selectedEvent.id) } else { compareIds.remove(selectedEvent.id) }
+                }
+            }
+            .toolbar {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button { showFilters=true } label: { Image(systemName:"line.3.horizontal.decrease.circle") }.accessibilityLabel("Event filters")
+                    if !compareIds.isEmpty { Button("Compare \(compareIds.count)") { showComparison=true } }
+                }
+            }
+            .sheet(isPresented:$showFilters) { EventFiltersView() }
+            .sheet(isPresented:$showComparison) { CompareEventsView(events:model.events.filter{compareIds.contains($0.id)}) }
             .searchable(text: $model.searchText, prompt: "Search published events")
             .onChange(of: model.searchText) {
                 searchTask?.cancel()
@@ -55,6 +70,7 @@ struct DiscoverView: View {
 
 private struct EventCard: View {
     let event: EventFeedItem
+    let isSaved: Bool
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack { Text(event.category.uppercased()).font(.caption.bold()).foregroundStyle(.secondary); Spacer(); Text(event.priceLabel).font(.subheadline.bold()) }
@@ -63,13 +79,15 @@ private struct EventCard: View {
             Divider()
             HStack { Label(event.startsAt.formatted(date: .abbreviated, time: .shortened), systemImage: "calendar"); Spacer(); Text(event.organizationName) }.font(.caption).foregroundStyle(.secondary)
         }
-        .padding(18).background(.white, in: RoundedRectangle(cornerRadius: 20)).overlay(alignment: .topTrailing) { Circle().fill(Color.sidequestLime).frame(width: 13).padding(14) }
+        .padding(18).background(.white, in: RoundedRectangle(cornerRadius: 20)).overlay(alignment: .topTrailing) { Image(systemName:isSaved ? "bookmark.fill":"circle.fill").foregroundStyle(Color.sidequestLime).padding(14) }
     }
 }
 
 private struct EventDetailView: View {
     @Environment(AppModel.self) private var model
     let event: EventFeedItem
+    let comparing: Bool
+    let setComparing: (Bool)->Void
     @State private var message: String?
     @State private var errorMessage: String?
 
@@ -81,6 +99,11 @@ private struct EventDetailView: View {
             Label(event.organizationName, systemImage: "person.3")
             Label(event.collegeName, systemImage: "building.columns")
             Text(event.description).font(.body).lineSpacing(5)
+            HStack {
+                Button(model.savedEventIds.contains(event.id) ? "Saved" : "Save event", systemImage:model.savedEventIds.contains(event.id) ? "bookmark.fill":"bookmark") { Task { do { try await model.toggleSaved(eventId:event.id) } catch { errorMessage=error.localizedDescription } } }.buttonStyle(.bordered)
+                Button(comparing ? "Comparing" : "Compare", systemImage: comparing ? "checkmark.square.fill" : "square.on.square") { setComparing(!comparing) }
+                    .buttonStyle(.bordered)
+            }
             if let eligibility = event.eligibility { GroupBox("Eligibility") { Text(eligibility).frame(maxWidth: .infinity, alignment: .leading) } }
             if let registration = model.registration(for: event.editionId) {
                 Label(registration.status == "registered" ? "Registered — pass is in My Journey" : "Waitlisted — position \(registration.waitlistPosition ?? 0)", systemImage: registration.status == "registered" ? "checkmark.seal.fill" : "clock.badge")
@@ -106,6 +129,42 @@ private struct EventDetailView: View {
                 : "You’re on the waitlist at position \(result.waitlistPosition ?? 0)."
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+}
+
+private struct EventFiltersView: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        @Bindable var model=model
+        NavigationStack { Form {
+            TextField("Category (exact)",text:$model.categoryFilter)
+            TextField("College (exact)",text:$model.collegeFilter)
+            Toggle("Free events only",isOn:$model.freeOnly)
+            Picker("Date",selection:$model.upcomingDays){Text("Any date").tag(0);Text("Next 7 days").tag(7);Text("Next 30 days").tag(30)}
+            Button("Apply filters") { Task { await model.reloadEvents(); dismiss() } }
+            Button("Clear filters",role:.destructive) { model.categoryFilter="";model.collegeFilter="";model.freeOnly=false;model.upcomingDays=0;Task{await model.reloadEvents();dismiss()} }
+        }.navigationTitle("Filters").toolbar{ToolbarItem(placement:.cancellationAction){Button("Cancel"){dismiss()}}} }
+    }
+}
+
+private struct CompareEventsView: View {
+    @Environment(\.dismiss) private var dismiss
+    let events:[EventFeedItem]
+    var body: some View {
+        NavigationStack {
+            List(events) { event in
+                Section(event.title) {
+                    LabeledContent("Organizer", value: event.organizationName)
+                    LabeledContent("College", value: event.collegeName)
+                    LabeledContent("When", value: event.startsAt.formatted(date: .abbreviated, time: .shortened))
+                    LabeledContent("Price", value: event.priceLabel)
+                    LabeledContent("Eligibility", value: event.eligibility ?? "Open")
+                }
+            }
+            .navigationTitle("Compare events")
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
     }
 }

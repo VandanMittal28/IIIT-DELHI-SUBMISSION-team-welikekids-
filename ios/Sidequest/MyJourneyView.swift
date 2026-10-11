@@ -53,9 +53,11 @@ struct MyJourneyView: View {
 }
 
 private struct JourneyCard: View {
+    @Environment(AppModel.self) private var model
     let item: JourneyItem
     let cancel: () async -> Void
     @State private var isCancelling = false
+    @State private var reviewing = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -91,10 +93,36 @@ private struct JourneyCard: View {
                 }
                 .disabled(isCancelling)
             }
+            if item.status == "registered" && item.endsAt < .now {
+                Button("Leave verified-attendee review") { reviewing = true }
+            }
         }
         .padding(18)
         .background(.white, in: RoundedRectangle(cornerRadius: 20))
+        .sheet(isPresented: $reviewing) { ReviewForm(item: item) }
     }
+}
+
+private struct ReviewForm: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    let item: JourneyItem
+    @State private var rating = 5
+    @State private var reviewText = ""
+    @State private var error: String?
+    @State private var busy = false
+    var content: some View {
+        Form {
+            Stepper("Rating: \(rating) / 5", value: $rating, in: 1...5)
+            TextField("Share useful feedback", text: $reviewText, axis: .vertical).lineLimit(3...8)
+            if let error { Text(error).foregroundStyle(.red) }
+            Button(busy ? "Saving…" : "Save review") {
+                busy = true
+                Task { do { try await model.submitReview(editionId: item.editionId, rating: rating, body: reviewText); dismiss() } catch { self.error = error.localizedDescription; busy = false } }
+            }.disabled(busy)
+        }
+    }
+    var body: some View { NavigationStack { content.navigationTitle("Review \(item.title)").toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } } } }
 }
 
 private struct PassQRCode: View {

@@ -22,6 +22,7 @@
 4. In Auth settings, configure the approved application URLs and require email confirmation for public accounts.
 5. Invite the first trusted administrator through Supabase Auth. After that person exists in `auth.users`, review and run `supabase/bootstrap/initial_admin.sql.example` as a trusted database operator. Public sign-up only creates a profile; it cannot create staff or administrator memberships.
 6. Create organizations and invitations through the admin workflows as they become available. Never seed fictional operational content into production.
+7. For push delivery, configure the Edge Function secrets from `supabase/functions/.env.example`, deploy `deliver-notifications`, and schedule it only in the authorized environment. Apple Developer APNs credentials are required.
 
 ## Admin website
 
@@ -72,4 +73,11 @@ xcodebuild -project Sidequest.xcodeproj -scheme Sidequest \
   CODE_SIGNING_ALLOWED=NO build
 ```
 
-Camera, location, speech, APNs, pass scanning, and ARKit require later connected workflows and physical-iPhone verification. A simulator build is not evidence those capabilities work on hardware.
+Camera, speech, APNs registration, pass QR rendering, MapKit, and validation-gated ARKit are implemented. They still require a signed build and physical-iPhone verification; a simulator build is not evidence that camera, tracking, or push delivery works on hardware.
+
+## Release gates
+
+- Local: lint/build/tests and anonymous authorization checks pass.
+- Staging: a trusted administrator, student, and volunteer complete the full persisted journey with authorized real content.
+- Device: camera scan, voice, location, AR tracking interruption, permission denial, APNs receipt, and app restart are exercised on an iPhone.
+- Production: owner authorizes the Supabase/Vercel/Apple environments, monitoring, backups, privacy disclosures, and App Store submission.

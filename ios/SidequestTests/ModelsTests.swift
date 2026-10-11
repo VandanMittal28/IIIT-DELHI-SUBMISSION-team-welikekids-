@@ -24,4 +24,20 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(journey.title, "Real event")
         XCTAssertEqual(journey.status, "registered")
     }
+
+    func testRouteContractDistinguishesCoordinateSystemsAndValidation() throws {
+        let json = #"{"route_version_id":"00000000-0000-0000-0000-000000000020","total_distance_meters":42.5,"physical_validation_complete":false,"nodes":[{"id":"00000000-0000-0000-0000-000000000021","coordinate_kind":"outdoor_geographic","floor_id":null,"latitude":28.5,"longitude":77.2,"x_pixels":null,"y_pixels":null,"node_kind":"landmark"},{"id":"00000000-0000-0000-0000-000000000022","coordinate_kind":"indoor_floor","floor_id":"00000000-0000-0000-0000-000000000023","latitude":null,"longitude":null,"x_pixels":125.0,"y_pixels":80.0,"node_kind":"hall"}],"edges":[{"id":"00000000-0000-0000-0000-000000000024","kind":"entrance","distance_meters":42.5,"instruction":"Enter the main door","from_node_id":"00000000-0000-0000-0000-000000000021","to_node_id":"00000000-0000-0000-0000-000000000022"}]}"#.data(using:.utf8)!
+        let route=try JSONDecoder().decode(RoutePlan.self,from:json)
+        XCTAssertFalse(route.physicalValidationComplete)
+        XCTAssertEqual(route.nodes[0].coordinateKind,"outdoor_geographic")
+        XCTAssertEqual(route.nodes[1].coordinateKind,"indoor_floor")
+        XCTAssertEqual(route.edges.first?.instruction,"Enter the main door")
+    }
+
+    func testProfilePreferencesDecode() throws {
+        let json = #"{"id":"00000000-0000-0000-0000-000000000030","college_id":null,"full_name":"Student","interests":["music","volunteering"],"notification_preferences":{"announcements":true,"reminders":false}}"#.data(using:.utf8)!
+        let profile=try JSONDecoder().decode(StudentProfile.self,from:json)
+        XCTAssertEqual(profile.interests.count,2)
+        XCTAssertEqual(profile.notificationPreferences["reminders"],false)
+    }
 }
