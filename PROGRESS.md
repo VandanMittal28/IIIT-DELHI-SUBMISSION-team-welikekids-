@@ -14,7 +14,7 @@ Last updated: 2026-10-12 (Asia/Kolkata)
 - [x] Native SwiftUI app target with authentication, searchable paginated discovery, empty/error states, and event detail implemented.
 - [x] Foundation and advisor-hardening migrations applied to the authorized Supabase development project; advisor findings reviewed.
 - [x] Atomic registration, FIFO waitlisting, cancellation/promotion, opaque passes, organizer counts, and native My Journey implemented and deployed.
-- [ ] Admin authentication and event authoring verified against the backend.
+- [x] Admin authentication and scoped college-administrator access verified against the hosted backend; event authoring awaits authorized organization/event content.
 - [x] Native iOS discovery and honest empty state verified against the same backend; authenticated iOS flow remains pending.
 - [x] Registration, opaque pass, cancellation/promotion, and personal timeline implemented.
 - [x] Campus/landmark authoring, versioned graph routing, closures, MapKit/text/voice fallback, and validation-gated ARKit implemented.
@@ -50,11 +50,12 @@ Last updated: 2026-10-12 (Asia/Kolkata)
 - Admin: ESLint passed; Next.js 16.4.0 production build passed; production dependency audit reports 0 vulnerabilities.
 - Full npm audit reports 5 high-severity findings in the development-only ESLint glob chain; npm currently offers only an inappropriate major downgrade. These packages are not shipped in the production bundle and remain tracked for an upstream fix.
 - Admin UI: connected sign-in state exercised locally and at `https://sidequest-admin-rho.vercel.app`; no fallback data appeared.
+- Production admin: the temporary username account signed in successfully, exposed only its scoped IIIT Delhi authoring tools, survived a browser reload, and signed out successfully. The password remains outside source control.
 - iOS: generic iOS Simulator build passed with Swift 6 and pinned `supabase-swift` 2.55.3.
 - iOS: four model/contract tests passed on iPhone 17 Pro simulator; physical-device behavior is unverified.
 - iOS: installed and launched against the authorized remote project. The live empty discovery state rendered after fixing Xcode's URL escaping; no fixtures were substituted.
 - Database runtime verification: migrations `foundation_auth_events` and `advisor_hardening` are applied to project `dzqfsskcgaowcnbpxzzl` in `ap-southeast-1` (PostgreSQL 17.11).
-- Remote catalog verification: 12 public tables, 13 RLS policies, 33 public indexes, two privileged RPCs, and zero operational records or Auth users.
+- Remote bootstrap verification: one Auth user, one IIIT Delhi college record, and one active scoped college-administrator membership exist. No fictional event, organization, route, review, or analytics records were added.
 - Remote Data API verification: anonymous discovery returned HTTP 200 with an empty array; anonymous `create_event` returned HTTP 401 and persisted nothing.
 - Supabase performance advisor: missing foreign-key indexes and overlapping event policies resolved. Remaining notices are expected unused-index information on a new empty database.
 - Supabase security advisor: 0 errors and 43 reviewed warnings remain for intentionally authenticated, `SECURITY DEFINER` transaction RPCs. All revoke `PUBLIC`/`anon`, require `auth.uid()`, repeat contextual authorization, and fix `search_path`.
@@ -71,7 +72,7 @@ Last updated: 2026-10-12 (Asia/Kolkata)
 
 ## Current blockers and next task
 
-- Pending verification: a temporary Auth user now exists; its scoped college-administrator membership and live sign-in still need final verification.
+- Temporary access: the requested username login is active against Supabase Auth and the scoped IIIT Delhi administrator membership is verified. Replace the temporary password before sharing the site beyond this test.
 - Security action: rotate the database password that was accidentally posted in chat; it was not stored or used by this implementation.
 - Blocker: no authorized Apple APNs signing key/team configuration is available, so the delivery worker source is not deployed and push receipt is unverified. The durable inbox and retry jobs are deployed.
 - Vercel production: `https://sidequest-admin-rho.vercel.app`, connected to GitHub `main`; pushes create deployments from the `admin` root.

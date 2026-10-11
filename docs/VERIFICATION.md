@@ -1,15 +1,15 @@
 # Verification record
 
-Verified locally on 2026-10-11 (Asia/Kolkata).
+Verified locally and against the authorized hosted services on 2026-10-12 (Asia/Kolkata).
 
 ## Admin
 
 - `npm run lint` — passed.
 - `npm run build` — passed with Next.js 16.4.0 and TypeScript.
 - `npm audit --omit=dev` — 0 vulnerabilities.
-- Browser exercise at `http://localhost:3000` and `https://sidequest-admin-rho.vercel.app` — connected organizer sign-in rendered against the authorized Supabase project with no substituted event data.
+- Browser exercise at `http://localhost:3000` and `https://sidequest-admin-rho.vercel.app` — the requested username form authenticated through Supabase, loaded scoped IIIT Delhi administrator tools, retained the session across reload, and signed out successfully. No substituted event data appeared.
 - Vercel production deployment — passed from GitHub `main` commit `bca7011`, using the `admin` root, native Next.js preset, and Production/Preview public Supabase configuration. The public deployment returned the Sidequest Admin sign-in page over HTTPS.
-- Responsive volunteer/operations source includes camera QR decoding with manual fallback, confirmed-only scan feedback, occupancy freshness/corrections, reports and assignments, announcements, moderation, registration rosters, editions/co-hosts, approval/cancellation, protected uploads, and Leaflet/floor-plan graph authoring. Authenticated exercise is blocked by the empty Auth tenant.
+- Responsive volunteer/operations source includes camera QR decoding with manual fallback, confirmed-only scan feedback, occupancy freshness/corrections, reports and assignments, announcements, moderation, registration rosters, editions/co-hosts, approval/cancellation, protected uploads, and Leaflet/floor-plan graph authoring. College-admin authoring access is verified; volunteer workflows still require authorized real event content.
 - Full audit — 5 high findings confined to the ESLint development dependency glob chain. The reported npm remediation is an inappropriate major downgrade; this remains an explicit tooling risk rather than a shipped runtime dependency.
 
 ## Native iOS
@@ -36,12 +36,12 @@ The migration was executed on a disposable PostgreSQL 17 cluster with minimal Su
 
 The foundation and advisor-hardening migrations were also applied to authorized project `dzqfsskcgaowcnbpxzzl` on 2026-10-11.
 
-- Remote state: 12 public tables, 13 RLS policies, 33 public indexes, 2 privileged RPCs, 0 Auth users, and 0 colleges, organizations, or events.
+- Remote bootstrap state: one Auth user, one IIIT Delhi college record, and one active college-administrator membership. There are no organizations or events, so the production interface presents real empty states.
 - Data API: anonymous `published_event_feed` returned HTTP 200 with `[]`; anonymous `create_event` returned HTTP 401 (`permission denied`) and persisted nothing.
 - Performance advisor: no missing foreign-key-index or overlapping-policy warnings remain. Unused-index notices are expected while the database is empty.
 - Security advisor initially identified the intentional authenticated `SECURITY DEFINER` RPC boundary. The complete hosted schema now reports 0 errors and 43 warnings in that single reviewed category. Execution is revoked from `PUBLIC` and `anon`; every endpoint requires `auth.uid()`, performs contextual authorization, and has a fixed empty `search_path`. This is an accepted, documented boundary for the transactional API—not a clean-warning claim.
 
-Remote authenticated authoring is still pending because the project has no Auth users. Operational content was not fabricated to bypass that prerequisite.
+Remote authentication and scoped college-administrator reads are verified. Operational content was not fabricated; event authoring remains pending until the owner enters an authorized organization and real event.
 
 ## Operational platform
 
