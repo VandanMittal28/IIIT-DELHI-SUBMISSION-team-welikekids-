@@ -4,6 +4,8 @@
 
 Sidequest is a native SwiftUI student app and responsive Next.js admin connected to one Supabase backend.
 
+Admin production: <https://sidequest-admin-rho.vercel.app>
+
 ## Repository
 
 - `admin/` — organizer and volunteer web application.

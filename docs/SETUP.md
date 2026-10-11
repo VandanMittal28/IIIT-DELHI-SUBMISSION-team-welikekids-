@@ -81,3 +81,7 @@ Camera, speech, APNs registration, pass QR rendering, MapKit, and validation-gat
 - Staging: a trusted administrator, student, and volunteer complete the full persisted journey with authorized real content.
 - Device: camera scan, voice, location, AR tracking interruption, permission denial, APNs receipt, and app restart are exercised on an iPhone.
 - Production: owner authorizes the Supabase/Vercel/Apple environments, monitoring, backups, privacy disclosures, and App Store submission.
+
+## Admin deployment
+
+The production admin website is deployed through Vercel Git integration at `https://sidequest-admin-rho.vercel.app`. The Vercel project is `sidequest-admin`, its root directory is `admin`, and `main` is the production branch. `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` are configured for Production and Preview; neither is a privileged service-role credential.

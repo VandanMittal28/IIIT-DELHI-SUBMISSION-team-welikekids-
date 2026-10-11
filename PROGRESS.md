@@ -24,7 +24,8 @@ Last updated: 2026-10-11 (Asia/Kolkata)
 - [x] Venue destination/designated-gate landmarks flow from admin authoring into discovery and personal navigation without rebuilding the app.
 - [x] Indoor floor-plan rendering, campus map discovery, schedule-conflict/deadline warnings, Realtime invalidation/refetch, and AR tracking interruption handling implemented.
 - [x] Protected Storage buckets with published-media and report-evidence read boundaries, persistent notification inbox/jobs, APNs device registration, and retryable delivery worker source implemented.
-- [ ] Authenticated real-data staging journey, physical-iPhone verification, APNs worker deployment, public admin deployment, and production release authorization.
+- [x] Admin website deployed to Vercel from GitHub `main` with the `admin` root and production Supabase configuration.
+- [ ] Authenticated real-data staging journey, physical-iPhone verification, APNs worker deployment, and iOS production release authorization.
 
 ## Completed slice acceptance criteria
 
@@ -47,7 +48,7 @@ Last updated: 2026-10-11 (Asia/Kolkata)
 - Production npm dependency audit: 0 known vulnerabilities before adding Supabase packages.
 - Admin: ESLint passed; Next.js 16.4.0 production build passed; production dependency audit reports 0 vulnerabilities.
 - Full npm audit reports 5 high-severity findings in the development-only ESLint glob chain; npm currently offers only an inappropriate major downgrade. These packages are not shipped in the production bundle and remain tracked for an upstream fix.
-- Admin UI: connected sign-in state exercised in the in-app browser; no fallback data appeared.
+- Admin UI: connected sign-in state exercised locally and at `https://sidequest-admin-rho.vercel.app`; no fallback data appeared.
 - iOS: generic iOS Simulator build passed with Swift 6 and pinned `supabase-swift` 2.55.3.
 - iOS: four model/contract tests passed on iPhone 17 Pro simulator; physical-device behavior is unverified.
 - iOS: installed and launched against the authorized remote project. The live empty discovery state rendered after fixing Xcode's URL escaping; no fixtures were substituted.
@@ -72,6 +73,6 @@ Last updated: 2026-10-11 (Asia/Kolkata)
 - Blocker: the authorized project has no Auth users. A trusted initial administrator must be invited through Supabase Auth before the real organizer-create → student-discover journey can be exercised. No password should be shared in chat.
 - Security action: rotate the database password that was accidentally posted in chat; it was not stored or used by this implementation.
 - Blocker: no authorized Apple APNs signing key/team configuration is available, so the delivery worker source is not deployed and push receipt is unverified. The durable inbox and retry jobs are deployed.
-- Blocker: no authorized Vercel or other public web deployment target was supplied. Admin is verified locally at `http://localhost:3000` only.
+- Vercel production: `https://sidequest-admin-rho.vercel.app`, connected to GitHub `main`; pushes create deployments from the `admin` root.
 - Blocker: physical route data and validation have not been supplied; no route is marked physically validated and AR behavior remains unverified.
 - Next: invite/bootstrap a trusted administrator, enter authorized real college/event/route data through the admin, add student and volunteer accounts, and run the complete persisted staging journey on a physical iPhone.
