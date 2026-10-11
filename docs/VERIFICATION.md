@@ -8,7 +8,7 @@ Verified locally and against the authorized hosted services on 2026-10-12 (Asia/
 - `npm run build` — passed with Next.js 16.4.0 and TypeScript.
 - `npm audit --omit=dev` — 0 vulnerabilities.
 - Browser exercise at `http://localhost:3000` and `https://sidequest-admin-rho.vercel.app` — the requested username form authenticated through Supabase, loaded scoped IIIT Delhi administrator tools, retained the session across reload, and signed out successfully. No substituted event data appeared.
-- Vercel production deployment — passed from GitHub `main` commit `bca7011`, using the `admin` root, native Next.js preset, and Production/Preview public Supabase configuration. The public deployment returned the Sidequest Admin sign-in page over HTTPS.
+- Vercel production deployment — passed from the latest GitHub `main` admin release, using the `admin` root, native Next.js preset, and Production/Preview public Supabase configuration. The public deployment returned the Sidequest Admin sign-in page over HTTPS.
 - Responsive volunteer/operations source includes camera QR decoding with manual fallback, confirmed-only scan feedback, occupancy freshness/corrections, reports and assignments, announcements, moderation, registration rosters, editions/co-hosts, approval/cancellation, protected uploads, and Leaflet/floor-plan graph authoring. College-admin authoring access is verified; volunteer workflows still require authorized real event content.
 - Full audit — 5 high findings confined to the ESLint development dependency glob chain. The reported npm remediation is an inappropriate major downgrade; this remains an explicit tooling risk rather than a shipped runtime dependency.
 
