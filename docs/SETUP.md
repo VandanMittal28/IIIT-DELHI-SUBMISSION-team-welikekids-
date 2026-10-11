@@ -9,7 +9,7 @@
 
 ## Backend
 
-1. Identify the development/staging project. Do not use an unrelated project by name or guesswork.
+1. Identify the development/staging project. The currently authorized development project ref is `dzqfsskcgaowcnbpxzzl`; do not reuse it as production without explicit authorization.
 2. Link without storing database credentials in Git:
 
    ```sh
@@ -46,7 +46,14 @@ Deploy only to an authorized environment. Configure the same two public variable
 
 ## Native iOS app
 
-1. Edit `ios/Config/Sidequest.xcconfig` with the same Supabase URL and publishable key. This file must never contain a secret/service-role key.
+1. Create `ios/Config/Local.xcconfig` with the same Supabase URL and publishable key. It is ignored by Git and optionally included by `Sidequest.xcconfig`. This file must never contain a secret/service-role key.
+
+   Xcode configuration files treat `//` as a comment. Escape the URL separator so the compiled value remains a valid HTTPS URL:
+
+   ```xcconfig
+   SUPABASE_URL = https:/$()/YOUR_PROJECT_REF.supabase.co
+   SUPABASE_PUBLISHABLE_KEY = sb_publishable_replace_me
+   ```
 2. Regenerate after changing `project.yml`:
 
    ```sh

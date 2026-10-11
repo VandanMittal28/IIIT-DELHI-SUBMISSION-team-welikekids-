@@ -7,13 +7,15 @@ Verified locally on 2026-10-11 (Asia/Kolkata).
 - `npm run lint` — passed.
 - `npm run build` — passed with Next.js 16.4.0 and TypeScript.
 - `npm audit --omit=dev` — 0 vulnerabilities.
-- Browser exercise at `http://localhost:3000` — setup state rendered correctly with no backend and no substituted event data.
+- Browser exercise at `http://localhost:3000` — connected organizer sign-in rendered against the authorized Supabase project with no substituted event data.
 - Full audit — 5 high findings confined to the ESLint development dependency glob chain. The reported npm remediation is an inappropriate major downgrade; this remains an explicit tooling risk rather than a shipped runtime dependency.
 
 ## Native iOS
 
 - Generic iOS Simulator build — passed with Swift 6, iOS 17 deployment target, and `supabase-swift` 2.55.3.
 - iPhone 17 Pro simulator unit test — 1 passed, 0 failed.
+- Installed simulator app launched against the remote Supabase project and rendered “Nothing published yet” from the authoritative empty feed.
+- Initial launch exposed an invalid Xcode URL expansion; the local `.xcconfig` URL is now escaped correctly and the relaunch remained running.
 - Physical iPhone verification — not performed. Camera, ARKit, scanning, voice, location, notifications, and device persistence are not yet implemented or verified.
 
 ## Database
@@ -28,4 +30,11 @@ The migration was executed on a disposable PostgreSQL 17 cluster with minimal Su
 - Repeating the same request ID returned the same event and edition; table counts remained one each.
 - Publishing succeeded and exactly one record became visible through `published_event_feed` as `anon`.
 
-This validates SQL structure and core transaction/authorization behavior locally. It does not replace applying the migration, running Supabase advisors, and testing Auth/Data API behavior on the authorized Sidequest project.
+The foundation and advisor-hardening migrations were also applied to authorized project `dzqfsskcgaowcnbpxzzl` on 2026-10-11.
+
+- Remote state: 12 public tables, 13 RLS policies, 33 public indexes, 2 privileged RPCs, 0 Auth users, and 0 colleges, organizations, or events.
+- Data API: anonymous `published_event_feed` returned HTTP 200 with `[]`; anonymous `create_event` returned HTTP 401 (`permission denied`) and persisted nothing.
+- Performance advisor: no missing foreign-key-index or overlapping-policy warnings remain. Unused-index notices are expected while the database is empty.
+- Security advisor: two warnings identify the intentional authenticated `SECURITY DEFINER` RPCs (`create_event`, `publish_event`). Their execution is revoked from `PUBLIC` and `anon`; each requires `auth.uid()`, performs contextual authorization, and has an empty fixed `search_path`. This is an accepted, documented boundary for the transactional API—not a clean-advisor claim.
+
+Remote authenticated authoring is still pending because the project has no Auth users. Operational content was not fabricated to bypass that prerequisite.

@@ -1,3 +1,4 @@
 // Publishable client configuration only. Never place a secret/service-role key here.
 SUPABASE_URL =
 SUPABASE_PUBLISHABLE_KEY =
+#include? "Local.xcconfig"

@@ -7,4 +7,5 @@ ios/build/
 ios/DerivedData/
 ios/*.xcworkspace/xcuserdata/
 ios/*.xcodeproj/xcuserdata/
+ios/Config/Local.xcconfig
 supabase/.temp/

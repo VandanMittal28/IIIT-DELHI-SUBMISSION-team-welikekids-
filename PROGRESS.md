@@ -12,9 +12,9 @@ Last updated: 2026-10-11 (Asia/Kolkata)
 - [x] Published event feed contract defined for both clients.
 - [x] Responsive admin sign-in, honest configuration state, organizer event form, and publishing desk implemented.
 - [x] Native SwiftUI app target with authentication, searchable paginated discovery, empty/error states, and event detail implemented.
-- [ ] Migration applied to an authorized Supabase development project and advisors clean.
+- [x] Foundation and advisor-hardening migrations applied to the authorized Supabase development project; advisor findings reviewed.
 - [ ] Admin authentication and event authoring verified against the backend.
-- [ ] Native iOS authentication and discovery verified against the same backend.
+- [x] Native iOS discovery and honest empty state verified against the same backend; authenticated iOS flow remains pending.
 - [ ] Registration, pass, timeline, navigation, attendance, reports, community, reviews, analytics, and release workflows.
 
 ## Current slice acceptance criteria
@@ -33,14 +33,20 @@ Last updated: 2026-10-11 (Asia/Kolkata)
 - Production npm dependency audit: 0 known vulnerabilities before adding Supabase packages.
 - Admin: ESLint passed; Next.js 16.4.0 production build passed; production dependency audit reports 0 vulnerabilities.
 - Full npm audit reports 5 high-severity findings in the development-only ESLint glob chain; npm currently offers only an inappropriate major downgrade. These packages are not shipped in the production bundle and remain tracked for an upstream fix.
-- Admin UI: local setup-required state exercised in the in-app browser; no fallback data appeared.
+- Admin UI: connected sign-in state exercised in the in-app browser; no fallback data appeared.
 - iOS: generic iOS Simulator build passed with Swift 6 and pinned `supabase-swift` 2.55.3.
 - iOS: one model/contract test passed on iPhone 17 Pro simulator; physical-device behavior is unverified.
-- Database runtime verification: pending; no Sidequest Supabase project has been identified or authorized.
+- iOS: installed and launched against the authorized remote project. The live empty discovery state rendered after fixing Xcode's URL escaping; no fixtures were substituted.
+- Database runtime verification: migrations `foundation_auth_events` and `advisor_hardening` are applied to project `dzqfsskcgaowcnbpxzzl` in `ap-southeast-1` (PostgreSQL 17.11).
+- Remote catalog verification: 12 public tables, 13 RLS policies, 33 public indexes, two privileged RPCs, and zero operational records or Auth users.
+- Remote Data API verification: anonymous discovery returned HTTP 200 with an empty array; anonymous `create_event` returned HTTP 401 and persisted nothing.
+- Supabase performance advisor: missing foreign-key indexes and overlapping event policies resolved. Remaining notices are expected unused-index information on a new empty database.
+- Supabase security advisor: two reviewed warnings remain for the intentionally authenticated, `SECURITY DEFINER` transaction RPCs. Both revoke `PUBLIC`/`anon`, require `auth.uid()`, repeat contextual authorization, and fix `search_path`.
 - Migration syntax executed successfully on a disposable PostgreSQL 17 cluster: 12 tables, 13 RLS policies, and 2 privileged RPCs created.
 - Database behavior verified locally: ordinary student event creation denied; organizer creation succeeded; identical request replay returned the same event/edition with one row each; publish made exactly one event visible through the anonymous discovery view.
 
 ## Blockers and next task
 
-- Blocker: the connected Supabase account exposes projects named `project-harshi-` and `SMART-SANSKRITI-`; neither is identifiable as Sidequest. No schema will be applied until the owner identifies the authorized target or creates one through the cost-confirmed flow.
-- Next after backend selection: apply and exercise the first slice end to end, then implement atomic registration, waitlist promotion, opaque passes, and the personal timeline.
+- Blocker: the authorized project has no Auth users. A trusted initial administrator must be invited through Supabase Auth before the real organizer-create → student-discover journey can be exercised. No password should be shared in chat.
+- Security action: rotate the database password that was accidentally posted in chat; it was not stored or used by this implementation.
+- Next: securely invite and bootstrap the initial administrator, exercise remote event authoring/discovery, then implement atomic registration, waitlist promotion, opaque passes, and the personal timeline.

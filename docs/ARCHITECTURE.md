@@ -18,6 +18,10 @@ Clients subscribe for update signals, then refetch authoritative rows. Durable s
 
 The student app is SwiftUI and uses native MapKit, camera, speech, and ARKit APIs. The web admin is Next.js/TypeScript. Both read the security-invoker `published_event_feed` projection and call versioned transactional operations.
 
+### ADR-005 — Narrow privileged RPCs are the mutation boundary
+
+Multi-table and state-transition mutations use authenticated `SECURITY DEFINER` RPCs with an empty fixed `search_path`, explicit `auth.uid()` checks, contextual role checks, and execution revoked from `PUBLIC` and `anon`. This intentionally triggers Supabase advisor warnings and is reviewed per RPC. Direct table writes remain unavailable to clients, preventing callers from bypassing transaction and transition rules.
+
 ## Environments
 
 - Local source and builds do not contain credentials or operational fixtures.
