@@ -46,6 +46,10 @@ PostgreSQL `now()` is constant for an entire transaction and cannot order multip
 
 Storage objects remain in private buckets and clients receive short-lived signed URLs. Published event covers and active published campus references are readable through record-aware policies. Draft event media is limited to event managers; report evidence is limited to the reporter and edition managers. A signed-in account alone never grants blanket media access.
 
+### ADR-012 — Camera arrows require route geometry and explicit landmark alignment
+
+Camera guidance derives each step bearing from the returned route node order: WGS84 bearings outdoors and floor-pixel bearings plus the stored floor rotation indoors. The student must confirm a landmark with a stored facing direction, and the AR session treats that direction as its local reference. Each visible arrow is an `ARAnchor` placed from the current tracked camera pose using the route-derived relative bearing. Floor transitions without a trustworthy bearing show text/map/voice guidance and no arrow. The entire camera mode remains unavailable until the route is marked physically validated.
+
 ## Environments
 
 - Local source and builds do not contain credentials or operational fixtures.

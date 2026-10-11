@@ -40,4 +40,15 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(profile.interests.count,2)
         XCTAssertEqual(profile.notificationPreferences["reminders"],false)
     }
+
+    func testCameraStepsUseStoredOutdoorAndIndoorGeometry() throws {
+        let json = #"{"route_version_id":"00000000-0000-0000-0000-000000000040","total_distance_meters":20,"physical_validation_complete":true,"nodes":[{"id":"00000000-0000-0000-0000-000000000041","coordinate_kind":"outdoor_geographic","floor_id":null,"latitude":28.5,"longitude":77.2,"x_pixels":null,"y_pixels":null,"node_kind":"landmark"},{"id":"00000000-0000-0000-0000-000000000042","coordinate_kind":"outdoor_geographic","floor_id":null,"latitude":28.5,"longitude":77.201,"x_pixels":null,"y_pixels":null,"node_kind":"entrance"},{"id":"00000000-0000-0000-0000-000000000043","coordinate_kind":"indoor_floor","floor_id":"00000000-0000-0000-0000-000000000044","latitude":null,"longitude":null,"x_pixels":10,"y_pixels":10,"node_kind":"landmark"},{"id":"00000000-0000-0000-0000-000000000045","coordinate_kind":"indoor_floor","floor_id":"00000000-0000-0000-0000-000000000044","latitude":null,"longitude":null,"x_pixels":20,"y_pixels":10,"node_kind":"hall"}],"edges":[{"id":"00000000-0000-0000-0000-000000000046","kind":"walkway","distance_meters":10,"instruction":"Walk east","from_node_id":"00000000-0000-0000-0000-000000000041","to_node_id":"00000000-0000-0000-0000-000000000042"},{"id":"00000000-0000-0000-0000-000000000047","kind":"corridor","distance_meters":10,"instruction":"Use the corridor","from_node_id":"00000000-0000-0000-0000-000000000043","to_node_id":"00000000-0000-0000-0000-000000000045"}]}"#.data(using: .utf8)!
+        let route = try JSONDecoder().decode(RoutePlan.self, from: json)
+        let floorID = UUID(uuidString: "00000000-0000-0000-0000-000000000044")!
+        let floor = FloorPlan(id: floorID, name: "Ground", level: 0, floorPlanPath: "path", imageWidthPixels: 100, imageHeightPixels: 100, rotationDegrees: 30)
+        let steps = route.cameraSteps(floorPlans: [floorID: floor])
+        XCTAssertEqual(steps[0].bearingDegrees!, 90, accuracy: 0.1)
+        XCTAssertEqual(steps[1].bearingDegrees!, 120, accuracy: 0.1)
+        XCTAssertEqual(steps[0].bearingRelativeToConfirmedFacing(30)!, 60, accuracy: 0.1)
+    }
 }

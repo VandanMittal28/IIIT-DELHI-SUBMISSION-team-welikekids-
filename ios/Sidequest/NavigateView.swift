@@ -49,10 +49,15 @@ struct NavigateView: View {
                             .frame(maxHeight:240).frame(maxWidth:.infinity).clipShape(RoundedRectangle(cornerRadius:14))
                             .accessibilityLabel("Reference photo for \(start.name)")
                     }
-                    Text(start.facingInstruction ?? "Match the landmark around you, then face toward the route before confirming.")
-                        .font(.footnote).foregroundStyle(.secondary)
-                    Button("I’m here — this matches") { confirmedHere = true }
-                    if confirmedHere { Label("Landmark confirmed; orientation is still approximate.", systemImage: "checkmark.circle.fill").foregroundStyle(.green) }
+                    if let facingDegrees = start.facingDegrees {
+                        Text("\(start.facingInstruction ?? "Face the stored reference direction.") Stored reference: \(Int(facingDegrees.rounded()))°.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    } else {
+                        Text("Match the landmark around you before confirming. This landmark has no facing reference, so camera arrows will stay disabled.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                    Button("I’m here and facing this direction") { confirmedHere = true }
+                    if confirmedHere { Label("Landmark and facing direction confirmed. Tracking can still drift; use the map if alignment looks wrong.", systemImage: "checkmark.circle.fill").foregroundStyle(.green) }
                 }
             }
             Section("Destination") {
@@ -75,6 +80,8 @@ struct NavigateView: View {
     }
 
     @ViewBuilder private func route(_ plan: RoutePlan) -> some View {
+        let cameraSteps = plan.cameraSteps(floorPlans: model.floorPlans)
+        let cameraReady = plan.physicalValidationComplete && start?.facingDegrees != nil && cameraSteps.contains { $0.bearingDegrees != nil }
         Section("Route · \(Int(plan.totalDistanceMeters.rounded())) m") {
             if !plan.physicalValidationComplete {
                 Label("This route has not been physically validated. Camera arrows are disabled; use map, text, or voice guidance.", systemImage: "exclamationmark.shield")
@@ -88,8 +95,12 @@ struct NavigateView: View {
                 }
             }
             Button("Speak directions") { speak(plan.edges.map(\.instruction)) }
-            Button(plan.physicalValidationComplete ? "Start tracked camera guidance" : "Camera guidance needs validation") { showCamera = true }
-                .disabled(!plan.physicalValidationComplete)
+            if plan.physicalValidationComplete && !cameraReady {
+                Label("Camera arrows need a stored facing direction and route geometry. Map, text, and voice remain available.", systemImage: "viewfinder.circle")
+                    .font(.footnote).foregroundStyle(.orange)
+            }
+            Button(cameraReady ? "Start aligned camera guidance" : "Camera guidance needs alignment data") { showCamera = true }
+                .disabled(!cameraReady)
         }
         Section {
             Button("I’m lost — realign") { confirmedHere = false; model.clearRoute() }
@@ -97,7 +108,9 @@ struct NavigateView: View {
             Text("Return to a known landmark and confirm it again. Sidequest does not infer precise indoor position from “I’m here.”")
                 .font(.footnote).foregroundStyle(.secondary)
         }
-        .fullScreenCover(isPresented: $showCamera) { CameraGuidanceView(instructions: plan.edges.map(\.instruction)) }
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraGuidanceView(steps: cameraSteps, confirmedFacingDegrees: start?.facingDegrees)
+        }
     }
 
     private func speak(_ instructions: [String]) {
@@ -142,16 +155,43 @@ private struct FloorRouteMap:View{
 
 private struct CameraGuidanceView: View {
     @Environment(\.dismiss) private var dismiss
-    let instructions: [String]
+    let steps: [RouteCameraStep]
+    let confirmedFacingDegrees: Double?
     @State private var permission: AVAuthorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
     @State private var trackingMessage = "Move your phone slowly while tracking starts."
+    @State private var stepIndex = 0
+
+    private var step: RouteCameraStep? { steps.indices.contains(stepIndex) ? steps[stepIndex] : nil }
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            if permission == .authorized {
-                AnchoredARPreview(trackingMessage:$trackingMessage).ignoresSafeArea()
-                VStack { Text(trackingMessage).font(.footnote).padding(8).background(.ultraThinMaterial).clipShape(Capsule()).padding(.top,60); Spacer(); Text(instructions.first ?? "Follow the published route.").padding().background(.ultraThinMaterial).clipShape(RoundedRectangle(cornerRadius: 16)).padding() }
+            if permission == .authorized, let step {
+                if let confirmedFacingDegrees, let alignedBearing = step.bearingRelativeToConfirmedFacing(confirmedFacingDegrees) {
+                    AnchoredARPreview(bearingDegrees: alignedBearing, stepID: step.id, trackingMessage: $trackingMessage).ignoresSafeArea()
+                }
+                VStack {
+                    Text(step.bearingDegrees == nil ? "Spatial arrow unavailable for this transition." : trackingMessage).font(.footnote).padding(8).background(.ultraThinMaterial).clipShape(Capsule()).padding(.top, 60)
+                    Spacer()
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Step \(stepIndex + 1) of \(steps.count)").font(.caption.bold())
+                        Text(step.instruction).font(.headline)
+                        Text("\(Int(step.distanceMeters.rounded())) m · \(step.kind)").font(.caption)
+                        if step.bearingDegrees == nil {
+                            Label("No reliable spatial bearing for this transition. Follow the text, map, or voice instruction.", systemImage: "arrow.triangle.turn.up.right.diamond")
+                                .font(.caption)
+                        } else if let confirmedFacingDegrees {
+                            Text("Aligned from the confirmed \(Int(confirmedFacingDegrees.rounded()))° landmark reference. The arrow is anchored to the stored route bearing.").font(.caption)
+                        }
+                        HStack {
+                            Button("Previous") { stepIndex = max(0, stepIndex - 1) }.disabled(stepIndex == 0)
+                            Spacer()
+                            if stepIndex + 1 < steps.count { Button("Next step") { stepIndex += 1 } }
+                            else { Button("Finish") { dismiss() } }
+                        }
+                    }
+                    .padding().background(.ultraThinMaterial).clipShape(RoundedRectangle(cornerRadius: 16)).padding()
+                }
             } else if permission == .denied || permission == .restricted {
                 ContentUnavailableView("Camera unavailable", systemImage: "camera.fill", description: Text("Use map, text, or voice guidance. Camera access can be changed in Settings."))
                     .foregroundStyle(.white)
@@ -168,28 +208,64 @@ private struct CameraGuidanceView: View {
 }
 
 private struct AnchoredARPreview: UIViewRepresentable {
+    let bearingDegrees: Double
+    let stepID: UUID
     @Binding var trackingMessage:String
     func makeCoordinator()->Coordinator{Coordinator(message:$trackingMessage)}
     func makeUIView(context: Context) -> ARSCNView {
         let view = ARSCNView()
+        view.delegate = context.coordinator
         view.session.delegate=context.coordinator
         view.automaticallyUpdatesLighting = true
         let configuration = ARWorldTrackingConfiguration()
-        configuration.worldAlignment = .gravityAndHeading
+        configuration.worldAlignment = .gravity
         view.session.run(configuration)
-        let arrow = SCNNode(geometry: SCNCone(topRadius: 0, bottomRadius: 0.18, height: 0.5))
-        arrow.geometry?.firstMaterial?.diffuse.contents = UIColor.systemYellow
-        arrow.eulerAngles.x = -.pi / 2
-        arrow.position = SCNVector3(0, -0.25, -1.5)
-        view.scene.rootNode.addChildNode(arrow)
+        context.coordinator.attach(to: view)
+        context.coordinator.update(bearingDegrees: bearingDegrees, stepID: stepID)
         return view
     }
-    func updateUIView(_ uiView: ARSCNView, context: Context) {}
+    func updateUIView(_ uiView: ARSCNView, context: Context) { context.coordinator.update(bearingDegrees: bearingDegrees, stepID: stepID) }
     static func dismantleUIView(_ uiView: ARSCNView, coordinator: Coordinator) { uiView.session.pause() }
-    @MainActor final class Coordinator:NSObject,@preconcurrency ARSessionDelegate{
+    @MainActor final class Coordinator:NSObject,@preconcurrency ARSessionDelegate,@preconcurrency ARSCNViewDelegate{
         @Binding var message:String
+        private weak var view: ARSCNView?
+        private var bearingDegrees: Double?
+        private var stepID: UUID?
+        private var routeAnchor: ARAnchor?
         init(message:Binding<String>){_message=message}
-        func session(_ session:ARSession,cameraDidChangeTrackingState camera:ARCamera){switch camera.trackingState{case .normal:message="Tracking aligned to the confirmed landmark direction.";case .notAvailable:message="Tracking unavailable — return to map guidance.";case .limited(let reason):message="Tracking limited (\(String(describing:reason))). Move slowly or return to the landmark."}}
+        func attach(to view: ARSCNView) { self.view = view }
+        func update(bearingDegrees: Double, stepID: UUID) {
+            guard self.stepID != stepID || self.bearingDegrees != bearingDegrees else { return }
+            self.bearingDegrees = bearingDegrees
+            self.stepID = stepID
+            if let routeAnchor { view?.session.remove(anchor: routeAnchor) }
+            routeAnchor = nil
+            if case .normal = view?.session.currentFrame?.camera.trackingState { placeRouteAnchor() }
+        }
+        private func placeRouteAnchor() {
+            guard routeAnchor == nil, let view, let frame = view.session.currentFrame, let bearingDegrees else { return }
+            let radians = Float(bearingDegrees * .pi / 180)
+            let cameraPosition = frame.camera.transform.columns.3
+            var transform = simd_float4x4(simd_quatf(angle: -radians, axis: SIMD3<Float>(0, 1, 0)))
+            transform.columns.3 = SIMD4<Float>(
+                cameraPosition.x + sin(radians) * 1.5,
+                cameraPosition.y - 0.2,
+                cameraPosition.z - cos(radians) * 1.5,
+                1
+            )
+            let anchor = ARAnchor(name: "sidequest-route-step", transform: transform)
+            routeAnchor = anchor
+            view.session.add(anchor: anchor)
+        }
+        func renderer(_ renderer: SCNSceneRenderer, nodeFor anchor: ARAnchor) -> SCNNode? {
+            guard anchor.identifier == routeAnchor?.identifier else { return nil }
+            let arrow = SCNNode(geometry: SCNCone(topRadius: 0, bottomRadius: 0.18, height: 0.52))
+            arrow.geometry?.firstMaterial?.diffuse.contents = UIColor.systemYellow
+            arrow.eulerAngles.x = -.pi / 2
+            return arrow
+        }
+        func session(_ session:ARSession,cameraDidChangeTrackingState camera:ARCamera){switch camera.trackingState{case .normal:message="Tracking is stable. The arrow is anchored to the stored route bearing.";placeRouteAnchor();case .notAvailable:message="Tracking unavailable — return to map guidance.";case .limited(let reason):message="Tracking limited (\(String(describing:reason))). Move slowly or return to the landmark."}}
         func sessionWasInterrupted(_ session:ARSession){message="Tracking interrupted — use map or voice until it recovers."}
+        func sessionInterruptionEnded(_ session: ARSession) { message = "Tracking resumed. Return to the confirmed landmark if the arrow has drifted."; routeAnchor = nil; placeRouteAnchor() }
     }
 }

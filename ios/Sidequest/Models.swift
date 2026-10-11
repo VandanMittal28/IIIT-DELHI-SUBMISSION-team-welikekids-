@@ -163,6 +163,64 @@ struct RouteEdge: Decodable, Identifiable, Equatable {
     }
 }
 
+struct RouteCameraStep: Identifiable, Equatable {
+    let id: UUID
+    let instruction: String
+    let distanceMeters: Double
+    let kind: String
+    let bearingDegrees: Double?
+
+    func bearingRelativeToConfirmedFacing(_ facingDegrees: Double) -> Double? {
+        guard let bearingDegrees else { return nil }
+        let remainder = (bearingDegrees - facingDegrees).truncatingRemainder(dividingBy: 360)
+        return remainder >= 0 ? remainder : remainder + 360
+    }
+}
+
+extension RoutePlan {
+    func cameraSteps(floorPlans: [UUID: FloorPlan]) -> [RouteCameraStep] {
+        let nodesByID = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
+        return edges.map { edge in
+            let bearing = nodesByID[edge.fromNodeId].flatMap { start in
+                nodesByID[edge.toNodeId].flatMap { end in
+                    Self.bearing(from: start, to: end, floorPlans: floorPlans)
+                }
+            }
+            return RouteCameraStep(
+                id: edge.id,
+                instruction: edge.instruction,
+                distanceMeters: edge.distanceMeters,
+                kind: edge.kind,
+                bearingDegrees: bearing
+            )
+        }
+    }
+
+    private static func bearing(from start: RouteNode, to end: RouteNode, floorPlans: [UUID: FloorPlan]) -> Double? {
+        if let latitude1 = start.latitude, let longitude1 = start.longitude,
+           let latitude2 = end.latitude, let longitude2 = end.longitude {
+            let phi1 = latitude1 * .pi / 180
+            let phi2 = latitude2 * .pi / 180
+            let deltaLongitude = (longitude2 - longitude1) * .pi / 180
+            let y = sin(deltaLongitude) * cos(phi2)
+            let x = cos(phi1) * sin(phi2) - sin(phi1) * cos(phi2) * cos(deltaLongitude)
+            return normalizedDegrees(atan2(y, x) * 180 / .pi)
+        }
+
+        guard let floorID = start.floorId, floorID == end.floorId,
+              let startX = start.xPixels, let startY = start.yPixels,
+              let endX = end.xPixels, let endY = end.yPixels,
+              let floor = floorPlans[floorID] else { return nil }
+        let pixelBearing = atan2(endX - startX, -(endY - startY)) * 180 / .pi
+        return normalizedDegrees(pixelBearing + floor.rotationDegrees)
+    }
+
+    private static func normalizedDegrees(_ value: Double) -> Double {
+        let remainder = value.truncatingRemainder(dividingBy: 360)
+        return remainder >= 0 ? remainder : remainder + 360
+    }
+}
+
 struct FloorPlan: Decodable, Identifiable, Equatable {
     let id: UUID
     let name: String
@@ -170,9 +228,10 @@ struct FloorPlan: Decodable, Identifiable, Equatable {
     let floorPlanPath: String
     let imageWidthPixels: Int
     let imageHeightPixels: Int
+    let rotationDegrees: Double
     enum CodingKeys: String, CodingKey {
         case id, name, level
-        case floorPlanPath = "floor_plan_path", imageWidthPixels = "image_width_pixels", imageHeightPixels = "image_height_pixels"
+        case floorPlanPath = "floor_plan_path", imageWidthPixels = "image_width_pixels", imageHeightPixels = "image_height_pixels", rotationDegrees = "rotation_degrees"
     }
 }
 

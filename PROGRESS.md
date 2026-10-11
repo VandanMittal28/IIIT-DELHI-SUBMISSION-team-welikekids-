@@ -23,6 +23,7 @@ Last updated: 2026-10-12 (Asia/Kolkata)
 - [x] Expiring email-bound organization role invitations with one-time acceptance implemented; public sign-up cannot grant roles.
 - [x] Venue destination/designated-gate landmarks flow from admin authoring into discovery and personal navigation without rebuilding the app.
 - [x] Indoor floor-plan rendering, campus map discovery, schedule-conflict/deadline warnings, Realtime invalidation/refetch, and AR tracking interruption handling implemented.
+- [x] Camera prompts now derive from stored outdoor/indoor route geometry; spatial arrows require physical validation and a confirmed landmark facing reference, and use tracked AR anchors rather than a fixed decorative overlay.
 - [x] Protected Storage buckets with published-media and report-evidence read boundaries, persistent notification inbox/jobs, APNs device registration, and retryable delivery worker source implemented.
 - [x] Admin website deployed to Vercel from GitHub `main` with the `admin` root and production Supabase configuration.
 - [x] Temporary college-issued username login added on top of Supabase Auth; no password is stored in source control.
@@ -52,7 +53,7 @@ Last updated: 2026-10-12 (Asia/Kolkata)
 - Admin UI: connected sign-in state exercised locally and at `https://sidequest-admin-rho.vercel.app`; no fallback data appeared.
 - Production admin: the temporary username account signed in successfully, exposed only its scoped IIIT Delhi authoring tools, survived a browser reload, and signed out successfully. The password remains outside source control.
 - iOS: generic iOS Simulator build passed with Swift 6 and pinned `supabase-swift` 2.55.3.
-- iOS: four model/contract tests passed on iPhone 17 Pro simulator; physical-device behavior is unverified.
+- iOS: five model/contract tests passed on iPhone 17 Pro simulator, including outdoor bearing, rotated indoor bearing, and landmark-relative camera alignment; physical-device behavior is unverified.
 - iOS: installed and launched against the authorized remote project. The live empty discovery state rendered after fixing Xcode's URL escaping; no fixtures were substituted.
 - Database runtime verification: migrations `foundation_auth_events` and `advisor_hardening` are applied to project `dzqfsskcgaowcnbpxzzl` in `ap-southeast-1` (PostgreSQL 17.11).
 - Remote bootstrap verification: one Auth user, one IIIT Delhi college record, and one active scoped college-administrator membership exist. No fictional event, organization, route, review, or analytics records were added.

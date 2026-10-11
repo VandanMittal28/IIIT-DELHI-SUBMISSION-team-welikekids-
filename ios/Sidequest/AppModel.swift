@@ -282,7 +282,7 @@ final class AppModel {
         guard !ids.isEmpty else { floorPlans = [:]; floorPlanURLs = [:]; return }
         do {
             let rows: [FloorPlan] = try await client.from("floors")
-                .select("id,name,level,floor_plan_path,image_width_pixels,image_height_pixels")
+                .select("id,name,level,floor_plan_path,image_width_pixels,image_height_pixels,rotation_degrees")
                 .in("id", values: ids).eq("is_published", value: true).execute().value
             floorPlans = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
             var urls: [UUID: URL] = [:]

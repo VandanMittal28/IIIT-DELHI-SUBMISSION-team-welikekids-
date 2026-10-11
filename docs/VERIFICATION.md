@@ -15,11 +15,11 @@ Verified locally and against the authorized hosted services on 2026-10-12 (Asia/
 ## Native iOS
 
 - Generic iOS Simulator build — passed with Swift 6, iOS 17 deployment target, and `supabase-swift` 2.55.3.
-- iPhone 17 Pro simulator unit tests — 4 passed, 0 failed (event, registration/journey, route coordinate contract, profile preferences).
+- iPhone 17 Pro simulator unit tests — 5 passed, 0 failed (event, registration/journey, route coordinate contract, profile preferences, and route-derived camera bearings/alignment).
 - Installed simulator app launched against the remote Supabase project and rendered “Nothing published yet” from the authoritative empty feed.
 - Initial launch exposed an invalid Xcode URL expansion; the local `.xcconfig` URL is now escaped correctly and the relaunch remained running.
 - Registration client build — passed with persistent retry IDs, shared `my_journey` reads, cancellation, and opaque QR pass rendering.
-- Latest simulator launch shows five native tabs and the authoritative empty discovery state. Published event covers and landmark reference photos load from short-lived signed URLs when present. Navigation uses MapKit, published floor-plan imagery with stored indoor coordinates, native speech, camera permission/tracking-interruption handling, and ARKit world tracking only for physically validated routes. Campus map discovery, conflict/deadline warnings, Realtime-triggered refetch, community, reports, inbox, follows, profile preferences, saved events, comparison, and verified reviews are connected to Supabase.
+- Latest simulator launch shows five native tabs and the authoritative empty discovery state. Published event covers and landmark reference photos load from short-lived signed URLs when present. Navigation uses MapKit, published floor-plan imagery with stored indoor coordinates, native speech, camera permission/tracking-interruption handling, and ARKit world tracking only for physically validated routes. Camera steps derive bearings from WGS84 nodes or floor pixels plus stored rotation; arrows use tracked anchors relative to the explicitly confirmed landmark-facing reference, while unsupported transitions remain text/map/voice only. Campus map discovery, conflict/deadline warnings, Realtime-triggered refetch, community, reports, inbox, follows, profile preferences, saved events, comparison, and verified reviews are connected to Supabase.
 - Physical iPhone verification — not performed. Implemented camera, ARKit, scanning, voice, location, and APNs behaviors remain unverified on hardware.
 
 ## Database
