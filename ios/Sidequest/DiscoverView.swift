@@ -9,7 +9,8 @@ struct DiscoverView: View {
         NavigationStack {
             Group {
                 switch model.eventState {
-                case .idle, .loading where model.events.isEmpty:
+                case .idle where model.events.isEmpty,
+                     .loading where model.events.isEmpty:
                     ProgressView("Finding what’s next…")
                 case .failed(let message) where model.events.isEmpty:
                     ContentUnavailableView {
@@ -67,7 +68,11 @@ private struct EventCard: View {
 }
 
 private struct EventDetailView: View {
+    @Environment(AppModel.self) private var model
     let event: EventFeedItem
+    @State private var message: String?
+    @State private var errorMessage: String?
+
     var body: some View {
         ScrollView { VStack(alignment: .leading, spacing: 20) {
             Text(event.category.uppercased()).font(.caption.bold()).foregroundStyle(.secondary)
@@ -77,7 +82,30 @@ private struct EventDetailView: View {
             Label(event.collegeName, systemImage: "building.columns")
             Text(event.description).font(.body).lineSpacing(5)
             if let eligibility = event.eligibility { GroupBox("Eligibility") { Text(eligibility).frame(maxWidth: .infinity, alignment: .leading) } }
-            Button("Registration is the next connected workflow") {}.buttonStyle(.borderedProminent).disabled(true)
+            if let registration = model.registration(for: event.editionId) {
+                Label(registration.status == "registered" ? "Registered — pass is in My Journey" : "Waitlisted — position \(registration.waitlistPosition ?? 0)", systemImage: registration.status == "registered" ? "checkmark.seal.fill" : "clock.badge")
+                    .foregroundStyle(registration.status == "registered" ? .green : .orange)
+            } else {
+                Button(model.registrationStates[event.editionId] == .loading ? "Confirming…" : "Register") {
+                    Task { await register() }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(model.registrationStates[event.editionId] == .loading)
+            }
+            if let message { Text(message).foregroundStyle(.green).font(.footnote) }
+            if let errorMessage { Text(errorMessage).foregroundStyle(.red).font(.footnote) }
         }.padding() }.navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func register() async {
+        message = nil; errorMessage = nil
+        do {
+            let result = try await model.register(for: event)
+            message = result.status == "registered"
+                ? "Registration confirmed. Your opaque pass is ready."
+                : "You’re on the waitlist at position \(result.waitlistPosition ?? 0)."
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 }

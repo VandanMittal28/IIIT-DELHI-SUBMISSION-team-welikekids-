@@ -11,7 +11,7 @@
 .hero h1 { font-size: clamp(42px, 6vw, 84px); line-height: .94; max-width: 760px; letter-spacing: -.065em; }
 .hero p:not(.eyebrow) { color: #69756b; margin-top: 18px; font-size: 17px; }
 .eyebrow { color: #56704e; font-weight: 800; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; margin-bottom: 10px; }
-.stats { display: flex; gap: 12px; }
+.stats { display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-end; }
 .stats span { display: grid; background: #17211a; color: #fff; border-radius: 18px; padding: 18px 24px; min-width: 112px; }
 .stats strong { color: #e9ff63; font-size: 30px; }
 .columns { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(320px, .75fr); gap: 22px; align-items: start; }

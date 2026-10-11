@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { backendConfiguration, getSupabase } from "@/lib/supabase";
-import type { EventDraft, EventRecord, Organization } from "@/lib/types";
+import type { EventDraft, EventRecord, Organization, RegistrationSummary } from "@/lib/types";
 import styles from "./page.module.css";
 
 const emptyDraft: EventDraft = {
@@ -29,6 +29,7 @@ export default function Home() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [published, setPublished] = useState<EventRecord[]>([]);
+  const [registrationSummaries, setRegistrationSummaries] = useState<RegistrationSummary[]>([]);
   const [draft, setDraft] = useState<EventDraft>(emptyDraft);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,14 +59,17 @@ export default function Home() {
     const orgs = Array.from(new Map([...memberOrgs, ...(adminOrganizations.data as Organization[])].map((org) => [org.id, org])).values());
     setOrganizations(orgs);
     setDraft((current) => ({ ...current, organizationId: current.organizationId || orgs[0]?.id || "" }));
-    const [eventsResult, feedResult] = await Promise.all([
+    const [eventsResult, feedResult, registrationResult] = await Promise.all([
       supabase.from("events").select("id,title,category,status,organization_id").order("created_at", { ascending: false }),
       supabase.from("published_event_feed").select("*").order("starts_at", { ascending: true }).limit(8),
+      supabase.from("edition_registration_summary").select("edition_id,event_id,capacity,registered_count,waitlisted_count,cancelled_count"),
     ]);
     if (eventsResult.error) throw eventsResult.error;
     if (feedResult.error) throw feedResult.error;
+    if (registrationResult.error) throw registrationResult.error;
     setEvents(eventsResult.data as EventRecord[]);
     setPublished(feedResult.data as EventRecord[]);
+    setRegistrationSummaries(registrationResult.data as RegistrationSummary[]);
   }, []);
 
   useEffect(() => {
@@ -80,6 +84,9 @@ export default function Home() {
   }, [configured, loadData]);
 
   const publishedIds = useMemo(() => new Set(published.map((event) => event.id)), [published]);
+  const registrationsByEvent = useMemo(() => new Map(registrationSummaries.map((summary) => [summary.event_id, summary])), [registrationSummaries]);
+  const registeredTotal = useMemo(() => registrationSummaries.reduce((total, item) => total + item.registered_count, 0), [registrationSummaries]);
+  const waitlistedTotal = useMemo(() => registrationSummaries.reduce((total, item) => total + item.waitlisted_count, 0), [registrationSummaries]);
 
   async function signIn(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError(null);
@@ -131,7 +138,7 @@ export default function Home() {
   return <div className={styles.shell}>
     <header className={styles.header}><Brand /><div className={styles.user}><span>{user.email}</span><button className={styles.ghost} onClick={() => void getSupabase().auth.signOut()}>Sign out</button></div></header>
     <main className={styles.dashboard}>
-      <section className={styles.hero}><div><p className={styles.eyebrow}>Event operations</p><h1>Your campus, in motion.</h1><p>Create the source of truth once. Sidequest carries it to every student.</p></div><div className={styles.stats}><span><strong>{events.length}</strong> managed</span><span><strong>{published.length}</strong> live</span></div></section>
+      <section className={styles.hero}><div><p className={styles.eyebrow}>Event operations</p><h1>Your campus, in motion.</h1><p>Create the source of truth once. Sidequest carries it to every student.</p></div><div className={styles.stats}><span><strong>{events.length}</strong> managed</span><span><strong>{published.length}</strong> live</span><span><strong>{registeredTotal}</strong> registered</span><span><strong>{waitlistedTotal}</strong> waiting</span></div></section>
       {error && <Alert>{error}</Alert>}{notice && <div className={styles.notice}>{notice}</div>}
       {organizations.length === 0 ? <section className={styles.empty}><h2>No organizer access yet</h2><p>Your account is valid, but it has no active organizer membership. Ask a college administrator to invite you; Sidequest will not grant access from profile metadata.</p></section> : <div className={styles.columns}>
         <section className={styles.panel}><div className={styles.panelHead}><p className={styles.eyebrow}>New event</p><h2>Create the first edition</h2></div><form onSubmit={createEvent} className={styles.formGrid}>
@@ -150,7 +157,7 @@ export default function Home() {
           <label className={`${styles.full} ${styles.check}`}><input type="checkbox" checked={draft.waitlistEnabled} onChange={(e) => setDraft({ ...draft, waitlistEnabled: e.target.checked })} /> Enable waitlist when capacity is reached</label>
           <button className={styles.full} disabled={busy}>{busy ? "Saving…" : "Create draft"}</button>
         </form></section>
-        <aside className={styles.side}><section className={styles.panel}><div className={styles.panelHead}><p className={styles.eyebrow}>Your events</p><h2>Publishing desk</h2></div>{events.length === 0 ? <p className={styles.muted}>No events yet. Your first confirmed draft will appear here.</p> : <div className={styles.list}>{events.map((item) => <article key={item.id} className={styles.eventRow}><div><span className={styles.pill}>{item.status?.replace("_", " ")}</span><h3>{item.title}</h3><p>{item.category}</p></div>{item.status === "draft" && <button disabled={busy} onClick={() => void publishEvent(item.id)}>Publish</button>}{publishedIds.has(item.id) && <span className={styles.live}>Live</span>}</article>)}</div>}</section>
+        <aside className={styles.side}><section className={styles.panel}><div className={styles.panelHead}><p className={styles.eyebrow}>Your events</p><h2>Publishing desk</h2></div>{events.length === 0 ? <p className={styles.muted}>No events yet. Your first confirmed draft will appear here.</p> : <div className={styles.list}>{events.map((item) => { const summary = registrationsByEvent.get(item.id); return <article key={item.id} className={styles.eventRow}><div><span className={styles.pill}>{item.status?.replace("_", " ")}</span><h3>{item.title}</h3><p>{item.category}</p>{summary && <p>{summary.registered_count}/{summary.capacity} registered · {summary.waitlisted_count} waiting</p>}</div>{item.status === "draft" && <button disabled={busy} onClick={() => void publishEvent(item.id)}>Publish</button>}{publishedIds.has(item.id) && <span className={styles.live}>Live</span>}</article>; })}</div>}</section>
         <section className={styles.panel}><div className={styles.panelHead}><p className={styles.eyebrow}>Student view</p><h2>Live discovery</h2></div>{published.length === 0 ? <p className={styles.muted}>No published events. Students see a useful empty state, never fictional recommendations.</p> : <div className={styles.list}>{published.map((item) => <article key={item.id} className={styles.feedCard}><p>{item.college_name} · {item.category}</p><h3>{item.title}</h3><span>{item.starts_at ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.starts_at)) : "Schedule pending"}</span></article>)}</div>}</section></aside>
       </div>}
     </main>

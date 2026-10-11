@@ -22,6 +22,10 @@ The student app is SwiftUI and uses native MapKit, camera, speech, and ARKit API
 
 Multi-table and state-transition mutations use authenticated `SECURITY DEFINER` RPCs with an empty fixed `search_path`, explicit `auth.uid()` checks, contextual role checks, and execution revoked from `PUBLIC` and `anon`. This intentionally triggers Supabase advisor warnings and is reviewed per RPC. Direct table writes remain unavailable to clients, preventing callers from bypassing transaction and transition rules.
 
+### ADR-006 — Edition rows serialize capacity allocation
+
+Registration and cancellation lock the relevant `event_editions` row before counting or changing confirmed places. This creates one transaction boundary for concurrent capacity decisions without relying on client counts. Request IDs make retries safe; cancellation revokes the pass and promotes the FIFO waitlist in the same transaction.
+
 ## Environments
 
 - Local source and builds do not contain credentials or operational fixtures.

@@ -29,3 +29,12 @@ export type EventDraft = {
   capacity: string;
   waitlistEnabled: boolean;
 };
+
+export type RegistrationSummary = {
+  edition_id: string;
+  event_id: string;
+  capacity: number;
+  registered_count: number;
+  waitlisted_count: number;
+  cancelled_count: number;
+};

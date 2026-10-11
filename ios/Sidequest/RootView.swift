@@ -4,7 +4,7 @@ struct RootView: View {
     var body: some View {
         TabView {
             DiscoverView().tabItem { Label("Discover", systemImage: "sparkle.magnifyingglass") }
-            ConnectedSoonView(title: "Your journey begins after registration", detail: "Passes, reminders and navigation will appear here only after the registration workflow is connected.")
+            MyJourneyView()
                 .tabItem { Label("My Journey", systemImage: "point.topleft.down.to.point.bottomright.curvepath") }
             ConnectedSoonView(title: "Community is being connected", detail: "Discussions and announcements will use persistent backend channels—not sample conversations.")
                 .tabItem { Label("Community", systemImage: "person.3") }

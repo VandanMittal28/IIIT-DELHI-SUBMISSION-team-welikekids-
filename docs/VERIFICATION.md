@@ -13,9 +13,10 @@ Verified locally on 2026-10-11 (Asia/Kolkata).
 ## Native iOS
 
 - Generic iOS Simulator build — passed with Swift 6, iOS 17 deployment target, and `supabase-swift` 2.55.3.
-- iPhone 17 Pro simulator unit test — 1 passed, 0 failed.
+- iPhone 17 Pro simulator unit tests — 2 passed, 0 failed.
 - Installed simulator app launched against the remote Supabase project and rendered “Nothing published yet” from the authoritative empty feed.
 - Initial launch exposed an invalid Xcode URL expansion; the local `.xcconfig` URL is now escaped correctly and the relaunch remained running.
+- Registration client build — passed with persistent retry IDs, shared `my_journey` reads, cancellation, and opaque QR pass rendering.
 - Physical iPhone verification — not performed. Camera, ARKit, scanning, voice, location, notifications, and device persistence are not yet implemented or verified.
 
 ## Database
@@ -38,3 +39,14 @@ The foundation and advisor-hardening migrations were also applied to authorized 
 - Security advisor: two warnings identify the intentional authenticated `SECURITY DEFINER` RPCs (`create_event`, `publish_event`). Their execution is revoked from `PUBLIC` and `anon`; each requires `auth.uid()`, performs contextual authorization, and has an empty fixed `search_path`. This is an accepted, documented boundary for the transactional API—not a clean-advisor claim.
 
 Remote authenticated authoring is still pending because the project has no Auth users. Operational content was not fabricated to bypass that prerequisite.
+
+## Registration and passes
+
+- Full migration chain executed on disposable PostgreSQL 17.
+- First student received `registered` plus one opaque pass; identical request replay returned the same registration and pass.
+- Second student at capacity received waitlist position 1 and no pass.
+- Cancelling the confirmed student revoked that pass and promoted the waiting student with one new active pass.
+- Concurrent test launched 10 registration transactions against capacity 3: exactly 3 became registered and 7 became waitlisted.
+- Remote migration applied; 14 public tables all have RLS enabled.
+- Remote anonymous `register_for_event` call returned HTTP 401 (`permission denied`) and persisted no data.
+- Supabase performance advisor reports only unused-index informational notices on the empty project. Security advisor reports four intentional privileged RPC warnings (`create_event`, `publish_event`, `register_for_event`, `cancel_registration`) under ADR-005.

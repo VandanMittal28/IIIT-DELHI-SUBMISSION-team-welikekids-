@@ -13,6 +13,9 @@ final class AppModel {
     private(set) var eventState: LoadState = .idle
     private(set) var isAuthenticated = false
     private(set) var canLoadMore = false
+    private(set) var journey: [JourneyItem] = []
+    private(set) var journeyState: LoadState = .idle
+    private(set) var registrationStates: [UUID: LoadState] = [:]
     var searchText = ""
 
     let configuration: BackendConfiguration
@@ -32,18 +35,22 @@ final class AppModel {
     func restoreSession() async {
         guard let client else { return }
         isAuthenticated = (try? await client.auth.session) != nil
+        if isAuthenticated, journeyState == .idle { await reloadJourney() }
     }
 
     func signIn(email: String, password: String) async throws {
         guard let client else { throw SidequestError.notConfigured }
         try await client.auth.signIn(email: email, password: password)
         isAuthenticated = true
+        await reloadJourney()
     }
 
     func signOut() async {
         guard let client else { return }
         try? await client.auth.signOut()
         isAuthenticated = false
+        journey = []
+        journeyState = .idle
     }
 
     func reloadEvents() async {
@@ -67,7 +74,7 @@ final class AppModel {
         do {
             var query = client
                 .from("published_event_feed")
-                .select("id,title,description,category,organization_name,college_name,starts_at,ends_at,price_minor,currency,eligibility")
+                .select("id,edition_id,title,description,category,organization_name,college_name,starts_at,ends_at,price_minor,currency,eligibility")
             let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmedSearch.isEmpty {
                 let safeSearch = trimmedSearch.replacingOccurrences(of: "%", with: "")
@@ -87,6 +94,75 @@ final class AppModel {
             eventState = .failed(error.localizedDescription)
         }
     }
+
+    func reloadJourney() async {
+        guard let client else {
+            journeyState = .failed(SidequestError.notConfigured.localizedDescription)
+            return
+        }
+        guard isAuthenticated else {
+            journey = []
+            journeyState = .loaded
+            return
+        }
+        journeyState = .loading
+        do {
+            let response: [JourneyItem] = try await client
+                .from("my_journey")
+                .select("registration_id,status,edition_id,event_id,title,category,event_status,organization_name,starts_at,ends_at,pass_token,pass_status,waitlist_position")
+                .order("starts_at", ascending: true)
+                .execute()
+                .value
+            journey = response
+            journeyState = .loaded
+        } catch {
+            journeyState = .failed(error.localizedDescription)
+        }
+    }
+
+    func registration(for editionId: UUID) -> JourneyItem? {
+        journey.first { $0.editionId == editionId && $0.status != "cancelled" }
+    }
+
+    @discardableResult
+    func register(for event: EventFeedItem) async throws -> RegistrationResult {
+        guard let client else { throw SidequestError.notConfigured }
+        guard isAuthenticated else { throw SidequestError.authenticationRequired }
+        registrationStates[event.editionId] = .loading
+        let defaultsKey = "registration-request-\(event.editionId.uuidString.lowercased())"
+        let requestID: UUID
+        if let saved = UserDefaults.standard.string(forKey: defaultsKey), let parsed = UUID(uuidString: saved) {
+            requestID = parsed
+        } else {
+            requestID = UUID()
+            UserDefaults.standard.set(requestID.uuidString, forKey: defaultsKey)
+        }
+        do {
+            let result: RegistrationResult = try await client
+                .rpc("register_for_event", params: [
+                    "p_edition_id": event.editionId.uuidString,
+                    "p_client_request_id": requestID.uuidString,
+                ])
+                .execute()
+                .value
+            UserDefaults.standard.removeObject(forKey: defaultsKey)
+            registrationStates[event.editionId] = .loaded
+            await reloadJourney()
+            return result
+        } catch {
+            registrationStates[event.editionId] = .failed(error.localizedDescription)
+            throw error
+        }
+    }
+
+    func cancel(_ item: JourneyItem) async throws {
+        guard let client else { throw SidequestError.notConfigured }
+        guard isAuthenticated else { throw SidequestError.authenticationRequired }
+        _ = try await client
+            .rpc("cancel_registration", params: ["p_registration_id": item.registrationId.uuidString])
+            .execute()
+        await reloadJourney()
+    }
 }
 
 struct BackendConfiguration: Equatable {
@@ -104,8 +180,13 @@ struct BackendConfiguration: Equatable {
 }
 
 enum SidequestError: LocalizedError {
-    case notConfigured
+    case notConfigured, authenticationRequired
     var errorDescription: String? {
-        "Sidequest is not connected to an authorized backend. Add the Supabase URL and publishable key to Config/Sidequest.xcconfig."
+        switch self {
+        case .notConfigured:
+            "Sidequest is not connected to an authorized backend. Add the Supabase URL and publishable key to Config/Local.xcconfig."
+        case .authenticationRequired:
+            "Sign in from Profile before registering."
+        }
     }
 }

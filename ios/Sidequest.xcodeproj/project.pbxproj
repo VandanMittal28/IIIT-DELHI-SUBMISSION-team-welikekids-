@@ -14,6 +14,7 @@
 		8777861D9D69EBD3F78197E1 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BEDC559CAB1A93F17D7F7B8 /* AppModel.swift */; };
 		8F36E28AF5D6B7CFAD502A6F /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01093AAB2CD25DA948FB8A16 /* AccountView.swift */; };
 		B2E63FD7AE38A26765B22558 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 733E67528F17E32FD5B40125 /* Supabase */; };
+		C2D034D4E00F4090047304B0 /* MyJourneyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC4A1A1119ADA00E1AB6ACC6 /* MyJourneyView.swift */; };
 		E936C14785F40CA78899EC1D /* SidequestApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82807BCAE15EBB71B83165AB /* SidequestApp.swift */; };
 /* End PBXBuildFile section */
 
@@ -35,6 +36,7 @@
 		7BEDC559CAB1A93F17D7F7B8 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		82807BCAE15EBB71B83165AB /* SidequestApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidequestApp.swift; sourceTree = "<group>"; };
 		848244A16E3B01C81A51B865 /* Sidequest.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Sidequest.xcconfig; sourceTree = "<group>"; };
+		BC4A1A1119ADA00E1AB6ACC6 /* MyJourneyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyJourneyView.swift; sourceTree = "<group>"; };
 		BC89B425E0BC244A246C1CBF /* Sidequest.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Sidequest.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F6A76DDECFA530B17872D113 /* SidequestTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SidequestTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FFE957684005C03E66C7866E /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
@@ -76,6 +78,7 @@
 				7BEDC559CAB1A93F17D7F7B8 /* AppModel.swift */,
 				2C479F5F69865DED11A23D9E /* DiscoverView.swift */,
 				FFE957684005C03E66C7866E /* Models.swift */,
+				BC4A1A1119ADA00E1AB6ACC6 /* MyJourneyView.swift */,
 				0D6DC21DE55D5E47B358F242 /* RootView.swift */,
 				82807BCAE15EBB71B83165AB /* SidequestApp.swift */,
 			);
@@ -191,6 +194,7 @@
 				8777861D9D69EBD3F78197E1 /* AppModel.swift in Sources */,
 				2DE8D70C35F7A3740B1F39E7 /* DiscoverView.swift in Sources */,
 				2F432FA18F10DDF40B0FC9DE /* Models.swift in Sources */,
+				C2D034D4E00F4090047304B0 /* MyJourneyView.swift in Sources */,
 				7A87CE49C19E18814E3DA312 /* RootView.swift in Sources */,
 				E936C14785F40CA78899EC1D /* SidequestApp.swift in Sources */,
 			);
