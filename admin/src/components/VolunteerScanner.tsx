@@ -8,7 +8,7 @@ type ScannerProps = { onRecorded?: () => void };
 
 export function VolunteerScanner({ onRecorded }: ScannerProps) {
   const video = useRef<HTMLVideoElement>(null);
-  const stream = useRef<MediaStream | null>(null);
+  const scanner = useRef<{ stop(): void } | null>(null);
   const requestIds = useRef(new Map<string, string>());
   const [token, setToken] = useState("");
   const [action, setAction] = useState<ScanAction>("enter");
@@ -16,30 +16,39 @@ export function VolunteerScanner({ onRecorded }: ScannerProps) {
   const [result, setResult] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => () => stream.current?.getTracks().forEach((track) => track.stop()), []);
+  useEffect(() => () => {
+    scanner.current?.stop();
+    if (video.current?.srcObject instanceof MediaStream) video.current.srcObject.getTracks().forEach((track) => track.stop());
+  }, []);
 
   async function startCamera() {
     setResult(null);
     try {
-      stream.current = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
-      if (video.current) { video.current.srcObject = stream.current; await video.current.play(); }
+      stopCamera();
+      if (!video.current) throw new Error("Camera preview is unavailable.");
+      const { BrowserQRCodeReader } = await import("@zxing/browser");
+      const reader = new BrowserQRCodeReader(undefined, { delayBetweenScanAttempts: 120, delayBetweenScanSuccess: 500 });
+      scanner.current = await reader.decodeFromConstraints(
+        { video: { facingMode: { ideal: "environment" } }, audio: false },
+        video.current,
+        (decoded, _error, controls) => {
+          if (!decoded) return;
+          setToken(decoded.getText());
+          controls.stop();
+          scanner.current = null;
+          setCameraMessage("QR decoded. Review the attendance action, then validate it with the backend.");
+        },
+      );
       setCameraMessage("Camera active. Align a Sidequest event-pass QR inside the frame.");
-      const Detector = (window as unknown as { BarcodeDetector?: new (options: { formats: string[] }) => { detect(source: CanvasImageSource): Promise<Array<{ rawValue: string }>> } }).BarcodeDetector;
-      if (!Detector) { setCameraMessage("This browser cannot decode QR codes. Use the manual token field below."); return; }
-      const detector = new Detector({ formats: ["qr_code"] });
-      const poll = async () => {
-        if (!video.current || !stream.current?.active) return;
-        try { const codes = await detector.detect(video.current); if (codes[0]?.rawValue) { setToken(codes[0].rawValue); stopCamera(); return; } } catch { /* a frame can fail while the camera warms up */ }
-        requestAnimationFrame(poll);
-      };
-      requestAnimationFrame(poll);
     } catch (error) {
       setCameraMessage(error instanceof Error ? `Camera unavailable: ${error.message}. Use manual token entry.` : "Camera permission was denied. Use manual token entry.");
     }
   }
 
   function stopCamera() {
-    stream.current?.getTracks().forEach((track) => track.stop()); stream.current = null;
+    scanner.current?.stop(); scanner.current = null;
+    if (video.current?.srcObject instanceof MediaStream) video.current.srcObject.getTracks().forEach((track) => track.stop());
+    if (video.current) video.current.srcObject = null;
     setCameraMessage("Camera stopped.");
   }
 

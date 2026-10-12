@@ -19,6 +19,7 @@ Last updated: 2026-10-12 (Asia/Kolkata)
 - [x] Registration, opaque pass, cancellation/promotion, and personal timeline implemented.
 - [x] Campus/landmark authoring, versioned graph routing, closures, MapKit/text/voice fallback, and validation-gated ARKit implemented.
 - [x] Camera pass scanning, controlled attendance transitions, derived occupancy, reports, announcements, persistent channels, verified reviews, and sample-size analytics implemented.
+- [x] Volunteer QR scanning uses an in-app ZXing decoder instead of depending on the optional browser `BarcodeDetector`; denied/unavailable cameras retain manual opaque-token entry and never claim offline admission.
 - [x] Organization/edition/co-host management, approval, protected media linking, registration rosters, venue changes, moderation, and audited occupancy corrections implemented.
 - [x] Expiring email-bound organization role invitations with one-time acceptance implemented; public sign-up cannot grant roles.
 - [x] Venue destination/designated-gate landmarks flow from admin authoring into discovery and personal navigation without rebuilding the app.
@@ -49,6 +50,7 @@ Last updated: 2026-10-12 (Asia/Kolkata)
 - Local tools: Xcode 27.0, Swift 6.4, Node 22.23.1.
 - Production npm dependency audit: 0 known vulnerabilities before adding Supabase packages.
 - Admin: ESLint passed; Next.js 16.4.0 production build passed; production dependency audit reports 0 vulnerabilities.
+- Volunteer scanner: production build includes `@zxing/browser` 0.1.5 with Node-22-compatible `@zxing/library` 0.21.3; the camera decoder is loaded on demand and still requires volunteer-phone camera verification.
 - Full npm audit reports 5 high-severity findings in the development-only ESLint glob chain; npm currently offers only an inappropriate major downgrade. These packages are not shipped in the production bundle and remain tracked for an upstream fix.
 - Admin UI: connected sign-in state exercised locally and at `https://sidequest-admin-rho.vercel.app`; no fallback data appeared.
 - Production admin: the temporary username account signed in successfully, exposed only its scoped IIIT Delhi authoring tools, survived a browser reload, and signed out successfully. The password remains outside source control.
