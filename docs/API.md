@@ -61,7 +61,7 @@ Authenticated, security-invoker organizer/volunteer projection of capacity and a
 - `create_campus`, `create_building`, `create_floor`, and `create_landmark` require contextual college-administrator authority.
 - `create_route_draft`, `add_route_node`, and `add_route_edge` author a versioned graph. `publish_route_version` refuses an empty graph and records physical-validation state.
 - `calculate_route(start, destination, accessible_only)` is read-only and uses the latest published graph. It excludes active closures and returns ordered nodes, edges, instructions, distance, floor transitions, route version, and physical-validation state. `NO_ROUTE` is an honest 404.
-- `add_route_closure` persists the closure, increments the campus route-change sequence, and requires clients to refetch/recalculate.
+- `add_route_closure(edge, reason, starts, ends, client_request_id)` persists the closure, increments the campus route-change sequence, and requires clients to refetch/recalculate. The caller retains the request ID until success; a retry returns the same closure without incrementing the sequence or duplicating notifications. Students with a registered or waitlisted edition whose session on that campus overlaps the closure receive a durable `venue_change` inbox notification and an eligible push job.
 - `set_venue_navigation` links each venue to a same-campus destination landmark and optional designated gate. Those identifiers are projected through discovery and `my_journey`; changing a session venue therefore changes the student’s backend-provided navigation destination without an app release.
 
 ## Attendance and occupancy

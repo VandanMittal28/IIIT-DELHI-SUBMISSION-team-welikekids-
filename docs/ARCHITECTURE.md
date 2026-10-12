@@ -28,7 +28,7 @@ Registration and cancellation lock the relevant `event_editions` row before coun
 
 ### ADR-007 — Navigation coordinates and validation are explicit
 
-Outdoor nodes use WGS84 latitude/longitude. Indoor nodes use floor-plan pixel coordinates plus the floor's scale, rotation, and geographic origin. Routes are calculated from a versioned graph with active closures removed. “I’m here” confirms a landmark only; it does not claim precise pose. Map/text/voice work for every published route, while ARKit arrows are enabled only when `physical_validation_complete` is true.
+Outdoor nodes use WGS84 latitude/longitude. Indoor nodes use floor-plan pixel coordinates plus the floor's scale, rotation, and geographic origin. Routes are calculated from a versioned graph with active closures removed. A closure atomically advances the campus route sequence and creates durable notifications for attendees whose sessions overlap it; a client request ID prevents retry duplication. “I’m here” confirms a landmark only; it does not claim precise pose. Map/text/voice work for every published route, while ARKit arrows are enabled only when `physical_validation_complete` is true.
 
 ### ADR-008 — Attendance is a transition ledger
 
