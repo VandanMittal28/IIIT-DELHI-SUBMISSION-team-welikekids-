@@ -369,13 +369,33 @@ final class AppModel {
         await reloadCommunity()
     }
 
-    func submitReport(editionId: UUID, category: String, description: String, priority: String) async throws {
+    func submitReport(editionId: UUID, category: String, description: String, priority: String, attachmentData: Data? = nil) async throws -> String? {
         guard let client else { throw SidequestError.notConfigured }
-        _ = try await client.rpc("submit_report", params: [
+        if let attachmentData, attachmentData.count > 10 * 1024 * 1024 {
+            throw SidequestError.attachmentTooLarge
+        }
+        let submitted: SubmittedReport = try await client.rpc("submit_report", params: [
             "p_edition_id": editionId.uuidString, "p_category": category,
             "p_description": description, "p_priority": priority,
-        ]).execute()
+        ]).execute().value
+        var attachmentWarning: String?
+        if let attachmentData {
+            let userID = try await client.auth.session.user.id
+            let path = "\(userID.uuidString.lowercased())/\(submitted.reportId.uuidString.lowercased())/\(UUID().uuidString.lowercased()).jpg"
+            let bucket = client.storage.from("report-attachments")
+            do {
+                try await bucket.upload(path, data: attachmentData, options: FileOptions(contentType: "image/jpeg", upsert: false))
+                _ = try await client.rpc("add_report_attachment", params: [
+                    "p_report_id": submitted.reportId.uuidString,
+                    "p_storage_path": path,
+                ]).execute()
+            } catch {
+                _ = try? await bucket.remove(paths: [path])
+                attachmentWarning = "Your report was submitted, but the evidence photo could not be attached: \(error.localizedDescription)"
+            }
+        }
         await reloadCommunity()
+        return attachmentWarning
     }
 
     func submitReview(editionId: UUID, rating: Int, body: String) async throws {
@@ -456,6 +476,11 @@ private struct ProfilePreferenceRequest: Encodable {
     enum CodingKeys:String,CodingKey { case pFullName="p_full_name",pCollegeId="p_college_id",pInterests="p_interests",pNotificationPreferences="p_notification_preferences" }
 }
 
+private struct SubmittedReport: Decodable {
+    let reportId: UUID
+    enum CodingKeys: String, CodingKey { case reportId = "report_id" }
+}
+
 struct BackendConfiguration: Equatable {
     let url: URL?
     let publishableKey: String?
@@ -471,13 +496,15 @@ struct BackendConfiguration: Equatable {
 }
 
 enum SidequestError: LocalizedError {
-    case notConfigured, authenticationRequired
+    case notConfigured, authenticationRequired, attachmentTooLarge
     var errorDescription: String? {
         switch self {
         case .notConfigured:
             "Sidequest is not connected to an authorized backend. Add the Supabase URL and publishable key to Config/Local.xcconfig."
         case .authenticationRequired:
             "Sign in from Profile before registering."
+        case .attachmentTooLarge:
+            "The report photo must be 10 MB or smaller."
         }
     }
 }

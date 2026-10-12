@@ -17,6 +17,7 @@ Verified locally and against the authorized hosted services on 2026-10-12 (Asia/
 
 - Generic iOS Simulator build — passed with Swift 6, iOS 17 deployment target, and `supabase-swift` 2.55.3.
 - iPhone 17 Pro simulator unit tests — 5 passed, 0 failed (event, registration/journey, route coordinate contract, profile preferences, and route-derived camera bearings/alignment).
+- Report evidence build — passed with native photo selection, bounded JPEG upload to the private `report-attachments` bucket, server-validated record linking, and failed-link cleanup. Physical photo-library exercise remains pending on an iPhone.
 - Installed simulator app launched against the remote Supabase project and rendered “Nothing published yet” from the authoritative empty feed.
 - Initial launch exposed an invalid Xcode URL expansion; the local `.xcconfig` URL is now escaped correctly and the relaunch remained running.
 - Registration client build — passed with persistent retry IDs, shared `my_journey` reads, cancellation, and opaque QR pass rendering.
@@ -54,6 +55,7 @@ Remote authentication and scoped college-administrator reads are verified. Opera
 - Security-advisor actionable findings from the operational migration were resolved: missing FK indexes added, server-only tables have explicit deny policies, and read-only route calculation is security invoker.
 - APNs Edge Function source and service-role-only claim/complete functions are implemented. Deployment/receipt verification is blocked by unavailable Apple credentials.
 - Full current migration chain executes on PostgreSQL 17. The isolated operational suite passes event update/edition/media workflows, cross-role denial, registration roster, registration/pass issuance, retry and duplicate scan behavior, exit/re-entry ordering, occupancy corrections, exact report assignment transitions, attendance-gated review/sample size, graph routing, active-closure no-route behavior, and report-media cross-user denial; its transaction rolls back all fixtures.
+- The attachment-linking migration and expanded suite pass on PostgreSQL 17: the report author can link only an owned object under the report-scoped path, an unrelated user is denied, and a retry returns the same attachment without a second row or audit entry. Hosted application of this migration is pending owner confirmation.
 - The release suite exposed and fixed transaction-timestamp ambiguity in attendance ordering. Each transition now records `clock_timestamp()` and the complete suite passes.
 - Expiring email-bound organization invitation creation/acceptance passes locally. Anonymous invitation creation returns HTTP 401 on the hosted project.
 - Published event discovery with venue/destination columns returns HTTP 200 from the hosted API; the empty authorized database returns `[]` rather than fixtures.

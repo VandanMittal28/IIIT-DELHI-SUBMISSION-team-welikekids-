@@ -74,17 +74,33 @@ select public.transition_report((select value from test_state where key='report'
 reset role;
 insert into storage.objects(bucket_id,name,owner_id) values
 ('event-media','20000000-0000-0000-0000-000000000001/'||(select value from test_state where key='event')::text||'/cover.webp','10000000-0000-0000-0000-000000000002'),
-('report-attachments','reports/evidence.webp','10000000-0000-0000-0000-000000000003');
-insert into public.report_attachments(report_id,storage_path,uploaded_by)
-values((select value from test_state where key='report'),'reports/evidence.webp','10000000-0000-0000-0000-000000000003');
+('report-attachments','10000000-0000-0000-0000-000000000003/'||(select value from test_state where key='report')::text||'/evidence.webp','10000000-0000-0000-0000-000000000003');
 grant select on storage.objects to anon,authenticated;
 grant usage on schema storage to anon,authenticated;
+grant select on test_state to authenticated;
 
+set role authenticated;
+select set_config('request.jwt.claim.role','authenticated',true);
+select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000003',true);
+select public.add_report_attachment(
+  (select value from test_state where key='report'),
+  '10000000-0000-0000-0000-000000000003/'||(select value from test_state where key='report')::text||'/evidence.webp'
+);
+select public.add_report_attachment(
+  (select value from test_state where key='report'),
+  '10000000-0000-0000-0000-000000000003/'||(select value from test_state where key='report')::text||'/evidence.webp'
+);
+reset role;
+do $$ begin
+ if (select count(*) from public.report_attachments where report_id=(select value from test_state where key='report'))<>1 then raise exception 'duplicate attachment link created'; end if;
+ if (select count(*) from public.audit_records where action='report.attachment' and detail->>'report_id'=(select value from test_state where key='report')::text)<>1 then raise exception 'duplicate attachment audit created'; end if;
+end $$;
 set role authenticated;
 select set_config('request.jwt.claim.role','authenticated',true);
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000005',true);
 do $$ begin
  if exists(select 1 from storage.objects where bucket_id='report-attachments') then raise exception 'unrelated user read report evidence'; end if;
+ begin perform public.add_report_attachment((select value from test_state where key='report'),'10000000-0000-0000-0000-000000000003/'||(select value from test_state where key='report')::text||'/evidence.webp'); raise exception 'outsider linked report evidence'; exception when sqlstate 'PGRST' then null; end;
 end $$;
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000003',true);
 do $$ begin

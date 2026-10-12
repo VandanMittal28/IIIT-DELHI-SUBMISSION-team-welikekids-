@@ -27,6 +27,7 @@ Last updated: 2026-10-12 (Asia/Kolkata)
 - [x] Indoor floor-plan rendering, campus map discovery, schedule-conflict/deadline warnings, Realtime invalidation/refetch, and AR tracking interruption handling implemented.
 - [x] Camera prompts now derive from stored outdoor/indoor route geometry; spatial arrows require physical validation and a confirmed landmark facing reference, and use tracked AR anchors rather than a fixed decorative overlay.
 - [x] Protected Storage buckets with published-media and report-evidence read boundaries, persistent notification inbox/jobs, APNs device registration, and retryable delivery worker source implemented.
+- [x] Native report evidence selection/upload and an idempotent, ownership-validating attachment-link RPC implemented and locally verified.
 - [x] Admin website deployed to Vercel from GitHub `main` with the `admin` root and production Supabase configuration.
 - [x] Temporary college-issued username login added on top of Supabase Auth; no password is stored in source control.
 - [ ] Authenticated real-data staging journey, physical-iPhone verification, APNs worker deployment, and iOS production release authorization.
@@ -66,6 +67,7 @@ Last updated: 2026-10-12 (Asia/Kolkata)
 - Supabase security advisor: 0 errors and 43 reviewed warnings remain for intentionally authenticated, `SECURITY DEFINER` transaction RPCs. All revoke `PUBLIC`/`anon`, require `auth.uid()`, repeat contextual authorization, and fix `search_path`.
 - Registration migration executed on PostgreSQL 17: confirmed registration, idempotent retry, waitlisting, cancellation, pass revocation, and FIFO promotion all passed.
 - Current full migration chain and operational integration suite pass on PostgreSQL 17, including attendance state/idempotency, occupancy, reports, reviews, routing, and closure invalidation.
+- Report attachment integration passes locally: only the author can link an owned object at the report-scoped path, unrelated users are denied, and retrying creates neither a duplicate attachment nor a duplicate audit record. Hosted migration application remains pending explicit confirmation.
 - Expanded release suite passes cross-role denial, event update/edition/media operations, registration rosters, duplicate scans, wall-clock attendance ordering, audited corrections, assigned-report states, and complete route/review behavior.
 - Hosted advisors after the full schema: 0 security errors; 0 performance errors/warnings. All 43 security warnings are reviewed authenticated `SECURITY DEFINER` transaction endpoints under ADR-005.
 - Concurrent capacity test: 10 simultaneous requests against capacity 3 produced exactly 3 registrations and 7 waitlist entries.
@@ -82,4 +84,5 @@ Last updated: 2026-10-12 (Asia/Kolkata)
 - Blocker: no authorized Apple APNs signing key/team configuration is available, so the delivery worker source is not deployed and push receipt is unverified. The durable inbox and retry jobs are deployed.
 - Vercel production: `https://sidequest-admin-rho.vercel.app`, connected to GitHub `main`; pushes create deployments from the `admin` root.
 - Blocker: physical route data and validation have not been supplied; no route is marked physically validated and AR behavior remains unverified.
+- Pending authorized change: apply `20261012004500_report_attachment_linking.sql` to the hosted Supabase project so the native evidence flow is available outside local verification.
 - Next: invite/bootstrap a trusted administrator, enter authorized real college/event/route data through the admin, add student and volunteer accounts, and run the complete persisted staging journey on a physical iPhone.

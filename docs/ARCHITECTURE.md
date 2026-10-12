@@ -50,6 +50,10 @@ Storage objects remain in private buckets and clients receive short-lived signed
 
 Camera guidance derives each step bearing from the returned route node order: WGS84 bearings outdoors and floor-pixel bearings plus the stored floor rotation indoors. The student must confirm a landmark with a stored facing direction, and the AR session treats that direction as its local reference. Each visible arrow is an `ARAnchor` placed from the current tracked camera pose using the route-derived relative bearing. Floor transitions without a trustworthy bearing show text/map/voice guidance and no arrow. The entire camera mode remains unavailable until the route is marked physically validated.
 
+### ADR-013 — Report evidence uploads are linked server-side
+
+The student uploads evidence directly to a private Storage path scoped by user and report, then calls a narrow authenticated RPC to link it. The RPC verifies the report author, path prefix, actual Storage object, and object owner before creating the database record. A unique report/path index makes retries idempotent; only newly created links produce audit rows. Failed linking triggers best-effort removal of the still-unlinked object, and a scoped Storage delete policy permits that cleanup without allowing linked evidence to be deleted.
+
 ## Environments
 
 - Local source and builds do not contain credentials or operational fixtures.

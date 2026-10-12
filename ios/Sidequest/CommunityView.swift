@@ -1,4 +1,6 @@
+import PhotosUI
 import SwiftUI
+import UIKit
 
 struct CommunityView: View {
     @Environment(AppModel.self) private var model
@@ -81,6 +83,8 @@ private struct ReportForm: View {
     @State private var priority = "normal"
     @State private var error: String?
     @State private var busy = false
+    @State private var attachment: PhotosPickerItem?
+    @State private var submitted = false
 
     var body: some View {
         NavigationStack {
@@ -89,15 +93,53 @@ private struct ReportForm: View {
                     TextField("Category", text: $category)
                     Picker("Priority", selection: $priority) { Text("Low").tag("low"); Text("Normal").tag("normal"); Text("High").tag("high"); Text("Urgent").tag("urgent") }
                     TextField("What happened?", text: $detail, axis: .vertical).lineLimit(4...10)
+                    PhotosPicker(selection: $attachment, matching: .images) {
+                        Label("Choose evidence photo", systemImage: "paperclip")
+                    }
+                    if attachment != nil { Label("Evidence photo selected", systemImage: "checkmark.circle.fill").foregroundStyle(.green) }
+                    Text("The photo stays in protected report storage and is visible only to you and authorized event staff.").font(.caption).foregroundStyle(.secondary)
                 }
-                if let error { Text(error).foregroundStyle(.red) }
-                Button(busy ? "Submitting…" : "Submit report") {
-                    busy = true
-                    Task { do { try await model.submitReport(editionId: item.editionId, category: category, description: detail, priority: priority); dismiss() } catch { self.error = error.localizedDescription; busy = false } }
-                }.disabled(busy || category.trimmingCharacters(in: .whitespaces).count < 2 || detail.trimmingCharacters(in: .whitespaces).count < 5)
+                if let error { Text(error).foregroundStyle(submitted ? .orange : .red) }
+                Button(submitted ? "Done" : (busy ? "Submitting…" : "Submit report")) {
+                    if submitted { dismiss() }
+                    else {
+                        busy = true
+                        Task { await submit() }
+                    }
+                }.disabled(!submitted && (busy || category.trimmingCharacters(in: .whitespaces).count < 2 || detail.trimmingCharacters(in: .whitespaces).count < 5))
             }
             .navigationTitle("Report an issue")
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+        }
+    }
+
+    private func submit() async {
+        defer { busy = false }
+        do {
+            var evidence: Data?
+            if let attachment {
+                guard let source = try await attachment.loadTransferable(type: Data.self),
+                      let image = UIImage(data: source),
+                      let jpeg = image.jpegData(compressionQuality: 0.82) else {
+                    throw CocoaError(.fileReadCorruptFile)
+                }
+                evidence = jpeg
+            }
+            let warning = try await model.submitReport(
+                editionId: item.editionId,
+                category: category,
+                description: detail,
+                priority: priority,
+                attachmentData: evidence
+            )
+            if let warning {
+                submitted = true
+                error = warning
+            } else {
+                dismiss()
+            }
+        } catch {
+            self.error = error.localizedDescription
         }
     }
 }
