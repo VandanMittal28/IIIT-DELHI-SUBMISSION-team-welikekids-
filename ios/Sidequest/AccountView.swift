@@ -3,11 +3,19 @@ import UIKit
 import UserNotifications
 
 struct AccountView: View {
+    private enum AuthMode: String, CaseIterable, Identifiable {
+        case signIn = "Sign in"
+        case createAccount = "Create account"
+        var id: Self { self }
+    }
+
     @Environment(AppModel.self) private var model
+    @State private var authMode: AuthMode = .signIn
     @State private var email = ""
     @State private var password = ""
     @State private var isWorking = false
     @State private var errorMessage: String?
+    @State private var authNotice: String?
     @State private var notificationStatus = "Not requested"
     @State private var fullName = ""
     @State private var collegeId: UUID?
@@ -43,11 +51,20 @@ struct AccountView: View {
                     Section("Account lifecycle") { Button("Request account deletion",role:.destructive){showDeletionConfirmation=true};Text("This immediately deactivates notification delivery and marks the account for secure deletion processing.").font(.footnote).foregroundStyle(.secondary) }
                 } else {
                     Section("Student account") {
-                        TextField("Email", text: $email).textContentType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()
-                        SecureField("Password", text: $password).textContentType(.password)
-                        Button(isWorking ? "Signing in…" : "Sign in") { Task { await signIn() } }.disabled(isWorking || email.isEmpty || password.isEmpty)
+                        Picker("Account action", selection: $authMode) {
+                            ForEach(AuthMode.allCases) { mode in Text(mode.rawValue).tag(mode) }
+                        }
+                        .pickerStyle(.segmented)
+                        TextField("Email", text: $email).textContentType(.emailAddress).keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()
+                        SecureField("Password", text: $password).textContentType(authMode == .signIn ? .password : .newPassword)
+                        if authMode == .createAccount {
+                            Text("Creates a student account only. Staff permissions require a separate audited invitation.").font(.footnote).foregroundStyle(.secondary)
+                        }
+                        Button(isWorking ? "Working…" : authMode.rawValue) { Task { await submitAuthentication() } }
+                            .disabled(isWorking || email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (authMode == .createAccount ? password.count < 8 : password.isEmpty))
                     }
                     if let errorMessage { Section { Text(errorMessage).foregroundStyle(.red) } }
+                    if let authNotice { Section { Text(authNotice).foregroundStyle(.green) } }
                     Section { Text("Public sign-up never grants staff access. Organization and college roles require an audited invitation.").font(.footnote).foregroundStyle(.secondary) }
                 }
             }
@@ -63,9 +80,21 @@ struct AccountView: View {
         }
     }
 
-    private func signIn() async {
-        isWorking = true; errorMessage = nil
-        do { try await model.signIn(email: email, password: password) }
+    private func submitAuthentication() async {
+        isWorking = true; errorMessage = nil; authNotice = nil
+        do {
+            switch authMode {
+            case .signIn:
+                try await model.signIn(email: email, password: password)
+            case .createAccount:
+                let outcome = try await model.createStudentAccount(email: email, password: password)
+                if outcome == .confirmationRequired {
+                    authNotice = "Check your email to confirm the account, then return here and sign in. No staff access was granted."
+                    authMode = .signIn
+                    password = ""
+                }
+            }
+        }
         catch { errorMessage = error.localizedDescription }
         isWorking = false
     }

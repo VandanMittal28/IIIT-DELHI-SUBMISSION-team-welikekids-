@@ -8,6 +8,7 @@ Last updated: 2026-10-12 (Asia/Kolkata)
 - [x] Version-controlled Supabase foundation migration created.
 - [x] Contextual college and organization roles designed without client-editable authorization metadata.
 - [x] Public sign-up creates only an unprivileged profile.
+- [x] Native student onboarding supports email/password account creation, handles confirmation-required responses honestly, and does not grant contextual roles.
 - [x] Atomic, idempotent organizer event + first edition operation implemented.
 - [x] Published event feed contract defined for both clients.
 - [x] Responsive admin sign-in, honest configuration state, organizer event form, and publishing desk implemented.
@@ -56,6 +57,7 @@ Last updated: 2026-10-12 (Asia/Kolkata)
 - Production admin: the temporary username account signed in successfully, exposed only its scoped IIIT Delhi authoring tools, survived a browser reload, and signed out successfully. The password remains outside source control.
 - iOS: generic iOS Simulator build passed with Swift 6 and pinned `supabase-swift` 2.55.3.
 - iOS: five model/contract tests passed on iPhone 17 Pro simulator, including outdoor bearing, rotated indoor bearing, and landmark-relative camera alignment; physical-device behavior is unverified.
+- iOS student account creation compiles against `supabase-swift` 2.55.3 and distinguishes immediate sessions from confirmation-required sign-ups; a real student email is still required for hosted confirmation testing.
 - iOS: installed and launched against the authorized remote project. The live empty discovery state rendered after fixing Xcode's URL escaping; no fixtures were substituted.
 - Database runtime verification: migrations `foundation_auth_events` and `advisor_hardening` are applied to project `dzqfsskcgaowcnbpxzzl` in `ap-southeast-1` (PostgreSQL 17.11).
 - Remote bootstrap verification: one Auth user, one IIIT Delhi college record, and one active scoped college-administrator membership exist. No fictional event, organization, route, review, or analytics records were added.

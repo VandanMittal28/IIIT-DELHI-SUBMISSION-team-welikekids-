@@ -6,6 +6,11 @@ enum LoadState: Equatable {
     case idle, loading, loaded, failed(String)
 }
 
+enum StudentSignUpOutcome: Equatable {
+    case signedIn
+    case confirmationRequired
+}
+
 @MainActor
 @Observable
 final class AppModel {
@@ -67,12 +72,30 @@ final class AppModel {
 
     func signIn(email: String, password: String) async throws {
         guard let client else { throw SidequestError.notConfigured }
-        try await client.auth.signIn(email: email, password: password)
+        try await client.auth.signIn(email: email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), password: password)
         isAuthenticated = true
         await reloadJourney()
         await reloadSavedEvents()
         await reloadProfile()
         await startLiveUpdates()
+    }
+
+    func createStudentAccount(email: String, password: String) async throws -> StudentSignUpOutcome {
+        guard let client else { throw SidequestError.notConfigured }
+        let response = try await client.auth.signUp(
+            email: email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+            password: password
+        )
+        guard response.session != nil else {
+            isAuthenticated = false
+            return .confirmationRequired
+        }
+        isAuthenticated = true
+        await reloadJourney()
+        await reloadSavedEvents()
+        await reloadProfile()
+        await startLiveUpdates()
+        return .signedIn
     }
 
     func signOut() async {
