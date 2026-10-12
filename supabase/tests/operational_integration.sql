@@ -123,7 +123,7 @@ reset role;
 
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000001',true);
 select set_config('request.jwt.claim.role','authenticated',true);
-do $$ declare campus uuid; start_landmark uuid; finish_landmark uuid; route_version uuid; start_node uuid; finish_node uuid; edge uuid; venue uuid; session_id uuid; plan jsonb; closure_result jsonb; closure_replay jsonb; closure_request uuid:='40000000-0000-0000-0000-000000000010'; begin
+do $$ declare campus uuid; start_landmark uuid; finish_landmark uuid; route_version uuid; start_node uuid; finish_node uuid; edge uuid; venue uuid; session_id uuid; plan jsonb; closure_result jsonb; closure_replay jsonb; reopen_result jsonb; reopen_replay jsonb; closure_request uuid:='40000000-0000-0000-0000-000000000010'; begin
  campus:=(public.create_campus('20000000-0000-0000-0000-000000000001','Test Campus',28.545,77.273)->>'campus_id')::uuid;
  start_landmark:=(public.create_landmark(campus,'Gate','outdoor_geographic',28.545,77.273,null,null,null,90,'Face east',null)->>'landmark_id')::uuid;
  finish_landmark:=(public.create_landmark(campus,'Hall','outdoor_geographic',28.546,77.274,null,null,null,90,'Face east',null)->>'landmark_id')::uuid;
@@ -139,10 +139,18 @@ do $$ declare campus uuid; start_landmark uuid; finish_landmark uuid; route_vers
  perform public.publish_route_version(route_version,'Local graph test',false);
  plan:=public.calculate_route(start_landmark,finish_landmark,true);
  if (plan->>'total_distance_meters')::numeric<>150 or jsonb_array_length(plan->'edges')<>1 then raise exception 'route calculation failed'; end if;
- closure_result:=public.add_route_closure(edge,'Local test closure',now(),now()+interval '4 hours',closure_request);
- closure_replay:=public.add_route_closure(edge,'Local test closure',now(),now()+interval '4 hours',closure_request);
+ closure_result:=public.add_route_closure(edge,'Local test closure',now()-interval '1 minute',now()+interval '4 hours',closure_request);
+ closure_replay:=public.add_route_closure(edge,'Local test closure',now()-interval '1 minute',now()+interval '4 hours',closure_request);
  if (closure_result->>'notified_attendees')::integer<>1 or (closure_replay->>'idempotent_replay')::boolean<>true or closure_result->>'closure_id'<>closure_replay->>'closure_id' then raise exception 'closure notification/idempotency failed'; end if;
  begin perform public.calculate_route(start_landmark,finish_landmark,true); raise exception 'closure did not block route'; exception when sqlstate 'PGRST' then null; end;
+ perform set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000003',true);
+ begin perform public.end_route_closure((closure_result->>'closure_id')::uuid); raise exception 'student reopened route'; exception when sqlstate 'PGRST' then null; end;
+ perform set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000001',true);
+ reopen_result:=public.end_route_closure((closure_result->>'closure_id')::uuid);
+ reopen_replay:=public.end_route_closure((closure_result->>'closure_id')::uuid);
+ if (reopen_result->>'notified_attendees')::integer<>1 or (reopen_replay->>'idempotent_replay')::boolean<>true then raise exception 'route reopening notification/idempotency failed'; end if;
+ plan:=public.calculate_route(start_landmark,finish_landmark,true);
+ if jsonb_array_length(plan->'edges')<>1 then raise exception 'reopened route unavailable'; end if;
 end $$;
 
 do $$ begin
@@ -150,6 +158,7 @@ do $$ begin
  if (select status::text from public.reports where id=(select value from test_state where key='report'))<>'resolved' then raise exception 'report workflow incomplete'; end if;
  if (select sample_size from public.event_review_summary where event_id=(select value from test_state where key='event'))<>1 then raise exception 'review analytics incorrect'; end if;
  if (select count(*) from public.notifications where title='Campus route changed')<>1 then raise exception 'closure notification missing or duplicated'; end if;
+ if (select count(*) from public.notifications where title='Campus route reopened')<>1 then raise exception 'reopening notification missing or duplicated'; end if;
 end $$;
 
 set role authenticated;

@@ -31,4 +31,4 @@ Each scheduled invocation first creates due 24-hour reminders from current publi
 
 ## Route changes
 
-Publishing a route retires the previous published version. Adding a closure increments `campuses.route_change_sequence`; clients treat Realtime as an invalidation signal and calculate again from the stored graph. Physical validators must record notes and set `physical_validation_complete` only after walking the route with a real device.
+Publishing a route retires the previous published version. Adding or reopening a closure increments `campuses.route_change_sequence`; clients treat Realtime as an invalidation signal and calculate again from the stored graph. Both changes create durable notifications for affected attendees, and the admin UI lists active closures for controlled reopening. Physical validators must record notes and set `physical_validation_complete` only after walking the route with a real device.
