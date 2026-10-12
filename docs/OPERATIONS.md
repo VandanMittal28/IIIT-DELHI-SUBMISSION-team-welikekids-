@@ -27,6 +27,8 @@ Deploy `supabase/functions/deliver-notifications` only after securely configurin
 
 Jobs use five-minute processing leases. A later invocation reclaims an expired lease, while the attempt number prevents a late worker from completing the reclaimed job. Retryable APNs/network failures back off. Terminal APNs errors remain inspectable without further attempts; `BadDeviceToken`, `DeviceTokenNotForTopic`, and `Unregistered` also deactivate the affected token. Sandbox and production device tokens are routed to their corresponding APNs hosts in the same batch.
 
+Each scheduled invocation first creates due 24-hour reminders from current published editions, confirmed registrations, and saved events. The `(user, edition, reminder kind)` key makes this safe to repeat. Push-category preferences are evaluated when a delivery job would be created; disabling a category never deletes or hides the durable inbox entry.
+
 ## Route changes
 
 Publishing a route retires the previous published version. Adding a closure increments `campuses.route_change_sequence`; clients treat Realtime as an invalidation signal and calculate again from the stored graph. Physical validators must record notes and set `physical_validation_complete` only after walking the route with a real device.

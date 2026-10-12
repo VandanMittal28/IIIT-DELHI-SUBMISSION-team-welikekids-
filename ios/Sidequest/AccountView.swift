@@ -40,10 +40,11 @@ struct AccountView: View {
                         Button("Save profile") { Task { do { try await model.saveProfile(fullName:fullName,collegeId:collegeId,interests:interests.split(separator:",").map{String($0).trimmingCharacters(in:.whitespaces)}.filter{!$0.isEmpty},preferences:["announcements":announcementNotifications,"venue_changes":venueNotifications,"reminders":reminderNotifications,"reports":reportNotifications]);notificationStatus="Profile preferences saved" } catch { errorMessage=error.localizedDescription } } }
                     }
                     Section("Notifications") {
-                        Toggle("Announcements",isOn:$announcementNotifications)
-                        Toggle("Venue changes",isOn:$venueNotifications)
-                        Toggle("Deadline reminders",isOn:$reminderNotifications)
-                        Toggle("Report updates",isOn:$reportNotifications)
+                        Toggle("Push announcements",isOn:$announcementNotifications)
+                        Toggle("Push venue changes",isOn:$venueNotifications)
+                        Toggle("Push deadline reminders",isOn:$reminderNotifications)
+                        Toggle("Push report updates",isOn:$reportNotifications)
+                        Text("Important updates remain available in your in-app inbox even when a push category is off.").font(.footnote).foregroundStyle(.secondary)
                         Text(notificationStatus).font(.footnote).foregroundStyle(.secondary)
                         Button("Enable event notifications") { Task { await requestNotifications() } }
                     }

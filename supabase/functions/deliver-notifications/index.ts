@@ -97,6 +97,13 @@ Deno.serve(async (request) => {
     });
     return error;
   };
+  const { data: reminderResult, error: reminderError } = await supabase.rpc(
+    "enqueue_due_event_reminders",
+    {},
+  );
+  if (reminderError) {
+    return Response.json({ error: reminderError.message }, { status: 500 });
+  }
   const { data, error } = await supabase.rpc("claim_notification_jobs", {
     p_limit: 25,
   });
@@ -174,6 +181,8 @@ Deno.serve(async (request) => {
   return Response.json({
     claimed: jobs.length,
     delivered,
+    reminders_enqueued: (reminderResult as { enqueued?: number } | null)
+      ?.enqueued ?? 0,
     completion_errors: completionErrors,
   }, { status: completionErrors.length ? 502 : 200 });
 });

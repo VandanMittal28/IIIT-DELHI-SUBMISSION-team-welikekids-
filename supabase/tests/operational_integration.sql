@@ -172,8 +172,33 @@ do $$ begin
 end $$;
 reset role;
 do $$ begin
- if not exists(select 1 from public.notification_delivery_jobs where id=(select job_id from claimed_notification) and status='failed' and terminal_failure and locked_at is null) then raise exception 'terminal notification state incorrect'; end if;
  if exists(select 1 from public.device_tokens where token='integration-device-token' and is_active) then raise exception 'invalid notification token remained active'; end if;
+end $$;
+update public.device_tokens set is_active=true where token='integration-device-token';
+set role authenticated;
+select set_config('request.jwt.claim.role','authenticated',true);
+select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000003',true);
+select public.update_profile_preferences('Student',null,'{}'::text[],'{"announcements":true,"venue_changes":true,"reminders":false,"reports":true}'::jsonb);
+do $$ begin
+ begin perform public.update_profile_preferences('Student',null,'{}'::text[],'{"reminders":"yes"}'::jsonb); raise exception 'invalid notification preferences accepted'; exception when sqlstate 'PGRST' then null; end;
+end $$;
+select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000005',true);
+insert into public.saved_events(user_id,event_id) values('10000000-0000-0000-0000-000000000005',(select value from test_state where key='event'));
+reset role;
+set role service_role;
+select set_config('request.jwt.claim.role','service_role',true);
+create temporary table reminder_runs(result jsonb);
+insert into reminder_runs values(public.enqueue_due_event_reminders(clock_timestamp()));
+insert into reminder_runs values(public.enqueue_due_event_reminders(clock_timestamp()));
+reset role;
+do $$ begin
+ if not exists(select 1 from public.notification_delivery_jobs where id=(select job_id from claimed_notification) and status='failed' and terminal_failure and locked_at is null) then raise exception 'terminal notification state incorrect'; end if;
+ if (select count(*) from public.notifications where kind='venue_change')<>1 then raise exception 'venue change notification kind incorrect'; end if;
+ if (select count(*) from public.notification_reminders where reminder_kind='event_starting')<>1 then raise exception 'event-start reminder was not idempotent'; end if;
+ if (select count(*) from public.notification_reminders where reminder_kind='registration_closing')<>1 then raise exception 'registration deadline reminder missing'; end if;
+ if (select sum((result->>'enqueued')::integer) from reminder_runs)<>2 then raise exception 'event reminder enqueue result incorrect'; end if;
+ if (select count(*) from public.notifications where kind='reminder')<>2 then raise exception 'event reminder inbox entry missing'; end if;
+ if exists(select 1 from public.notification_delivery_jobs job join public.notifications notification on notification.id=job.notification_id where notification.kind='reminder') then raise exception 'disabled reminder push was queued'; end if;
  raise notice 'operational integration passed';
 end $$;
 
