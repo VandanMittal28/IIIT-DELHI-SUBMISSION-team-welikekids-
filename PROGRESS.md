@@ -30,6 +30,7 @@ Last updated: 2026-10-12 (Asia/Kolkata)
 - [x] Native report evidence selection/upload and an idempotent, ownership-validating attachment-link RPC implemented and locally verified.
 - [x] Notification delivery leases, stale-worker protection, per-token APNs environment routing, terminal-response handling, and invalid-token deactivation implemented and locally verified.
 - [x] Notification settings now govern push jobs, venue updates keep their category, and idempotent registration/event deadline reminders derive from stored records while remaining visible in the inbox.
+- [x] Admin report evidence uses protected signed links, and report assignment uses a scoped real-staff selector rather than manually entered user IDs.
 - [x] Admin website deployed to Vercel from GitHub `main` with the `admin` root and production Supabase configuration.
 - [x] Temporary college-issued username login added on top of Supabase Auth; no password is stored in source control.
 - [ ] Authenticated real-data staging journey, physical-iPhone verification, APNs worker deployment, and iOS production release authorization.
@@ -72,6 +73,7 @@ Last updated: 2026-10-12 (Asia/Kolkata)
 - Report attachment integration passes locally: only the author can link an owned object at the report-scoped path, unrelated users are denied, and retrying creates neither a duplicate attachment nor a duplicate audit record. Hosted migration application remains pending explicit confirmation.
 - Notification delivery integration passes locally: an expired processing lease is reclaimed, a stale completion is rejected, terminal failures stop retrying, and an invalid APNs token is deactivated. Deno type checking and three APNs classification tests pass. Hosted migration/function deployment and physical receipt remain pending.
 - Reminder integration passes locally: a due reminder is created once across repeated worker runs, disabling reminder pushes suppresses its delivery job without removing the inbox record, malformed preference values are rejected, and venue changes are categorized separately from ordinary announcements.
+- Report-operations integration passes locally: event managers receive only their edition's assignable staff, an ordinary student is denied, the admin production build succeeds, and protected evidence is fetched through its existing RLS boundary before short-lived signing.
 - Expanded release suite passes cross-role denial, event update/edition/media operations, registration rosters, duplicate scans, wall-clock attendance ordering, audited corrections, assigned-report states, and complete route/review behavior.
 - Hosted advisors after the full schema: 0 security errors; 0 performance errors/warnings. All 43 security warnings are reviewed authenticated `SECURITY DEFINER` transaction endpoints under ADR-005.
 - Concurrent capacity test: 10 simultaneous requests against capacity 3 produced exactly 3 registrations and 7 waitlist entries.
@@ -88,5 +90,5 @@ Last updated: 2026-10-12 (Asia/Kolkata)
 - Blocker: no authorized Apple APNs signing key/team configuration is available, so the delivery worker source is not deployed and push receipt is unverified. The durable inbox and retry jobs are deployed.
 - Vercel production: `https://sidequest-admin-rho.vercel.app`, connected to GitHub `main`; pushes create deployments from the `admin` root.
 - Blocker: physical route data and validation have not been supplied; no route is marked physically validated and AR behavior remains unverified.
-- Pending authorized change: apply `20261012004500_report_attachment_linking.sql`, `20261012072629_notification_delivery_leases.sql`, and `20261012073650_notification_preferences_and_reminders.sql` to the hosted Supabase project. The APNs function itself still requires Apple credentials before deployment.
+- Pending authorized change: apply `20261012004500_report_attachment_linking.sql`, `20261012072629_notification_delivery_leases.sql`, `20261012073650_notification_preferences_and_reminders.sql`, and `20261012074052_report_staff_directory.sql` to the hosted Supabase project. The APNs function itself still requires Apple credentials before deployment.
 - Next: invite/bootstrap a trusted administrator, enter authorized real college/event/route data through the admin, add student and volunteer accounts, and run the complete persisted staging journey on a physical iPhone.

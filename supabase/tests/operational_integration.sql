@@ -34,6 +34,7 @@ do $$ declare result jsonb; begin
  insert into test_state values('pass',(result->>'pass_token')::uuid),('registration',(result->>'registration_id')::uuid);
  begin perform public.assign_context_role('30000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000003','organizer'); raise exception 'student granted staff role'; exception when sqlstate 'PGRST' then null; end;
  begin perform public.create_campus('20000000-0000-0000-0000-000000000001','Forbidden Campus',28.5,77.2); raise exception 'student authored campus'; exception when sqlstate 'PGRST' then null; end;
+ begin perform public.get_assignable_event_staff((select value from test_state where key='edition')); raise exception 'student read assignable staff'; exception when sqlstate 'PGRST' then null; end;
 end $$;
 
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000004',true);
@@ -43,7 +44,10 @@ do $$ begin if not exists(select 1 from public.memberships where organization_id
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000002',true);
 select public.assign_event_staff((select value from test_state where key='edition'),'10000000-0000-0000-0000-000000000004','event_volunteer');
 select public.update_edition_capacity((select value from test_state where key='edition'),1,true,true);
-do $$ begin if (select count(*) from public.get_registration_roster((select value from test_state where key='edition')))<>1 then raise exception 'roster incorrect'; end if; end $$;
+do $$ begin
+ if (select count(*) from public.get_registration_roster((select value from test_state where key='edition')))<>1 then raise exception 'roster incorrect'; end if;
+ if (select count(*) from public.get_assignable_event_staff((select value from test_state where key='edition')))<>1 then raise exception 'assignable staff directory incorrect'; end if;
+end $$;
 
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000004',true);
 do $$ declare first jsonb; replay jsonb; begin

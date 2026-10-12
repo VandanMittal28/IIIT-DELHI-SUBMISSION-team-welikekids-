@@ -74,6 +74,7 @@ Authenticated, security-invoker organizer/volunteer projection of capacity and a
 
 - `submit_report` requires event access. `transition_report` enforces submitted → acknowledged → assigned/in progress → resolved, stores history, and queues a student notification.
 - `add_report_attachment(report_id, storage_path)` links a previously uploaded private `report-attachments` object. The caller must be the report author, the path must be `<caller UUID>/<report UUID>/<file>`, and Storage must confirm the same owner. Repeating the link is idempotent and does not duplicate either the attachment or its audit record. Invalid ownership returns `FORBIDDEN`; an invalid path or missing upload returns `INVALID_MEDIA_PATH` or `ATTACHMENT_NOT_FOUND`.
+- `get_assignable_event_staff(edition_id)` returns only staff already assigned to that edition and only after the caller passes the same server-side edition-management check used by report transitions. The admin uses it instead of accepting a manually typed account identifier.
 - `publish_announcement` and `change_session_venue` commit authoritative rows before queuing delivery work.
 - `post_message` requires channel access; `moderate_message` preserves the row and changes its visibility state.
 - `submit_review` requires an attendance entry, supports update-by-the-same-attendee, and enforces one review per user/event. `event_review_summary` includes the actual sample size.
