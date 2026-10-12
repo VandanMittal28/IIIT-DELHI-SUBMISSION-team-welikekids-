@@ -4,7 +4,7 @@
 
 - Review Supabase Auth, Data API, Storage, Realtime, Edge Function, and Postgres logs for sustained error-rate changes.
 - Run security and performance advisors after every schema migration.
-- Alert on failed notification delivery jobs, registration-function errors, repeated invalid pass scans, and route-version publication failures.
+- Alert on failed or terminal notification delivery jobs, processing leases older than five minutes, registration-function errors, repeated invalid pass scans, and route-version publication failures.
 - Application dashboards must report record timestamps and sample sizes; realtime signals alone are never treated as durable truth.
 
 ## Backups
@@ -23,7 +23,9 @@ Never test restore procedures by overwriting the live production project.
 
 ## Notification delivery
 
-Deploy `supabase/functions/deliver-notifications` only after securely configuring the variables shown in `supabase/functions/.env.example`. Invoke it from an authorized Supabase Cron/HTTP schedule using `DELIVERY_WEBHOOK_SECRET`. APNs private keys and the service-role key are never client configuration. A 503 `NOT_CONFIGURED` response is a failure, not simulated delivery.
+Deploy `supabase/functions/deliver-notifications` only after securely configuring the variables shown in `supabase/functions/.env.example`. The function has platform JWT verification disabled because it authenticates the scheduled POST itself with `DELIVERY_WEBHOOK_SECRET`; never expose that secret to a client. Supabase injects its server secret into the function environment. Invoke the worker from an authorized Supabase Cron/HTTP schedule, and treat any non-200 response as a failed run. APNs private keys and server secrets are never client configuration. A 503 `NOT_CONFIGURED` response is a failure, not simulated delivery.
+
+Jobs use five-minute processing leases. A later invocation reclaims an expired lease, while the attempt number prevents a late worker from completing the reclaimed job. Retryable APNs/network failures back off. Terminal APNs errors remain inspectable without further attempts; `BadDeviceToken`, `DeviceTokenNotForTopic`, and `Unregistered` also deactivate the affected token. Sandbox and production device tokens are routed to their corresponding APNs hosts in the same batch.
 
 ## Route changes
 

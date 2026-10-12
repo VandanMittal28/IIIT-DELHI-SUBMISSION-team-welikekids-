@@ -36,7 +36,7 @@ Opaque passes resolve server-side to a registration. `record_attendance` enforce
 
 ### ADR-009 — Notifications are durable before delivery
 
-User-visible notification rows and per-device delivery jobs are committed with the triggering business change. A service-role-only worker claims jobs with `SKIP LOCKED`, delivers through APNs, and records retry state with exponential backoff. The in-app inbox remains authoritative when push permission or delivery is unavailable.
+User-visible notification rows and per-device delivery jobs are committed with the triggering business change. A service-role-only worker claims jobs with `SKIP LOCKED` and a recoverable five-minute lease, delivers through the device token's stored APNs environment, and records attempt-scoped completion with exponential backoff. Terminal APNs responses are not retried, and invalid device tokens are deactivated without affecting the durable inbox. The in-app inbox remains authoritative when push permission or delivery is unavailable.
 
 ### ADR-010 — Attendance ordering uses wall-clock transition time
 

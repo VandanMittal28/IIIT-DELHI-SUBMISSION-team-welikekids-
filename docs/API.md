@@ -87,4 +87,4 @@ Authenticated, security-invoker organizer/volunteer projection of capacity and a
 
 ## Notifications
 
-`register_device_token` persists an APNs token. Business operations create `notifications` plus idempotent per-device delivery jobs. `claim_notification_jobs` and `complete_notification_job` are executable only by `service_role`; clients cannot forge delivery state. The Edge Function retries failures and the iOS inbox works independently of APNs permission.
+`register_device_token` persists an APNs token and its sandbox/production environment. Business operations create `notifications` plus idempotent per-device delivery jobs. `claim_notification_jobs` and `complete_notification_job` are executable only by `service_role`; clients cannot forge delivery state. Claims carry a five-minute lease and attempt number, so crashed workers can be recovered while stale completions are rejected. Retryable failures use backoff; Apple terminal responses stop retrying, and invalid device-token responses deactivate only that token. The Edge Function selects the APNs endpoint per device, while the iOS inbox remains authoritative independently of push permission.

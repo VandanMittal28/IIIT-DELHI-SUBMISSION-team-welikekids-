@@ -63,6 +63,7 @@ do $$ declare report_result jsonb; review_result jsonb; begin
  insert into test_state values('report',(report_result->>'report_id')::uuid);
  review_result:=public.submit_review((select value from test_state where key='edition'),5,'Verified local attendance review');
  if (review_result->>'persisted')::boolean<>true then raise exception 'review failed'; end if;
+ perform public.register_device_token('integration-device-token','sandbox');
 end $$;
 
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000004',true);
@@ -142,6 +143,37 @@ do $$ begin
  if (select estimated_inside from public.edition_occupancy where edition_id=(select value from test_state where key='edition'))<>1 then raise exception 'occupancy incorrect'; end if;
  if (select status::text from public.reports where id=(select value from test_state where key='report'))<>'resolved' then raise exception 'report workflow incomplete'; end if;
  if (select sample_size from public.event_review_summary where event_id=(select value from test_state where key='event'))<>1 then raise exception 'review analytics incorrect'; end if;
+end $$;
+
+set role authenticated;
+select set_config('request.jwt.claim.role','authenticated',true);
+do $$ begin
+ begin perform public.claim_notification_jobs(1); raise exception 'client claimed notification jobs'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set role service_role;
+select set_config('request.jwt.claim.role','service_role',true);
+create temporary table claimed_notification as select * from public.claim_notification_jobs(1);
+do $$ begin
+ if (select count(*) from claimed_notification)<>1 or (select attempt_number from claimed_notification)<>1 then raise exception 'notification claim failed'; end if;
+ if (select device_environment from claimed_notification)<>'sandbox' then raise exception 'notification environment missing'; end if;
+end $$;
+reset role;
+update public.notification_delivery_jobs
+set locked_at=clock_timestamp()-interval '10 minutes',next_attempt_at=clock_timestamp()-interval '10 minutes'
+where id=(select job_id from claimed_notification);
+set role service_role;
+select set_config('request.jwt.claim.role','service_role',true);
+create temporary table reclaimed_notification as select * from public.claim_notification_jobs(1);
+do $$ begin
+ if (select job_id from reclaimed_notification)<>(select job_id from claimed_notification) or (select attempt_number from reclaimed_notification)<>2 then raise exception 'expired notification lease was not reclaimed'; end if;
+ if (public.complete_notification_job((select job_id from claimed_notification),1,true,false,false,null)->>'stale_attempt')::boolean<>true then raise exception 'stale worker completed reclaimed job'; end if;
+ if (public.complete_notification_job((select job_id from reclaimed_notification),2,false,true,true,'410 Unregistered')->>'persisted')::boolean<>true then raise exception 'terminal notification completion failed'; end if;
+end $$;
+reset role;
+do $$ begin
+ if not exists(select 1 from public.notification_delivery_jobs where id=(select job_id from claimed_notification) and status='failed' and terminal_failure and locked_at is null) then raise exception 'terminal notification state incorrect'; end if;
+ if exists(select 1 from public.device_tokens where token='integration-device-token' and is_active) then raise exception 'invalid notification token remained active'; end if;
  raise notice 'operational integration passed';
 end $$;
 

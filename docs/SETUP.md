@@ -22,7 +22,7 @@
 4. In Auth settings, configure the approved application URLs and require email confirmation for public accounts.
 5. Invite the first trusted administrator through Supabase Auth. After that person exists in `auth.users`, review and run `supabase/bootstrap/initial_admin.sql.example` as a trusted database operator. Public sign-up only creates a profile; it cannot create staff or administrator memberships.
 6. Create organizations and invitations through the admin workflows as they become available. Never seed fictional operational content into production.
-7. For push delivery, configure the Edge Function secrets from `supabase/functions/.env.example`, deploy `deliver-notifications`, and schedule it only in the authorized environment. Apple Developer APNs credentials are required.
+7. For push delivery, configure the Edge Function secrets from `supabase/functions/.env.example`, deploy `deliver-notifications`, and schedule authenticated POST invocations only in the authorized environment. `config.toml` disables platform JWT verification for this worker because its handler verifies `DELIVERY_WEBHOOK_SECRET`. Apple Developer APNs credentials are required; Supabase injects the server key and URL rather than reading them from the committed template.
 
 The native app exposes public student account creation. A successful sign-up either starts a session immediately (only when the environment intentionally disables confirmation) or tells the student to confirm the email and then sign in. The Auth profile trigger creates an unprivileged profile only; organization and college access still require server-authorized membership records.
 
