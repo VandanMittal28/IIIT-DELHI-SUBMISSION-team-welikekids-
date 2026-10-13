@@ -93,7 +93,7 @@ for name in "${CHECKABLE[@]}"; do
         "$SRC/$name" > "$WORK/$name"
 done
 
-cp "$HARNESS/shims.swift" "$HARNESS/app_model_stub.swift" "$WORK/" 2>/dev/null
+cp "$HARNESS/shims.swift" "$HARNESS/app_model_stub.swift" "$HARNESS/camera_chrome_probe.swift" "$WORK/" 2>/dev/null
 
 SDK="$(xcrun --sdk macosx --show-sdk-path)"
 if out=$(swiftc -typecheck \

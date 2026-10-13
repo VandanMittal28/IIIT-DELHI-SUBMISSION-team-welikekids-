@@ -8,6 +8,10 @@ import SwiftUI
 // the rest of the navigation UI can be type-checked without ARKit (see tools/typecheck/run.sh).
 
 struct CameraGuidanceView: View {
+    /// Near-black tint so shared components (`SQCircleButton`, `SQEmptyState`, the buttons)
+    /// render in their light-on-dark form over the camera feed.
+    static let overlayTint = SQTint(red: 0.05, green: 0.06, blue: 0.06)
+
     @Environment(\.dismiss) private var dismiss
     let steps: [RouteCameraStep]
     let confirmedFacingDegrees: Double?
@@ -41,36 +45,65 @@ struct CameraGuidanceView: View {
                                 .font(.caption.bold()).foregroundStyle(.orange).padding(8).background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
                         }
                     Spacer()
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Step \(stepIndex + 1) of \(steps.count)").font(.caption.bold())
-                        Text(step.instruction).font(.headline)
-                        Text("\(Int(step.distanceMeters.rounded())) m · \(step.kind)").font(.caption)
+                    VStack(alignment: .leading, spacing: SQSpace.sm) {
+                        Text("Step \(stepIndex + 1) of \(steps.count)")
+                            .font(SQFont.badge)
+                            .foregroundStyle(SQColor.lime)
+                        Text(step.instruction).font(SQFont.rowTitle)
+                        Text("\(Int(step.distanceMeters.rounded())) m · \(step.kind)").font(SQFont.meta)
                         if step.bearingDegrees == nil {
                             Label("No reliable spatial bearing for this transition. Follow the text, map, or voice instruction.", systemImage: "arrow.triangle.turn.up.right.diamond")
                                 .font(.caption)
                         } else if let confirmedFacingDegrees {
                             Text("Aligned from the confirmed \(Int(confirmedFacingDegrees.rounded()))° landmark reference. The arrow is anchored to the stored route bearing.").font(.caption)
                         }
-                        HStack {
-                            Button("Previous") { stepIndex = max(0, stepIndex - 1) }.disabled(stepIndex == 0)
-                            Spacer()
-                            if stepIndex + 1 < steps.count { Button("Next step") { stepIndex += 1 } }
-                            else { Button("Finish") { dismiss() } }
+                        HStack(spacing: SQSpace.md) {
+                            SQSecondaryButton(title: "Previous", systemImage: "chevron.left", isEnabled: stepIndex > 0) {
+                                stepIndex = max(0, stepIndex - 1)
+                            }
+                            if stepIndex + 1 < steps.count {
+                                SQPrimaryButton(title: "Next step", systemImage: "chevron.right") { stepIndex += 1 }
+                            } else {
+                                SQPrimaryButton(title: "Finish", systemImage: "checkmark") { dismiss() }
+                            }
                         }
+                        .padding(.top, SQSpace.xs)
                     }
-                    .padding().background(.ultraThinMaterial).clipShape(RoundedRectangle(cornerRadius: 16)).padding()
+                    .foregroundStyle(.white)
+                    .padding(SQSpace.xl)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: SQRadius.card, style: .continuous))
+                    .padding(SQSpace.margin)
                 }
             } else if permission == .denied || permission == .restricted {
                 if simulationMode, let step {
                     SimulatedCameraSurface(step: step)
                         .ignoresSafeArea()
                 } else {
-                    ContentUnavailableView("Camera unavailable", systemImage: "camera.fill", description: Text("Use map, text, or voice guidance. Camera access can be changed in Settings."))
-                        .foregroundStyle(.white)
+                    SQEmptyState(
+                        message: "Camera unavailable. Use map, text, or voice guidance. Camera access can be changed in Settings.",
+                        systemImage: "camera.fill"
+                    )
+                    .padding(.horizontal, SQSpace.margin)
                 }
-            } else { ProgressView("Requesting camera access…").tint(.white).foregroundStyle(.white) }
-            VStack { HStack { Spacer(); Button("Done") { dismiss() }.buttonStyle(.borderedProminent).padding() }; Spacer() }
+            } else {
+                ProgressView("Requesting camera access…")
+                    .tint(.white)
+                    .font(SQFont.body)
+                    .foregroundStyle(.white)
+            }
+            VStack {
+                HStack {
+                    Spacer()
+                    SQCircleButton(systemImage: "xmark") { dismiss() }
+                        .accessibilityLabel("Close camera guidance")
+                }
+                .padding(.horizontal, SQSpace.margin)
+                .padding(.top, SQSpace.sm)
+                Spacer()
+            }
         }
+        .environment(\.sqTint, Self.overlayTint)
         .task {
             if permission == .notDetermined {
                 _ = await AVCaptureDevice.requestAccess(for: .video)
@@ -91,7 +124,7 @@ struct SimulatedCameraSurface: View {
                 Image(systemName: "camera.viewfinder").font(.title).foregroundStyle(.white.opacity(0.7))
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 110, weight: .bold))
-                    .foregroundStyle(Color.sidequestLime)
+                    .foregroundStyle(SQColor.lime)
                     .shadow(color: .green.opacity(0.8), radius: pulse ? 20 : 8)
                     .scaleEffect(pulse ? 1.05 : 0.96)
                     .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
@@ -158,34 +191,42 @@ struct CameraSimulationView: View {
                 VStack(spacing: 12) {
                     Image(systemName: "camera.viewfinder").font(.system(size: 46)).foregroundStyle(.white.opacity(0.7))
                     Text(camera.permission == .denied ? "Camera access is off" : "Camera preview unavailable")
-                        .font(.headline).foregroundStyle(.white)
-                    Text("Compass guidance demo is still available over this preview.").font(.caption).foregroundStyle(.white.opacity(0.75))
+                        .font(SQFont.rowTitle).foregroundStyle(.white)
+                    Text("Compass guidance demo is still available over this preview.")
+                        .font(SQFont.meta).foregroundStyle(.white.opacity(0.75))
                 }
             }
 
             VStack(spacing: 0) {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("DEMO · EXPLORE GUIDANCE").font(.caption.bold()).foregroundStyle(Color.sidequestLime)
-                        Text("To \(destination)").font(.headline).foregroundStyle(.white)
+                        Text("DEMO · EXPLORE GUIDANCE")
+                            .font(SQFont.badge)
+                            .foregroundStyle(SQColor.lime)
+                        Text("To \(destination)")
+                            .font(SQFont.rowTitle)
+                            .foregroundStyle(.white)
+                            .lineLimit(2)
                     }
-                    Spacer()
-                    Button("Done") { dismiss() }.buttonStyle(.borderedProminent)
+                    Spacer(minLength: SQSpace.md)
+                    SQCircleButton(systemImage: "xmark") { dismiss() }
+                        .accessibilityLabel("Close guidance demo")
                 }
-                .padding(.top, 14).padding(.horizontal)
+                .padding(.top, SQSpace.sm)
+                .padding(.horizontal, SQSpace.margin)
                 Spacer()
                 Spacer()
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Text("SIMULATED LOCATION").font(.caption.bold()).foregroundStyle(Color.sidequestLime)
+                        Text("SIMULATED LOCATION").font(.caption.bold()).foregroundStyle(SQColor.lime)
                         Spacer()
                         Text("\(Int(walkedMeters.rounded())) m / \(Int(plan.totalDistanceMeters.rounded())) m").font(.caption.bold())
                     }
                     GeometryReader { geometry in
                         ZStack(alignment: .leading) {
                             Capsule().fill(.white.opacity(0.25)).frame(height: 5)
-                            Capsule().fill(Color.sidequestLime).frame(width: max(5, geometry.size.width * simulatedProgress), height: 5)
-                            Image(systemName: "location.fill").font(.caption).foregroundStyle(Color.sidequestLime)
+                            Capsule().fill(SQColor.lime).frame(width: max(5, geometry.size.width * simulatedProgress), height: 5)
+                            Image(systemName: "location.fill").font(.caption).foregroundStyle(SQColor.lime)
                                 .position(x: max(7, min(geometry.size.width - 7, geometry.size.width * simulatedProgress)), y: 9)
                         }
                     }
@@ -204,23 +245,35 @@ struct CameraSimulationView: View {
                     } else {
                         Label("Compass unavailable — arrow follows the route instruction", systemImage: "location.north.line").font(.caption)
                     }
-                    HStack {
-                        Button("Restart") { isSimulating = false; simulatedProgress = 0 }
-                        Spacer()
+                    HStack(spacing: SQSpace.md) {
+                        SQSecondaryButton(title: "Restart", systemImage: "arrow.counterclockwise") {
+                            isSimulating = false
+                            simulatedProgress = 0
+                        }
                         if simulatedProgress >= 1 {
-                            Button("Finish") { dismiss() }.buttonStyle(.borderedProminent)
+                            SQPrimaryButton(title: "Finish", systemImage: "checkmark") { dismiss() }
                         } else {
-                            Button(isSimulating ? "Simulating…" : "Simulate walking") { startSimulation() }
-                                .buttonStyle(.borderedProminent).disabled(isSimulating)
+                            SQPrimaryButton(
+                                title: isSimulating ? "Simulating…" : "Simulate walking",
+                                systemImage: "figure.walk",
+                                isLoading: isSimulating,
+                                isEnabled: !isSimulating
+                            ) {
+                                startSimulation()
+                            }
                         }
                     }
+                    .padding(.top, SQSpace.xs)
                 }
-                .foregroundStyle(.white).padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18)).padding()
+                .foregroundStyle(.white)
+                .padding(SQSpace.xl)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: SQRadius.card, style: .continuous))
+                .padding(SQSpace.margin)
             }
             GeometryReader { geometry in
                 Image(systemName: "arrow.up")
                     .font(.system(size: 52, weight: .black))
-                    .foregroundStyle(Color.sidequestLime)
+                    .foregroundStyle(SQColor.lime)
                     .shadow(color: .black.opacity(0.85), radius: 9)
                     .rotationEffect(.degrees(relativeArrowDegrees))
                     .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
@@ -236,6 +289,7 @@ struct CameraSimulationView: View {
             if initialHeading == nil { initialHeading = newHeading }
         }
         .onDisappear { isSimulating = false; camera.stop(); compass.stop() }
+        .environment(\.sqTint, CameraGuidanceView.overlayTint)
     }
 
     private func startSimulation() {
@@ -328,7 +382,7 @@ struct SimulatedArrowOverlay: View {
             Spacer()
             Image(systemName: "arrow.up.circle.fill")
                 .font(.system(size: 92, weight: .bold))
-                .foregroundStyle(Color.sidequestLime)
+                .foregroundStyle(SQColor.lime)
                 .shadow(color: .black.opacity(0.8), radius: 10)
             Text("DEMO AR ARROW").font(.caption.bold()).foregroundStyle(.orange)
             Spacer().frame(height: 170)
