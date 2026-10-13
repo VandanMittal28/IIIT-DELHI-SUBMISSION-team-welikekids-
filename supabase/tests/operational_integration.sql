@@ -180,9 +180,13 @@ do $$ declare campus uuid; start_landmark uuid; finish_landmark uuid; route_vers
  campus:=(public.create_campus('20000000-0000-0000-0000-000000000001','Test Campus',28.545,77.273)->>'campus_id')::uuid;
  start_landmark:=(public.create_landmark(campus,'Gate','outdoor_geographic',28.545,77.273,null,null,null,90,'Face east',null)->>'landmark_id')::uuid;
  finish_landmark:=(public.create_landmark(campus,'Hall','outdoor_geographic',28.546,77.274,null,null,null,90,'Face east',null)->>'landmark_id')::uuid;
+ perform public.update_landmark(finish_landmark,'Main Hall',28.546,77.274,null,null,null,95,'Face the main doors');
+ if not exists(select 1 from public.landmarks where id=finish_landmark and name='Main Hall' and facing_degrees=95) then raise exception 'landmark editing failed'; end if;
  venue:=(public.create_venue(campus,'Test Hall','hall',null,null,'Step-free entrance')->>'venue_id')::uuid;
  perform public.set_venue_navigation(venue,finish_landmark,start_landmark);
  session_id:=(public.create_event_session((select value from test_state where key='edition'),venue,'Main session',now()+interval '2 hours',now()+interval '3 hours')->>'session_id')::uuid;
+ perform public.update_event_session(session_id,'Opening session',venue,now()+interval '2 hours 5 minutes',now()+interval '3 hours 5 minutes');
+ if not exists(select 1 from public.event_sessions where id=session_id and title='Opening session') then raise exception 'session editing failed'; end if;
  begin perform public.change_session_venue(session_id,'22000000-0000-0000-0000-000000000002','Cross-college venue must fail','40000000-0000-0000-0000-000000000013'); raise exception 'cross-college venue accepted'; exception when sqlstate 'PGRST' then null; end;
  venue_result:=public.change_session_venue(session_id,venue,'Navigation contract test',venue_request);
  venue_replay:=public.change_session_venue(session_id,venue,'Navigation contract test',venue_request);
@@ -192,9 +196,13 @@ do $$ declare campus uuid; start_landmark uuid; finish_landmark uuid; route_vers
  start_node:=(public.add_route_node(route_version,'landmark','outdoor_geographic',start_landmark,28.545,77.273,null,null,null,true)->>'node_id')::uuid;
  finish_node:=(public.add_route_node(route_version,'landmark','outdoor_geographic',finish_landmark,28.546,77.274,null,null,null,true)->>'node_id')::uuid;
  edge:=(public.add_route_edge(route_version,start_node,finish_node,'walkway',150,'[]','Walk toward Hall',true,true)->>'edge_id')::uuid;
+ perform set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000003',true);
+ begin perform public.update_route_edge(edge,'walkway',160,'[]','Follow the main walkway',true,true); raise exception 'student edited route edge'; exception when sqlstate 'PGRST' then null; end;
+ perform set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000001',true);
+ perform public.update_route_edge(edge,'walkway',160,'[]','Follow the main walkway',true,true);
  perform public.publish_route_version(route_version,'Local graph test',false);
  plan:=public.calculate_route(start_landmark,finish_landmark,true);
- if (plan->>'total_distance_meters')::numeric<>150 or jsonb_array_length(plan->'edges')<>1 then raise exception 'route calculation failed'; end if;
+ if (plan->>'total_distance_meters')::numeric<>160 or jsonb_array_length(plan->'edges')<>1 then raise exception 'route calculation failed'; end if;
  closure_result:=public.add_route_closure(edge,'Local test closure',now()-interval '1 minute',now()+interval '4 hours',closure_request);
  closure_replay:=public.add_route_closure(edge,'Local test closure',now()-interval '1 minute',now()+interval '4 hours',closure_request);
  if (closure_result->>'notified_attendees')::integer<>1 or (closure_replay->>'idempotent_replay')::boolean<>true or closure_result->>'closure_id'<>closure_replay->>'closure_id' then raise exception 'closure notification/idempotency failed'; end if;
@@ -207,6 +215,9 @@ do $$ declare campus uuid; start_landmark uuid; finish_landmark uuid; route_vers
  if (reopen_result->>'notified_attendees')::integer<>1 or (reopen_replay->>'idempotent_replay')::boolean<>true then raise exception 'route reopening notification/idempotency failed'; end if;
  plan:=public.calculate_route(start_landmark,finish_landmark,true);
  if jsonb_array_length(plan->'edges')<>1 then raise exception 'reopened route unavailable'; end if;
+ update public.profiles set status='suspended' where id='10000000-0000-0000-0000-000000000001';
+ begin perform public.update_landmark(finish_landmark,'Suspended edit',28.546,77.274,null,null,null,95,'Face the main doors'); raise exception 'suspended administrator retained write access'; exception when sqlstate 'PGRST' then null; end;
+ update public.profiles set status='active' where id='10000000-0000-0000-0000-000000000001';
 end $$;
 
 do $$ begin
@@ -281,6 +292,15 @@ do $$ begin
 end $$;
 
 reset role;
+update public.profiles set status='suspended' where id='10000000-0000-0000-0000-000000000003';
+set role authenticated;
+select set_config('request.jwt.claim.role','authenticated',true);
+select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000003',true);
+do $$ begin
+ if exists(select 1 from public.channels where edition_id=(select value from test_state where key='edition')) then raise exception 'suspended account retained edition access'; end if;
+end $$;
+reset role;
+update public.profiles set status='active' where id='10000000-0000-0000-0000-000000000003';
 select set_config('request.jwt.claim.role','authenticated',true);
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000002',true);
 do $$ declare first jsonb; replay jsonb; begin

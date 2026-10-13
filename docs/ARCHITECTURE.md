@@ -58,6 +58,10 @@ The student uploads evidence directly to a private Storage path scoped by user a
 
 A discussion report references the immutable message row and enters the same persisted status workflow as an event report. The submitter must have edition access and cannot report their own message; a partial uniqueness index makes retries idempotent. Hiding a message removes it from student reads but keeps it visible to scoped event managers so triage retains evidence and moderation remains auditable.
 
+### ADR-015 — Published route versions are immutable
+
+College administrators may correct landmark metadata and edit edge geometry, instructions, distance, directionality, and accessibility while a route version is a draft. Once published, the graph is immutable: further corrections require a new version and validation pass. This prevents an already validated route identifier from silently changing underneath student navigation. Session schedule edits remain separately authorized and audited, must fit inside the edition window, and cannot move an event to another college.
+
 ## Environments
 
 - Local source and builds do not contain credentials or operational fixtures.
