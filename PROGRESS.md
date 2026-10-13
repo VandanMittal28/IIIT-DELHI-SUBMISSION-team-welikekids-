@@ -100,6 +100,7 @@ Last updated: 2026-10-13 (Asia/Kolkata)
 - Expanded release suite passes cross-role denial, event update/edition/media operations, registration rosters, duplicate scans, wall-clock attendance ordering, audited corrections, assigned-report states, and complete route/review behavior.
 - Hosted advisors after the full schema: 0 security errors; 0 performance errors/warnings. All 43 security warnings are reviewed authenticated `SECURITY DEFINER` transaction endpoints under ADR-005.
 - Development demo verification: three username-backed Auth users sign in with HTTP 200; the admin has an active college-admin membership, the organizer has active organizer and volunteer memberships, the student has a registered demo event and active opaque pass, and published discovery returns the labeled demo event.
+- Physical-device attempt: the paired iPhone is visible to `devicectl`, but the latest device build is blocked because Xcode has no active Apple account or provisioning profile for `in.sidequest.student`; the simulator build and tests still pass.
 - Concurrent capacity test: 10 simultaneous requests against capacity 3 produced exactly 3 registrations and 7 waitlist entries.
 - Admin registration/capacity counts compile against the shared RLS-scoped summary; native My Journey builds with persistent request IDs and on-device QR pass rendering.
 - Remote registration and operational schemas have RLS enabled. Advisors report only expected unused-index information plus the reviewed privileged-RPC warnings.
