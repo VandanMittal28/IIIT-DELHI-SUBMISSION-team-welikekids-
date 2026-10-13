@@ -286,6 +286,12 @@ struct NavigateView: View {
                     .font(.footnote).foregroundStyle(.orange)
             }
             RouteMap(nodes: plan.nodes, floorPlans: model.floorPlans, floorPlanURLs: model.floorPlanURLs).frame(height: 240).clipShape(RoundedRectangle(cornerRadius: 14))
+            if plan.nodes.contains(where: { node in
+                node.coordinateKind == "indoor_floor" && (node.floorId.map { model.floorPlans[$0] == nil } ?? true)
+            }) {
+                Label("Indoor floor plan not supplied yet. Building B indoor directions are a text-only simulation.", systemImage: "building.2.crop.circle")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
             ForEach(Array(plan.edges.enumerated()), id: \.element.id) { index, edge in
                 HStack(alignment: .top) {
                     Text("\(index + 1)").font(.caption.bold()).frame(width: 24, height: 24).background(Color.sidequestLime).clipShape(Circle())

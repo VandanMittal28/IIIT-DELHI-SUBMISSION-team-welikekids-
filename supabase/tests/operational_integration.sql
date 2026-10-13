@@ -336,6 +336,12 @@ do $$ declare first jsonb; replay jsonb; begin
  if (select count(*) from public.notifications where title='Event cancelled')<>1 then raise exception 'confirmed attendee cancellation notification missing or duplicated'; end if;
  perform set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000005',true);
  if (select count(*) from public.notifications where title='Event cancelled')<>1 then raise exception 'waitlisted attendee cancellation notification missing or duplicated'; end if;
+ perform set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000003',true);
+ begin
+   perform public.register_for_event((select value from test_state where key='edition'),'40000000-0000-0000-0000-000000000014');
+   raise exception 'registration after event cancellation was accepted';
+ exception when sqlstate 'PGRST' then null;
+ end;
 end $$;
 reset role;
 do $$ begin

@@ -52,7 +52,7 @@ export default function Home() {
     setError(null);
     const [membershipResult, adminResult] = await Promise.all([
       supabase.from("memberships")
-        .select("organization_id, organizations!inner(id,name,college_id)")
+        .select("organization_id, organizations!inner(id,name,college_id,is_active)")
         .eq("user_id", activeUser.id).eq("role", "organizer").eq("status", "active"),
       supabase.from("college_memberships").select("college_id")
         .eq("user_id", activeUser.id).eq("is_admin", true).eq("status", "active"),
@@ -66,12 +66,13 @@ export default function Home() {
     const adminCollegeIds = adminResult.data.map((row) => row.college_id);
     setAdminCollegeIds(adminCollegeIds);
     const adminOrganizations = adminCollegeIds.length > 0
-      ? await supabase.from("organizations").select("id,name,college_id").in("college_id", adminCollegeIds)
+      ? await supabase.from("organizations").select("id,name,college_id,is_active").in("college_id", adminCollegeIds)
       : { data: [] as Organization[], error: null };
     if (adminOrganizations.error) throw adminOrganizations.error;
     const orgs = Array.from(new Map([...memberOrgs, ...(adminOrganizations.data as Organization[])].map((org) => [org.id, org])).values());
     setOrganizations(orgs);
-    setDraft((current) => ({ ...current, organizationId: current.organizationId || orgs[0]?.id || "" }));
+    const activeOrgs = orgs.filter((organization) => organization.is_active !== false);
+    setDraft((current) => ({ ...current, organizationId: activeOrgs.some((org) => org.id === current.organizationId) ? current.organizationId : activeOrgs[0]?.id || "" }));
     const [eventsResult, feedResult, registrationResult] = await Promise.all([
       supabase.from("events").select("id,title,description,category,eligibility,price_minor,status,organization_id,college_id").order("created_at", { ascending: false }),
       supabase.from("published_event_feed").select("*").order("starts_at", { ascending: true }).limit(8),
@@ -101,6 +102,7 @@ export default function Home() {
   const registeredTotal = useMemo(() => registrationSummaries.reduce((total, item) => total + item.registered_count, 0), [registrationSummaries]);
   const waitlistedTotal = useMemo(() => registrationSummaries.reduce((total, item) => total + item.waitlisted_count, 0), [registrationSummaries]);
   const managedEventIds = useMemo(() => events.map((item) => item.id), [events]);
+  const activeOrganizations = useMemo(() => organizations.filter((organization) => organization.is_active !== false), [organizations]);
 
   async function signIn(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError(null);
@@ -168,9 +170,9 @@ export default function Home() {
       <section className={styles.hero}><div><p className={styles.eyebrow}>IIIT Delhi operations</p><h1>Campus events, made simple.</h1><p>Create an event, choose an IIIT Delhi venue, assign volunteers, and publish it to students.</p></div><div className={styles.stats}><span><strong>{events.length}</strong> events</span><span><strong>{published.length}</strong> live</span></div></section>
       {error && <Alert>{error}</Alert>}{notice && <div className={styles.notice}>{notice}</div>}
       <details className={styles.panel}><summary>Have a volunteer invitation?</summary><form onSubmit={acceptInvitation} className={styles.stack}><label>One-time invitation code<input required value={inviteCode} onChange={e=>setInviteCode(e.target.value)} placeholder="Paste invitation code" /></label><button>Activate volunteer access</button></form></details>
-      {organizations.length === 0 ? <section className={styles.empty}><h2>{adminCollegeIds.length > 0 ? "Create your first organization" : "No organizer access yet"}</h2><p>{adminCollegeIds.length > 0 ? "Your college administrator access is active. Create an authorized organization below to begin managing events." : "Your account is valid, but it has no active organizer membership. Ask a college administrator to invite you; Sidequest will not grant access from profile metadata."}</p></section> : <div className={styles.columns}>
+      {activeOrganizations.length === 0 ? <section className={styles.empty}><h2>{adminCollegeIds.length > 0 ? "Create your first organization" : "No organizer access yet"}</h2><p>{adminCollegeIds.length > 0 ? "Your college administrator access is active. Create an authorized organization below to begin managing events." : "Your account is valid, but it has no active organizer membership. Ask a college administrator to invite you; Sidequest will not grant access from profile metadata."}</p></section> : <div className={styles.columns}>
         <section className={styles.panel}><div className={styles.panelHead}><p className={styles.eyebrow}>New event</p><h2>Create the first edition</h2></div><form onSubmit={createEvent} className={styles.formGrid}>
-          <label className={styles.full}>Organization<select required value={draft.organizationId} onChange={(e) => setDraft({ ...draft, organizationId: e.target.value })}>{organizations.map((org) => <option value={org.id} key={org.id}>{org.name}</option>)}</select></label>
+          <label className={styles.full}>Active organization<select required value={draft.organizationId} onChange={(e) => setDraft({ ...draft, organizationId: e.target.value })}>{activeOrganizations.map((org) => <option value={org.id} key={org.id}>{org.name}</option>)}</select></label>
           <label className={styles.full}>Event title<input required minLength={3} maxLength={160} value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="Name students will recognize" /></label>
           <label className={styles.full}>Description<textarea required minLength={10} maxLength={10000} rows={4} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder="What will happen, and who is it for?" /></label>
           <label>Category<input required value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} placeholder="Workshop" /></label>
@@ -189,8 +191,8 @@ export default function Home() {
         <section className={styles.panel}><div className={styles.panelHead}><p className={styles.eyebrow}>Student view</p><h2>Live discovery</h2></div>{published.length === 0 ? <p className={styles.muted}>No published events. Students see a useful empty state, never fictional recommendations.</p> : <div className={styles.list}>{published.map((item) => <article key={item.id} className={styles.feedCard}><p>{item.college_name} · {item.category}</p><h3>{item.title}</h3><span>{item.starts_at ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.starts_at)) : "Schedule pending"}</span></article>)}</div>}</section></aside>
       </div>}
       {events.length > 0 && <section className={styles.operations}><div className={styles.sectionTitle}><p className={styles.eyebrow}>Live event operations</p><h2>Volunteer and response desk</h2><p>Every action below confirms against the authoritative backend. Realtime is only a refresh signal.</p></div><div className={styles.volunteerGrid}><VolunteerScanner onRecorded={() => user && void loadData(user)} /><OperationsPanel eventIds={managedEventIds} /></div><ManagementPanel events={events} organizations={organizations} onChanged={() => user && void loadData(user)} /></section>}
-      {adminCollegeIds.length > 0 && <section className={styles.operations}><CampusEditor collegeIds={adminCollegeIds} onChanged={() => user && void loadData(user)} /></section>}
-      {adminCollegeIds.length > 0 && <section className={styles.operations}><ProfileProvisioningPanel collegeId={adminCollegeIds[0]} organizations={organizations.map(({ id, name }) => ({ id, name }))} /></section>}
+      {adminCollegeIds.length > 0 && <section className={styles.operations}><CampusEditor collegeIds={adminCollegeIds} /></section>}
+      {adminCollegeIds.length > 0 && <section className={styles.operations}><ProfileProvisioningPanel collegeId={adminCollegeIds[0]} organizations={organizations.filter((organization) => organization.college_id === adminCollegeIds[0]).map(({ id, name, is_active }) => ({ id, name, is_active: is_active !== false }))} onChanged={() => user && void loadData(user)} /></section>}
     </main>
   </div>;
 }

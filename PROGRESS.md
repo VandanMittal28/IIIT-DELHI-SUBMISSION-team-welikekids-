@@ -141,10 +141,14 @@ Last updated: 2026-10-13 (Asia/Kolkata)
 
 ### IIIT Delhi route profiles (2026-10-13)
 
-- Expanded only the development IIIT Delhi route graph with Academic Block courtyard, stairs, and elevator nodes. The ordinary route calculates via the courtyard stairs; the accessible route excludes that stair edge and calculates through Innovation Hall and the elevator.
-- Verified the hosted development route RPC returns distinct edge sequences and summed distances: 44 m via stairs and 62 m via elevator/step-free path. Both use IIIT Delhi Main Gate and Seminar Room 1 endpoints and remain physically unvalidated.
+- Expanded only the development IIIT Delhi route graph into explicit turn-by-turn demo directions: Main Gate straight 30 m, right 12 m, left 10 m, enter Building B, use the left-side stairs to the First Floor, then turn left down the corridor. Added an alternate elevator route with the same outdoor approach.
+- Verified the hosted development `calculate_route` RPC returns the requested stairs sequence at 90 m and a step-free elevator sequence at 93 m. Indoor nodes explicitly use floor-pixel coordinates and distinct ground/first-floor IDs; the route remains physically unvalidated.
 - The camera demo now reads each displayed instruction, edge kind, distance, and compass bearing from the selected backend route. Thus the accessible toggle changes route topology and camera guidance, not only its label.
+- iOS route summary explicitly says the indoor floor plan is not supplied and marks Building B indoor steps as a text-only simulation instead of drawing an invented map.
 - iPhone 17 simulator Debug build passes. Physical device is still reported locked, so route switching/camera interaction on the handset remains pending.
+- Admin profile now creates organizations and student accounts only, lists active/inactive organizations, and event creation only offers active organizations. Organizer/college-admin profile creation was removed from this panel.
+- Admin production build passes. Repository-wide ESLint still reports hook-effect errors in the existing load effects in `ManagementPanel.tsx` and `OperationsPanel.tsx`.
+- Event deletion now uses the versioned, scoped `cancel_event` operation and reports its confirmed cancelled-registration count in Admin. Hosted dev migrations atomically cancel registrations/waitlist entries and revoke active passes, and registration now locks event before edition so no attendee can register through an in-flight cancellation. Rollback-only live verification confirmed 2 enrollments (one waitlisted) cancelled, passes revoked, 2 notifications queued, retry idempotency, and rejection of a new registration after cancellation; all temporary rows were rolled back.
 
 - Temporary access: the requested username login is active against Supabase Auth and the scoped IIIT Delhi administrator membership is verified. Replace the temporary password before sharing the site beyond this test.
 - Security action: rotate the database password that was accidentally posted in chat; it was not stored or used by this implementation.

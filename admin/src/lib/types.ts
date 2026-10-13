@@ -1,4 +1,4 @@
-export type Organization = { id: string; name: string; college_id: string };
+export type Organization = { id: string; name: string; college_id: string; is_active?: boolean };
 
 export type EventRecord = {
   id: string;
