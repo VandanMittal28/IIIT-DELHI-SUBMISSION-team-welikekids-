@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import PhotosUI
 import UserNotifications
 
 struct AccountView: View {
@@ -25,6 +26,8 @@ struct AccountView: View {
     @State private var reminderNotifications = true
     @State private var reportNotifications = true
     @State private var showDeletionConfirmation = false
+    @State private var avatarItem: PhotosPickerItem?
+    @State private var avatarData: Data?
 
     var body: some View {
         NavigationStack {
@@ -34,6 +37,9 @@ struct AccountView: View {
                 } else if model.isAuthenticated {
                     Section { Label("Signed in", systemImage: "checkmark.seal.fill").foregroundStyle(.green) }
                     Section("Student profile") {
+                        HStack { Spacer(); if let avatarData, let image = UIImage(data: avatarData) { Image(uiImage: image).resizable().scaledToFill().frame(width: 78, height: 78).clipShape(Circle()) } else { Image(systemName: "person.crop.circle.fill").font(.system(size: 72)).foregroundStyle(Color.sidequestLime, Color.sidequestInk) }; Spacer() }
+                        PhotosPicker(selection: $avatarItem, matching: .images) { Label("Add profile photo", systemImage: "camera.fill") }
+                        Text("Your profile photo is kept on this device in this demo build.").font(.caption).foregroundStyle(.secondary)
                         TextField("Full name",text:$fullName)
                         Picker("College",selection:$collegeId) { Text("Not selected").tag(nil as UUID?);ForEach(model.colleges){college in Text(college.name).tag(Optional(college.id))} }
                         TextField("Interests, comma separated",text:$interests)
@@ -61,6 +67,7 @@ struct AccountView: View {
                         }
                     }
                     Button("Sign out", role: .destructive) { Task { await model.signOut() } }
+                    Section("Support") { Text("Need help with an event? Open the event in My Journey and submit a report from its details.").font(.footnote); Label("Report an event issue", systemImage: "flag") }
                     Section("Account lifecycle") { Button("Request account deletion",role:.destructive){showDeletionConfirmation=true};Text("This immediately deactivates notification delivery and marks the account for secure deletion processing.").font(.footnote).foregroundStyle(.secondary) }
                 } else {
                     Section("Student account") {
@@ -84,6 +91,7 @@ struct AccountView: View {
             .navigationTitle("Profile")
             .task { await model.restoreSession() }
             .onChange(of:model.profile) { _,profile in guard let profile else{return};fullName=profile.fullName ?? "";collegeId=profile.collegeId;interests=profile.interests.joined(separator:", ");announcementNotifications=profile.notificationPreferences["announcements"] ?? true;venueNotifications=profile.notificationPreferences["venue_changes"] ?? true;reminderNotifications=profile.notificationPreferences["reminders"] ?? true;reportNotifications=profile.notificationPreferences["reports"] ?? true }
+            .onChange(of: avatarItem) { _, item in Task { avatarData = try? await item?.loadTransferable(type: Data.self) } }
             .onReceive(NotificationCenter.default.publisher(for: .sidequestDeviceToken)) { note in
                 if let token = note.object as? String {
                     Task { do { try await model.registerDeviceToken(token); notificationStatus = "Enabled and registered" } catch { notificationStatus = "Permission granted, but backend registration failed: \(error.localizedDescription)" } }

@@ -4,7 +4,6 @@ import UIKit
 
 struct CommunityView: View {
     @Environment(AppModel.self) private var model
-    @State private var reportEdition: JourneyItem?
 
     var body: some View {
         NavigationStack {
@@ -32,20 +31,10 @@ struct CommunityView: View {
                                 VStack(alignment: .leading) { Text(item.title).font(.headline); Text(item.body); Text(item.createdAt.formatted()).font(.caption).foregroundStyle(.secondary) }
                             }
                         }
-                        Section("My reports") {
-                            ForEach(model.reports) { item in
-                                VStack(alignment: .leading) { Text(item.category).font(.headline); Text(item.description); Text(item.status.replacingOccurrences(of: "_", with: " ")).font(.caption.bold()).foregroundStyle(.blue) }
-                            }
-                            Menu("Submit an event report") {
-                                ForEach(model.journey.filter { $0.status != "cancelled" }) { item in
-                                    Button(item.title) { reportEdition = item }
-                                }
-                            }.disabled(model.journey.filter { $0.status != "cancelled" }.isEmpty)
-                        }
                         Section("Discussion") {
                             if model.channels.isEmpty { Text("No channels for your event registrations.").foregroundStyle(.secondary) }
                             ForEach(model.channels) { channel in NavigationLink(channel.title) { ChannelView(channel:channel) } }
-                            Text("Channels are persistent. Moderated messages remain auditable and may be hidden from this view.").font(.caption).foregroundStyle(.secondary)
+                            Text("A shared IIIT Delhi discussion thread for event attendees.").font(.caption).foregroundStyle(.secondary)
                         }
                         Section("Colleges") {
                             if model.collegeProfiles.isEmpty { Text("No colleges available.").foregroundStyle(.secondary) }
@@ -62,7 +51,6 @@ struct CommunityView: View {
             .navigationTitle("Community")
             .task { if model.isAuthenticated { await model.reloadCommunity() } }
             .refreshable { await model.reloadCommunity() }
-            .sheet(item: $reportEdition) { ReportForm(item: $0) }
         }
     }
 }
@@ -83,17 +71,15 @@ private struct ChannelView: View {
     let channel:CommunityChannel
     @State private var draft=""
     @State private var error:String?
-    @State private var reportedMessage:CommunityMessage?
     var body: some View { List {
         ForEach(model.communityMessages.filter{$0.channelId==channel.id}.reversed()) { message in
             HStack(alignment:.top) {
                 Text(message.body)
                 Spacer()
-                Menu { Button("Report message",systemImage:"exclamationmark.bubble"){reportedMessage=message} } label: { Image(systemName:"ellipsis.circle").accessibilityLabel("Message actions") }
             }
         }
         Section { TextField("Message",text:$draft,axis:.vertical);Button("Post") { Task { do { try await model.postMessage(channelId:channel.id,body:draft);draft="" } catch { self.error=error.localizedDescription } } }.disabled(draft.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty);if let error{Text(error).foregroundStyle(.red)} }
-    }.navigationTitle(channel.title).navigationBarTitleDisplayMode(.inline).sheet(item:$reportedMessage){MessageReportForm(message:$0)} }
+    }.navigationTitle(channel.title).navigationBarTitleDisplayMode(.inline) }
 }
 
 private struct MessageReportForm:View {
