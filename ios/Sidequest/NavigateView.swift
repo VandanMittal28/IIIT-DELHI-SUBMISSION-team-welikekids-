@@ -51,7 +51,12 @@ struct NavigateView: View {
         }
     }
 
-    private func applyPreparedDestination(){guard let id=model.pendingNavigationDestinationId,let landmark=model.landmarks.first(where:{$0.id==id})else{return};destination=landmark;model.consumeNavigationDestination()}
+    private func applyPreparedDestination(){
+        guard let id=model.pendingNavigationDestinationId,let landmark=model.landmarks.first(where:{$0.id==id})else{return}
+        destination=landmark
+        if let startId=model.pendingNavigationStartId,let gate=model.landmarks.first(where:{$0.id==startId}) { start=gate;confirmedHere=false }
+        model.consumeNavigationDestination()
+    }
 
     private var exploreRegion: MKCoordinateRegion {
         let points = model.landmarks.compactMap { landmark -> CLLocationCoordinate2D? in
@@ -91,7 +96,10 @@ struct NavigateView: View {
                             AsyncImage(url: photo) { image in image.resizable().scaledToFill() } placeholder: { ProgressView() }
                                 .frame(height: 125).frame(maxWidth: .infinity).clipped().clipShape(RoundedRectangle(cornerRadius: 12))
                         }
-                        Button(confirmedHere ? "Starting landmark confirmed ✓" : "I’m here — confirm this landmark") { confirmedHere = true }
+                        Button(confirmedHere ? "Starting landmark confirmed ✓" : "I’m here — confirm this landmark") {
+                            confirmedHere = true
+                            if let destination { Task { await model.calculateRoute(from:start,to:destination,accessibleOnly:accessibleOnly) } }
+                        }
                             .buttonStyle(.bordered)
                     }
                     Label("Where do you want to go?", systemImage: "mappin.and.ellipse").font(.headline).padding(.top, 4)

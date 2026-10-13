@@ -1,4 +1,5 @@
 import CoreImage.CIFilterBuiltins
+import PhotosUI
 import SwiftUI
 import UIKit
 
@@ -60,6 +61,9 @@ private struct JourneyCard: View {
     let cancel: () async -> Void
     @State private var isCancelling = false
     @State private var reviewing = false
+    @State private var reporting = false
+    @State private var showingEventChat = false
+    @State private var showingEventMedia = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -74,7 +78,7 @@ private struct JourneyCard: View {
             Label(item.startsAt.formatted(date: .abbreviated, time: .shortened), systemImage: "calendar")
             Text(item.organizationName).font(.subheadline).foregroundStyle(.secondary)
             if let venue=item.venueName { Label(venue,systemImage:"mappin.and.ellipse") }
-            if let destination=item.destinationLandmarkId { Button("Navigate to venue"){model.prepareNavigation(to:destination)}.buttonStyle(.bordered) }
+            if let destination=item.destinationLandmarkId { Button("Navigate me there",systemImage:"location.north.fill"){model.prepareNavigation(to:destination,from:item.designatedGateLandmarkId)}.buttonStyle(.borderedProminent) }
             if !conflicts.isEmpty { Label("Schedule conflict with \(conflicts.map(\.title).joined(separator: ", "))",systemImage:"exclamationmark.triangle.fill").font(.footnote).foregroundStyle(.orange) }
             if item.registrationClosesAt > .now { Label("Registration closes \(item.registrationClosesAt.formatted(.relative(presentation:.named)))",systemImage:"bell").font(.footnote).foregroundStyle(.secondary) }
 
@@ -87,6 +91,14 @@ private struct JourneyCard: View {
                         Text("This opaque code contains no personal information.").font(.caption).foregroundStyle(.secondary)
                         Text(token.uuidString).font(.caption2.monospaced()).textSelection(.enabled)
                     }
+                }
+                HStack {
+                    Button("Event chat",systemImage:"bubble.left.and.bubble.right"){showingEventChat=true}
+                        .buttonStyle(.bordered)
+                    Button("Event photos",systemImage:"photo.on.rectangle"){showingEventMedia=true}
+                        .buttonStyle(.bordered)
+                    Button("Report issue",systemImage:"flag"){reporting=true}
+                        .buttonStyle(.bordered)
                 }
             } else if item.status == "waitlisted" {
                 Label("Waitlist position \(item.waitlistPosition ?? 0)", systemImage: "clock.badge")
@@ -106,6 +118,51 @@ private struct JourneyCard: View {
         .padding(18)
         .background(.white, in: RoundedRectangle(cornerRadius: 20))
         .sheet(isPresented: $reviewing) { ReviewForm(item: item) }
+        .sheet(isPresented:$reporting) { ReportForm(item:item) }
+        .sheet(isPresented:$showingEventChat) { EventChatSheet(eventId:item.eventId) }
+        .sheet(isPresented:$showingEventMedia) { EventMediaView(item:item) }
+    }
+}
+
+private struct EventMediaView:View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    let item:JourneyItem
+    @State private var photo:PhotosPickerItem?
+    @State private var caption=""
+    @State private var error:String?
+    @State private var loading=false
+    private let columns=[GridItem(.flexible()),GridItem(.flexible())]
+    var body:some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment:.leading,spacing:16) {
+                    Text("Photos shared by people registered for \(item.title). Keep uploads relevant to the event and respect others’ privacy.").font(.subheadline).foregroundStyle(.secondary)
+                    TextField("Optional caption",text:$caption).textFieldStyle(.roundedBorder)
+                    PhotosPicker(selection:$photo,matching:.images) { Label("Share an event photo",systemImage:"plus.rectangle.on.rectangle") }.buttonStyle(.borderedProminent).disabled(loading)
+                    if loading { ProgressView("Uploading your photo…") }
+                    if let error { Text(error).font(.footnote).foregroundStyle(.red) }
+                    LazyVGrid(columns:columns,spacing:12) {
+                        ForEach(model.eventMedia[item.editionId] ?? []) { image in
+                            VStack(alignment:.leading,spacing:6) {
+                                AsyncImage(url:image.url) { phase in
+                                    if let content=phase.image { content.resizable().scaledToFill() }
+                                    else if phase.error != nil { ContentUnavailableView("Photo unavailable",systemImage:"photo.badge.exclamationmark") }
+                                    else { ProgressView().frame(maxWidth:.infinity,minHeight:130) }
+                                }.frame(height:150).frame(maxWidth:.infinity).clipped().clipShape(RoundedRectangle(cornerRadius:12))
+                                if let caption=image.caption,!caption.isEmpty { Text(caption).font(.caption).lineLimit(2) }
+                                Text(image.createdAt.formatted(date:.abbreviated,time:.shortened)).font(.caption2).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    if !loading && (model.eventMedia[item.editionId] ?? []).isEmpty { ContentUnavailableView("No event photos yet",systemImage:"photo.on.rectangle",description:Text("Be the first attendee to share a moment.")) }
+                }.padding()
+            }
+            .navigationTitle("Event photos")
+            .toolbar { ToolbarItem(placement:.cancellationAction){Button("Done"){dismiss()}} }
+            .task { do{try await model.reloadEventMedia(editionId:item.editionId)}catch{self.error=error.localizedDescription} }
+            .onChange(of:photo){_,item in guard let item else{return};loading=true;Task{defer{loading=false;photo=nil};do{guard let source=try await item.loadTransferable(type:Data.self),let image=UIImage(data:source),let jpeg=image.jpegData(compressionQuality:0.82) else{throw CocoaError(.fileReadCorruptFile)};try await model.uploadEventPhoto(editionId:self.item.editionId,data:jpeg,caption:caption);caption="";error=nil}catch{self.error=error.localizedDescription}}}
+        }
     }
 }
 

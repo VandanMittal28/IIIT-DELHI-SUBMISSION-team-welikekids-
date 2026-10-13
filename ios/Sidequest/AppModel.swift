@@ -33,6 +33,9 @@ final class AppModel {
     private(set) var reports: [EventReport] = []
     private(set) var notifications: [InboxNotification] = []
     private(set) var channels: [CommunityChannel] = []
+    private(set) var discussionThreads: [DiscussionThread] = []
+    private(set) var discussionReplies: [UUID: [DiscussionReply]] = [:]
+    private(set) var eventMedia: [UUID: [EventMediaPhoto]] = [:]
     private(set) var profile: StudentProfile?
     private(set) var colleges: [CollegeOption] = []
     private(set) var collegeProfiles:[CollegeProfile]=[]
@@ -53,6 +56,7 @@ final class AppModel {
     var upcomingDays = 0
     var selectedTab = 0
     private(set) var pendingNavigationDestinationId: UUID?
+    private(set) var pendingNavigationStartId: UUID?
     private(set) var savedEventIds: Set<UUID> = []
 
     let configuration: BackendConfiguration
@@ -331,8 +335,8 @@ final class AppModel {
     }
 
     func clearRoute() { routePlan = nil; floorPlans = [:]; floorPlanURLs = [:] }
-    func prepareNavigation(to landmarkId: UUID) { pendingNavigationDestinationId = landmarkId; selectedTab = 2 }
-    func consumeNavigationDestination() { pendingNavigationDestinationId = nil }
+    func prepareNavigation(to landmarkId: UUID, from startLandmarkId: UUID? = nil) { pendingNavigationDestinationId = landmarkId; pendingNavigationStartId = startLandmarkId; selectedTab = 2 }
+    func consumeNavigationDestination() { pendingNavigationDestinationId = nil; pendingNavigationStartId = nil }
 
     private func loadFloorPlans(for plan: RoutePlan) async {
         guard let client else { return }
@@ -368,7 +372,9 @@ final class AppModel {
                 .select("id,title,body,kind,read_at,created_at").order("created_at", ascending: false).limit(100).execute().value
             async let channelRows: [CommunityChannel] = client.from("my_community_channels")
                 .select("id,edition_id,event_id,title,organization_id,organization_name,starts_at").order("starts_at").execute().value
-            (announcements, communityMessages, reports, notifications, channels) = try await (announcementRows, messageRows, reportRows, notificationRows, channelRows)
+            async let threadRows: [DiscussionThread] = client.from("discussion_threads")
+                .select("id,college_id,author_id,title,body,created_at,updated_at").order("updated_at",ascending:false).limit(100).execute().value
+            (announcements, communityMessages, reports, notifications, channels, discussionThreads) = try await (announcementRows, messageRows, reportRows, notificationRows, channelRows, threadRows)
             communityState = .loaded
         } catch { communityState = .failed(error.localizedDescription) }
     }
@@ -402,6 +408,56 @@ final class AppModel {
         guard let client else { throw SidequestError.notConfigured }
         _ = try await client.rpc("post_message", params: ["p_channel_id": channelId.uuidString, "p_body": body]).execute()
         await reloadCommunity()
+    }
+
+    func createDiscussionThread(title: String, body: String) async throws {
+        guard let client else { throw SidequestError.notConfigured }
+        _ = try await client.rpc("create_discussion_thread", params: ["p_title": title, "p_body": body]).execute()
+        await reloadCommunity()
+    }
+
+    func reloadDiscussionReplies(threadId: UUID) async throws {
+        guard let client else { throw SidequestError.notConfigured }
+        let rows: [DiscussionReply] = try await client.from("discussion_replies")
+            .select("id,thread_id,author_id,body,created_at").eq("thread_id",value:threadId)
+            .order("created_at").execute().value
+        discussionReplies[threadId] = rows
+    }
+
+    func replyToDiscussion(threadId: UUID, body: String) async throws {
+        guard let client else { throw SidequestError.notConfigured }
+        _ = try await client.rpc("reply_discussion_thread",params:["p_thread_id":threadId.uuidString,"p_body":body]).execute()
+        try await reloadDiscussionReplies(threadId:threadId)
+        await reloadCommunity()
+    }
+
+    func reloadEventMedia(editionId: UUID) async throws {
+        guard let client else { throw SidequestError.notConfigured }
+        let rows: [EventMediaRecord] = try await client.from("event_media")
+            .select("id,edition_id,uploaded_by,storage_path,caption,created_at")
+            .eq("edition_id",value:editionId).order("created_at",ascending:false).limit(100).execute().value
+        var photos: [EventMediaPhoto] = []
+        for row in rows {
+            let url = try await client.storage.from("event-attendee-media").createSignedURL(path:row.storagePath,expiresIn:3600)
+            photos.append(EventMediaPhoto(id:row.id,caption:row.caption,createdAt:row.createdAt,url:url))
+        }
+        eventMedia[editionId] = photos
+    }
+
+    func uploadEventPhoto(editionId: UUID, data: Data, caption: String) async throws {
+        guard let client else { throw SidequestError.notConfigured }
+        guard data.count <= 10 * 1024 * 1024 else { throw SidequestError.attachmentTooLarge }
+        let userID = try await client.auth.session.user.id
+        let path = "\(editionId.uuidString.lowercased())/\(userID.uuidString.lowercased())/\(UUID().uuidString.lowercased()).jpg"
+        let bucket = client.storage.from("event-attendee-media")
+        try await bucket.upload(path,data:data,options:FileOptions(contentType:"image/jpeg",upsert:false))
+        do {
+            _ = try await client.rpc("add_event_media",params:["p_edition_id":editionId.uuidString,"p_storage_path":path,"p_caption":caption]).execute()
+            try await reloadEventMedia(editionId:editionId)
+        } catch {
+            _ = try? await bucket.remove(paths:[path])
+            throw error
+        }
     }
 
     func reportMessage(messageId: UUID, description: String) async throws {
