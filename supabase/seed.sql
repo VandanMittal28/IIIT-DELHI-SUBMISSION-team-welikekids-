@@ -32,6 +32,13 @@ declare
   node_gate uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1';
   node_hall uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2';
   node_lab uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3';
+  node_courtyard uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4';
+  node_stairs uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb5';
+  node_lift uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb6';
+  node_right_turn uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb7';
+  node_left_turn uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb8';
+  node_building_entry uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb9';
+  node_first_floor_stairs uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb10';
   channel_a uuid := 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1';
   channel_b uuid := 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2';
   channel_c uuid := 'cccccccc-cccc-4ccc-8ccc-ccccccccccc3';
@@ -84,11 +91,14 @@ begin
     (campus_id,college_id,'IIIT Delhi Campus',28.5457,77.2732)
   on conflict(id) do update set name=excluded.name,latitude=excluded.latitude,longitude=excluded.longitude;
   insert into public.buildings(id,campus_id,name,latitude,longitude,orientation_degrees) values
-    (building_id,campus_id,'Academic Block',28.5459,77.2734,0)
-  on conflict(id) do update set name=excluded.name;
+    (building_id,campus_id,'Building B · demo route',28.5456,77.2736,0)
+  on conflict(id) do update set name=excluded.name,latitude=excluded.latitude,longitude=excluded.longitude;
   insert into public.floors(id,building_id,name,level,is_published) values
     (floor_id,building_id,'Ground Floor',0,true)
   on conflict(id) do update set name=excluded.name,is_published=true;
+  insert into public.floors(id,building_id,name,level,is_published) values
+    ('44444444-4444-4444-8444-444444444445',building_id,'First Floor · demo route',1,false)
+  on conflict(id) do update set name=excluded.name,is_published=false;
   insert into public.venues(id,campus_id,name,kind,latitude,longitude,accessibility_notes) values
     (venue_a,campus_id,'Main Gate','outdoor',28.5457,77.2732,'Step-free entry'),
     (venue_b,campus_id,'Innovation Hall','hall',28.5459,77.2734,'Lift access from the main entrance'),
@@ -96,24 +106,45 @@ begin
     (venue_d,campus_id,'Student Activity Centre','building',28.5455,77.2730,'Accessible entrance on the east side')
   on conflict(id) do update set name=excluded.name,kind=excluded.kind,latitude=excluded.latitude,longitude=excluded.longitude,accessibility_notes=excluded.accessibility_notes;
 
-  insert into public.landmarks(id,campus_id,venue_id,name,coordinate_kind,latitude,longitude,facing_degrees,facing_instruction) values
-    (landmark_gate,campus_id,venue_a,'IIIT Delhi Main Gate','outdoor_geographic',28.5457,77.2732,90,'Face east toward the Academic Block.'),
-    (landmark_hall,campus_id,venue_b,'Innovation Hall entrance','outdoor_geographic',28.5459,77.2734,180,'Face south toward the main corridor.'),
-    (landmark_lab,campus_id,venue_c,'Seminar Room 1 door','outdoor_geographic',28.5460,77.2735,180,'Face south toward the room door.')
-  on conflict(id) do update set name=excluded.name,is_active=true;
+  insert into public.landmarks(id,campus_id,venue_id,floor_id,name,coordinate_kind,latitude,longitude,x_pixels,y_pixels,facing_degrees,facing_instruction) values
+    (landmark_gate,campus_id,venue_a,null,'IIIT Delhi Main Gate','outdoor_geographic',28.5457,77.2732,null,null,90,'Face east along the demo campus path toward Building B.'),
+    (landmark_hall,campus_id,venue_b,null,'Building B entrance · demo','outdoor_geographic',28.545592,77.273644,null,null,90,'Face east toward the demo entrance.'),
+    (landmark_lab,campus_id,venue_c,'44444444-4444-4444-8444-444444444445','Seminar Room 1 · Building B, First Floor','indoor_floor',null,null,420,180,180,'At the first-floor stair landing, face east along the corridor.')
+  on conflict(id) do update set name=excluded.name,is_active=true,
+    floor_id=case when excluded.coordinate_kind='indoor_floor' then '44444444-4444-4444-8444-444444444445'::uuid else null end,
+    coordinate_kind=excluded.coordinate_kind,latitude=excluded.latitude,longitude=excluded.longitude,
+    x_pixels=case when excluded.coordinate_kind='indoor_floor' then 420.0 else null end,
+    y_pixels=case when excluded.coordinate_kind='indoor_floor' then 180.0 else null end,
+    facing_degrees=excluded.facing_degrees,facing_instruction=excluded.facing_instruction;
 
   insert into public.route_versions(id,campus_id,version,status,physical_validation_complete,validation_notes,validated_by,validated_at,published_at) values
-    (route_id,campus_id,1,'published',false,'Development demo route. Confirm distances and AR alignment on campus before production.',admin_id,now_at,now_at)
+    (route_id,campus_id,1,'published',false,'Simulated IIIT Delhi demo route only. Building B, measured segments, floor geometry and AR alignment require on-campus survey and physical validation before production.',admin_id,now_at,now_at)
   on conflict(id) do update set status='published',physical_validation_complete=false,validation_notes=excluded.validation_notes,validated_by=admin_id,validated_at=now_at,published_at=now_at;
-  insert into public.route_nodes(id,route_version_id,landmark_id,coordinate_kind,latitude,longitude,node_kind,is_accessible) values
-    (node_gate,route_id,landmark_gate,'outdoor_geographic',28.5457,77.2732,'entrance',true),
-    (node_hall,route_id,landmark_hall,'outdoor_geographic',28.5459,77.2734,'hall',true),
-    (node_lab,route_id,landmark_lab,'outdoor_geographic',28.5460,77.2735,'hall',true)
-  on conflict(id) do update set landmark_id=excluded.landmark_id,latitude=excluded.latitude,longitude=excluded.longitude;
+  insert into public.route_nodes(id,route_version_id,floor_id,landmark_id,coordinate_kind,latitude,longitude,x_pixels,y_pixels,node_kind,is_accessible) values
+    (node_gate,route_id,null,landmark_gate,'outdoor_geographic',28.5457,77.2732,null,null,'entrance',true),
+    (node_courtyard,route_id,null,null,'outdoor_geographic',28.5457,77.2732,null,null,'path',true),
+    (node_right_turn,route_id,null,null,'outdoor_geographic',28.5457,77.27352,null,null,'path',true),
+    (node_left_turn,route_id,null,null,'outdoor_geographic',28.545592,77.27352,null,null,'path',true),
+    (node_building_entry,route_id,null,landmark_hall,'outdoor_geographic',28.545592,77.273644,null,null,'entrance',true),
+    (node_stairs,route_id,floor_id,null,'indoor_floor',null,null,110,340,'stairs',false),
+    (node_first_floor_stairs,route_id,'44444444-4444-4444-8444-444444444445',null,'indoor_floor',null,null,170,300,'stairs',false),
+    (node_lift,route_id,floor_id,null,'indoor_floor',null,null,320,340,'lift',true),
+    (node_hall,route_id,'44444444-4444-4444-8444-444444444445',null,'indoor_floor',null,null,370,300,'hall',true),
+    (node_lab,route_id,'44444444-4444-4444-8444-444444444445',landmark_lab,'indoor_floor',null,null,420,180,'hall',true)
+  on conflict(id) do update set floor_id=excluded.floor_id,landmark_id=excluded.landmark_id,
+    coordinate_kind=excluded.coordinate_kind,latitude=excluded.latitude,longitude=excluded.longitude,
+    x_pixels=excluded.x_pixels,y_pixels=excluded.y_pixels,node_kind=excluded.node_kind,is_accessible=excluded.is_accessible;
   insert into public.route_edges(id,route_version_id,from_node_id,to_node_id,kind,distance_meters,geometry,instruction,is_accessible,is_bidirectional) values
-    ('abababab-abab-4aba-8aba-ababababab01',route_id,node_gate,node_hall,'walkway',32,'[{"latitude":28.5457,"longitude":77.2732},{"latitude":28.5459,"longitude":77.2734}]','Walk east from the Main Gate to Innovation Hall.',true,true),
-    ('abababab-abab-4aba-8aba-ababababab02',route_id,node_hall,node_lab,'corridor',18,'[{"latitude":28.5459,"longitude":77.2734},{"latitude":28.5460,"longitude":77.2735}]','Continue along the Academic Block corridor to Seminar Room 1.',true,true)
-  on conflict(id) do update set distance_meters=excluded.distance_meters,geometry=excluded.geometry,instruction=excluded.instruction;
+    ('abababab-abab-4aba-8aba-ababababab01',route_id,node_gate,node_right_turn,'walkway',30,'[{"latitude":28.5457,"longitude":77.2732},{"latitude":28.5457,"longitude":77.27352}]','From IIIT Delhi Main Gate, go straight for 30 m along the signed demo path.',true,true),
+    ('abababab-abab-4aba-8aba-ababababab02',route_id,node_right_turn,node_left_turn,'walkway',12,'[{"latitude":28.5457,"longitude":77.27352},{"latitude":28.545592,"longitude":77.27352}]','At the courtyard junction, turn right and continue for 12 m.',true,true),
+    ('abababab-abab-4aba-8aba-ababababab03',route_id,node_left_turn,node_building_entry,'walkway',10,'[{"latitude":28.545592,"longitude":77.27352},{"latitude":28.545592,"longitude":77.273644}]','At the next path, turn left and walk 10 m to Building B.',true,true),
+    ('abababab-abab-4aba-8aba-ababababab04',route_id,node_building_entry,node_stairs,'entrance',6,'[{"latitude":28.545592,"longitude":77.273644},{"x":110,"y":340}]','Enter Building B. The stairs are immediately on your left; continue 6 m to the stairwell.',true,true),
+    ('abababab-abab-4aba-8aba-ababababab05',route_id,node_stairs,node_first_floor_stairs,'stairs',18,'[{"x":110,"y":340},{"x":170,"y":300}]','Take the stairs on your left up to the First Floor (one flight, about 18 m of route distance).',false,true),
+    ('abababab-abab-4aba-8aba-ababababab06',route_id,node_first_floor_stairs,node_lab,'corridor',14,'[{"x":170,"y":300},{"x":420,"y":180}]','At the First Floor landing, turn left and follow the corridor 14 m to Seminar Room 1.',true,true),
+    ('abababab-abab-4aba-8aba-ababababab07',route_id,node_building_entry,node_lift,'corridor',9,'[{"latitude":28.545592,"longitude":77.273644},{"x":320,"y":340}]','For the step-free route, pass the stairwell and continue 9 m to the elevator.',true,true),
+    ('abababab-abab-4aba-8aba-ababababab08',route_id,node_lift,node_hall,'lift',18,'[{"x":320,"y":340},{"x":370,"y":300}]','Take the elevator to the First Floor.',true,true),
+    ('abababab-abab-4aba-8aba-ababababab09',route_id,node_hall,node_lab,'corridor',14,'[{"x":370,"y":300},{"x":420,"y":180}]','Exit the elevator, turn left, and follow the step-free corridor 14 m to Seminar Room 1.',true,true)
+  on conflict(id) do update set route_version_id=excluded.route_version_id,from_node_id=excluded.from_node_id,to_node_id=excluded.to_node_id,kind=excluded.kind,distance_meters=excluded.distance_meters,geometry=excluded.geometry,instruction=excluded.instruction,is_accessible=excluded.is_accessible,is_bidirectional=excluded.is_bidirectional;
 
   insert into public.events(id,college_id,organization_id,title,description,category,visibility,price_minor,currency,eligibility,status,created_by,client_request_id,published_at) values
     (event_a,college_id,org_id,'IIIT Delhi Welcome Workshop','Meet student clubs, learn how campus events work, and find your first community.','Orientation','college_only',0,'INR','IIIT Delhi students','published',organizer_id,'12121212-1212-4121-8121-121212121211',now_at),

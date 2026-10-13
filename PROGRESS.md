@@ -129,6 +129,26 @@ Last updated: 2026-10-13 (Asia/Kolkata)
 - iOS simulator Debug build passes after the change. Physical camera/AR validation remains blocked until a route is physically validated and the paired iPhone is available.
 - Camera guidance now clearly presents as live AR guidance: ARWorldTracking keeps the route arrow anchored while the student turns and moves, the current route instruction remains visible, and tracking interruptions/drift continue to offer map/text/voice fallback. This remains intentionally disabled for routes without physical validation.
 - Added an explicit demo-only camera simulation for unvalidated development routes. It is labeled `DEMO · simulated live camera guidance` in the camera view and warns that map guidance must be used for real navigation; validated routes continue to use the production camera path.
+- Hardened camera startup after the crash report: ARKit is only started when `ARWorldTrackingConfiguration.isSupported`; unsupported/denied camera cases fall back to the labeled demo surface, and demo mode always overlays a visible simulated arrow. iOS simulator build passes.
+
+### Explore camera demo crash and flow (2026-10-13)
+
+- The Explore page now asks the student to pick a current published landmark, confirm “I’m here”, choose a destination, then preview the route from the same page. Campus map and nearby cards remain below the flow.
+- The demo preview no longer enters the ARKit production view. It uses an isolated camera preview with a compass-relative arrow that turns as the phone heading changes, plus current instruction, per-leg distance, and remaining walking distance. Camera denial or missing simulator camera falls back to a labeled demo surface.
+- Route summary labels the backend graph's summed edge length as walking distance, rather than implying straight-line displacement. It opens only after successful route calculation.
+- Camera demo now has a centered compass-relative arrow and a clearly labeled simulated movement sequence (straight, right, left, arrival), with a location progress marker and walked/remaining distance. The demo stages are confined to the explicitly labeled simulation preview.
+- iPhone 17 simulator and signed physical-device Debug builds pass. This revision installed on the connected iPhone 17; launch was denied because iOS reported the phone locked, so the camera preview has not yet been physically exercised.
+
+### IIIT Delhi route profiles (2026-10-13)
+
+- Expanded only the development IIIT Delhi route graph into explicit turn-by-turn demo directions: Main Gate straight 30 m, right 12 m, left 10 m, enter Building B, use the left-side stairs to the First Floor, then turn left down the corridor. Added an alternate elevator route with the same outdoor approach.
+- Verified the hosted development `calculate_route` RPC returns the requested stairs sequence at 90 m and a step-free elevator sequence at 93 m. Indoor nodes explicitly use floor-pixel coordinates and distinct ground/first-floor IDs; the route remains physically unvalidated.
+- The camera demo now reads each displayed instruction, edge kind, distance, and compass bearing from the selected backend route. Thus the accessible toggle changes route topology and camera guidance, not only its label.
+- iOS route summary explicitly says the indoor floor plan is not supplied and marks Building B indoor steps as a text-only simulation instead of drawing an invented map.
+- iPhone 17 simulator Debug build passes. Physical device is still reported locked, so route switching/camera interaction on the handset remains pending.
+- Admin profile now creates organizations and student accounts only, lists active/inactive organizations, and event creation only offers active organizations. Organizer/college-admin profile creation was removed from this panel.
+- Admin production build passes. Repository-wide ESLint still reports hook-effect errors in the existing load effects in `ManagementPanel.tsx` and `OperationsPanel.tsx`.
+- Event deletion now uses the versioned, scoped `cancel_event` operation and reports its confirmed cancelled-registration count in Admin. Hosted dev migrations atomically cancel registrations/waitlist entries and revoke active passes, and registration now locks event before edition so no attendee can register through an in-flight cancellation. Rollback-only live verification confirmed 2 enrollments (one waitlisted) cancelled, passes revoked, 2 notifications queued, retry idempotency, and rejection of a new registration after cancellation; all temporary rows were rolled back.
 
 - Temporary access: the requested username login is active against Supabase Auth and the scoped IIIT Delhi administrator membership is verified. Replace the temporary password before sharing the site beyond this test.
 - Security action: rotate the database password that was accidentally posted in chat; it was not stored or used by this implementation.

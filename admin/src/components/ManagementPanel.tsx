@@ -26,7 +26,11 @@ export function ManagementPanel({events,organizations,onChanged}:{events:EventRe
     if(!eventId) return;
     const reason=window.prompt("Reason for removing this event from IIIT Delhi operations:");
     if(!reason || reason.trim().length < 5){setMessage("Deletion cancelled. Enter a reason of at least 5 characters.");return;}
-    await rpc("cancel_event",{p_event_id:eventId,p_reason:reason.trim()},"Event deleted from active operations. Attendees were notified.");
+    const {data,error}=await getSupabase().rpc("cancel_event",{p_event_id:eventId,p_reason:reason.trim()});
+    if(error){setMessage(error.message);return;}
+    const count=Number(data?.cancelled_registrations??0);
+    setMessage(`Event removed from active operations. ${count} attendee registration${count===1?"":"s"} cancelled; active passes revoked.`);
+    await load();onChanged();
   }
   async function createVolunteer(e:React.FormEvent){e.preventDefault();setMessage("Create the volunteer in Supabase Auth first, then use their username here to assign access.");}
   return <section className="ops-card ops-wide"><div className="ops-heading"><div><p className="ops-kicker">IIIT Delhi setup</p><h2>People, events and venues</h2></div><span className="status-dot">IIIT Delhi only</span></div>
