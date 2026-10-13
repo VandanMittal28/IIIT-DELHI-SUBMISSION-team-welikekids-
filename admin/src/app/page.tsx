@@ -9,6 +9,7 @@ import { VolunteerScanner } from "@/components/VolunteerScanner";
 import { OperationsPanel } from "@/components/OperationsPanel";
 import { CampusEditor } from "@/components/CampusEditor";
 import { ManagementPanel } from "@/components/ManagementPanel";
+import { ProfileProvisioningPanel } from "@/components/ProfileProvisioningPanel";
 
 const emptyDraft: EventDraft = {
   organizationId: "", title: "", description: "", category: "", visibility: "public",
@@ -189,6 +190,7 @@ export default function Home() {
       </div>}
       {events.length > 0 && <section className={styles.operations}><div className={styles.sectionTitle}><p className={styles.eyebrow}>Live event operations</p><h2>Volunteer and response desk</h2><p>Every action below confirms against the authoritative backend. Realtime is only a refresh signal.</p></div><div className={styles.volunteerGrid}><VolunteerScanner onRecorded={() => user && void loadData(user)} /><OperationsPanel eventIds={managedEventIds} /></div><ManagementPanel events={events} organizations={organizations} onChanged={() => user && void loadData(user)} /></section>}
       {adminCollegeIds.length > 0 && <section className={styles.operations}><CampusEditor collegeIds={adminCollegeIds} onChanged={() => user && void loadData(user)} /></section>}
+      {adminCollegeIds.length > 0 && <section className={styles.operations}><ProfileProvisioningPanel collegeId={adminCollegeIds[0]} /></section>}
     </main>
   </div>;
 }
