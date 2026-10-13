@@ -20,6 +20,8 @@ targets:
       - path: Sidequest
         excludes:
           - Info.plist
+    resources:
+      - path: Sidequest/Assets.xcassets
     info:
       path: Sidequest/Info.plist
       properties:

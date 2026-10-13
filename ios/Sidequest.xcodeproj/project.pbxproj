@@ -15,6 +15,7 @@
 		7A87CE49C19E18814E3DA312 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D6DC21DE55D5E47B358F242 /* RootView.swift */; };
 		8777861D9D69EBD3F78197E1 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BEDC559CAB1A93F17D7F7B8 /* AppModel.swift */; };
 		8F36E28AF5D6B7CFAD502A6F /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01093AAB2CD25DA948FB8A16 /* AccountView.swift */; };
+		9B5A07C40C855D6DBA03210F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 41A880D0F76C4024B0BCDB07 /* Assets.xcassets */; };
 		B2E63FD7AE38A26765B22558 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 733E67528F17E32FD5B40125 /* Supabase */; };
 		C2D034D4E00F4090047304B0 /* MyJourneyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC4A1A1119ADA00E1AB6ACC6 /* MyJourneyView.swift */; };
 		E936C14785F40CA78899EC1D /* SidequestApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82807BCAE15EBB71B83165AB /* SidequestApp.swift */; };
@@ -35,6 +36,7 @@
 		0D6DC21DE55D5E47B358F242 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		153E153D6B23132A9696F157 /* NavigateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigateView.swift; sourceTree = "<group>"; };
 		2C479F5F69865DED11A23D9E /* DiscoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoverView.swift; sourceTree = "<group>"; };
+		41A880D0F76C4024B0BCDB07 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4DC9DD3327C58954656B2D12 /* ModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelsTests.swift; sourceTree = "<group>"; };
 		7BEDC559CAB1A93F17D7F7B8 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		82807BCAE15EBB71B83165AB /* SidequestApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidequestApp.swift; sourceTree = "<group>"; };
@@ -80,6 +82,7 @@
 			children = (
 				01093AAB2CD25DA948FB8A16 /* AccountView.swift */,
 				7BEDC559CAB1A93F17D7F7B8 /* AppModel.swift */,
+				41A880D0F76C4024B0BCDB07 /* Assets.xcassets */,
 				CB50F2CB43780838A53159CA /* CommunityView.swift */,
 				2C479F5F69865DED11A23D9E /* DiscoverView.swift */,
 				FFE957684005C03E66C7866E /* Models.swift */,
@@ -135,6 +138,7 @@
 			buildConfigurationList = 9ED8151AB0F447A4D66E26A8 /* Build configuration list for PBXNativeTarget "Sidequest" */;
 			buildPhases = (
 				566FC8DC5AF85D79730CF49E /* Sources */,
+				52374AE668F83538DEBC0BD6 /* Resources */,
 				5A3A6CFF4178EABBA0D14E70 /* Frameworks */,
 			);
 			buildRules = (
@@ -190,6 +194,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		52374AE668F83538DEBC0BD6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9B5A07C40C855D6DBA03210F /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		566FC8DC5AF85D79730CF49E /* Sources */ = {
