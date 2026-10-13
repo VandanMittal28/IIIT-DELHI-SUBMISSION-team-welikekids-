@@ -76,7 +76,7 @@ struct RegistrationResult: Decodable, Equatable {
     }
 }
 
-struct JourneyItem: Decodable, Identifiable, Equatable {
+struct JourneyItem: Decodable, Identifiable, Equatable, Hashable {
     var id: UUID { registrationId }
     let registrationId: UUID
     let status: String
