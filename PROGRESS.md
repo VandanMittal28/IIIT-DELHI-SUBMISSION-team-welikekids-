@@ -9,7 +9,8 @@ Last updated: 2026-10-13 (Asia/Kolkata)
 - Added a one-time trusted database-operator bootstrap example and documented the role split. The existing college-admin bootstrap remains separate.
 - Added integration coverage for cross-college organization creation by a platform admin, ensuring no organizer membership is granted, and denial of that operation to students.
 - Admin production build and targeted ESLint pass. SQL integration tests were not run because Docker/Supabase local runtime is unavailable in this environment.
-- Verification and release still pending: apply the new migration to the authorized Supabase environment, bootstrap the intended platform-admin account using the secure setup flow, and deploy the updated `create-user-profile` Edge Function. No production role has been granted automatically.
+- Hosted verification: the platform-admin migration is applied to project `dzqfsskcgaowcnbpxzzl` and `create-user-profile` Edge Function version 3 is active. The live dashboard's `public.platform_admins` schema-cache error should be resolved after refresh.
+- Still pending: bootstrap the intended platform-admin account using the secure setup flow. No production role has been granted automatically; confirm which existing account should receive it.
 
 ## Acceptance checklist
 
