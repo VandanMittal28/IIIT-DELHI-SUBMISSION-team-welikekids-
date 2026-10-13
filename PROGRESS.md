@@ -131,6 +131,13 @@ Last updated: 2026-10-13 (Asia/Kolkata)
 - Added an explicit demo-only camera simulation for unvalidated development routes. It is labeled `DEMO · simulated live camera guidance` in the camera view and warns that map guidance must be used for real navigation; validated routes continue to use the production camera path.
 - Hardened camera startup after the crash report: ARKit is only started when `ARWorldTrackingConfiguration.isSupported`; unsupported/denied camera cases fall back to the labeled demo surface, and demo mode always overlays a visible simulated arrow. iOS simulator build passes.
 
+### Explore camera demo crash and flow (2026-10-13)
+
+- The Explore page now asks the student to pick a current published landmark, confirm “I’m here”, choose a destination, then preview the route from the same page. Campus map and nearby cards remain below the flow.
+- The demo preview no longer enters the ARKit production view. It uses an isolated camera preview with a compass-relative arrow that turns as the phone heading changes, plus current instruction, per-leg distance, and remaining walking distance. Camera denial or missing simulator camera falls back to a labeled demo surface.
+- Route summary labels the backend graph's summed edge length as walking distance, rather than implying straight-line displacement. It opens only after successful route calculation.
+- iPhone 17 simulator and signed physical-device Debug builds pass. This revision installed on the connected iPhone 17; launch was denied because iOS reported the phone locked, so the camera preview has not yet been physically exercised.
+
 - Temporary access: the requested username login is active against Supabase Auth and the scoped IIIT Delhi administrator membership is verified. Replace the temporary password before sharing the site beyond this test.
 - Security action: rotate the database password that was accidentally posted in chat; it was not stored or used by this implementation.
 - Blocker: no authorized Apple APNs signing key/team configuration is available, so the delivery worker source is not deployed and push receipt is unverified. The durable inbox and retry jobs are deployed.

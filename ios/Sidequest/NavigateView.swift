@@ -1,12 +1,11 @@
 import ARKit
 import AVFoundation
+import CoreLocation
 import MapKit
 import SwiftUI
 
 struct NavigateView: View {
     @Environment(AppModel.self) private var model
-    private enum NavigationMode: String, CaseIterable { case explore = "Explore", route = "Route" }
-    @State private var mode: NavigationMode = .explore
     @State private var start: Landmark?
     @State private var destination: Landmark?
     @State private var accessibleOnly = false
@@ -27,26 +26,31 @@ struct NavigateView: View {
                     if model.landmarks.isEmpty {
                         ContentUnavailableView("No published landmarks", systemImage: "mappin.slash", description: Text("A college administrator must publish validated campus data before navigation can begin."))
                     } else {
-                        VStack(spacing: 0) {
-                            Picker("Navigation mode", selection: $mode) {
-                                ForEach(NavigationMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                            }
-                            .pickerStyle(.segmented)
-                            .padding(.horizontal)
-                            .padding(.top, 8)
-                            if mode == .explore { exploreContent } else { routeBuilder }
-                        }
+                        exploreContent
                     }
                 }
             }
             .navigationTitle("Navigate")
             .task { if model.landmarks.isEmpty { await model.reloadLandmarks() };applyPreparedDestination() }
             .onChange(of:model.pendingNavigationDestinationId){applyPreparedDestination()}
+            .onChange(of: destination) { model.clearRoute() }
             .refreshable { await model.reloadLandmarks() }
+            .fullScreenCover(isPresented: $showCamera) {
+                if let plan = model.routePlan {
+                    let steps = plan.cameraSteps(floorPlans: model.floorPlans)
+                    if !plan.physicalValidationComplete {
+                        CameraSimulationView(steps: steps, destination: destination?.name ?? "Destination")
+                    } else {
+                        CameraGuidanceView(steps: steps, confirmedFacingDegrees: start?.facingDegrees, simulationMode: false)
+                    }
+                } else {
+                    ContentUnavailableView("Route unavailable", systemImage: "point.topleft.down.to.point.bottomright.curvepath", description: Text("Calculate the route again to open camera guidance."))
+                }
+            }
         }
     }
 
-    private func applyPreparedDestination(){guard let id=model.pendingNavigationDestinationId,let landmark=model.landmarks.first(where:{$0.id==id})else{return};destination=landmark;mode = .route;model.consumeNavigationDestination()}
+    private func applyPreparedDestination(){guard let id=model.pendingNavigationDestinationId,let landmark=model.landmarks.first(where:{$0.id==id})else{return};destination=landmark;model.consumeNavigationDestination()}
 
     private var exploreRegion: MKCoordinateRegion {
         let points = model.landmarks.compactMap { landmark -> CLLocationCoordinate2D? in
@@ -69,10 +73,63 @@ struct NavigateView: View {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Explore IIIT Delhi").font(.title2.bold())
-                    Text("Discover venues around campus, then start a verified route when you are ready.")
+                    Text("Choose where you are, choose where you’re going, then follow the compass-guided camera preview.")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("Where are you?", systemImage: "location.circle.fill").font(.headline)
+                    Picker("I’m at", selection: $start) {
+                        Text("Select your current landmark").tag(nil as Landmark?)
+                        ForEach(model.landmarks) { Text($0.name).tag(Optional($0)) }
+                    }
+                    .onChange(of: start) { confirmedHere = false; model.clearRoute() }
+                    if let start {
+                        if let photo = model.landmarkPhotoURLs[start.id] {
+                            AsyncImage(url: photo) { image in image.resizable().scaledToFill() } placeholder: { ProgressView() }
+                                .frame(height: 125).frame(maxWidth: .infinity).clipped().clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                        Button(confirmedHere ? "Starting landmark confirmed ✓" : "I’m here — confirm this landmark") { confirmedHere = true }
+                            .buttonStyle(.bordered)
+                    }
+                    Label("Where do you want to go?", systemImage: "mappin.and.ellipse").font(.headline).padding(.top, 4)
+                    Picker("Destination", selection: $destination) {
+                        Text("Select a destination").tag(nil as Landmark?)
+                        ForEach(model.landmarks.filter { $0.id != start?.id }) { Text($0.name).tag(Optional($0)) }
+                    }
+                    Toggle("Accessible route", isOn: $accessibleOnly)
+                    Button {
+                        guard let start, let destination else { return }
+                        Task {
+                            await model.calculateRoute(from: start, to: destination, accessibleOnly: accessibleOnly)
+                            if model.routePlan != nil { showCamera = true }
+                        }
+                    } label: {
+                        Label("Preview camera simulation demo", systemImage: "camera.viewfinder")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(start == nil || destination == nil || !confirmedHere || start == destination)
+                    if !confirmedHere {
+                        Text("Confirm where you are to enable the route preview.").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                .padding()
+                .background(Color.sidequestMist, in: RoundedRectangle(cornerRadius: 18))
+
+                if case .failed(let message) = model.navigationState {
+                    Label(message, systemImage: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(.red)
+                    Button("Try route again") {
+                        guard let start, let destination else { return }
+                        Task {
+                            await model.calculateRoute(from: start, to: destination, accessibleOnly: accessibleOnly)
+                            if model.routePlan != nil { showCamera = true }
+                        }
+                    }
+                }
+
+                if let plan = model.routePlan { routePreview(plan) }
 
                 Map(initialPosition: .region(exploreRegion)) {
                     ForEach(model.landmarks) { landmark in
@@ -80,7 +137,7 @@ struct NavigateView: View {
                             Annotation(landmark.name, coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude)) {
                                 Button {
                                     destination = landmark
-                                    mode = .route
+                                    model.clearRoute()
                                 } label: {
                                     Image(systemName: destination?.id == landmark.id ? "mappin.circle.fill" : "mappin.circle")
                                         .font(.title2).foregroundStyle(Color.sidequestInk).padding(4)
@@ -109,19 +166,6 @@ struct NavigateView: View {
                     }
                 }
 
-                if let destination {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Label("Selected destination", systemImage: "checkmark.circle.fill").font(.headline).foregroundStyle(Color.sidequestInk)
-                        Text(destination.name).font(.title3.bold())
-                        Text("Confirm your current landmark before starting the route. Sidequest will use the published graph and any current closures.")
-                            .font(.subheadline).foregroundStyle(.secondary)
-                        Button("Start route to \(destination.name)") { mode = .route }
-                            .buttonStyle(.borderedProminent)
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.sidequestLime.opacity(0.28), in: RoundedRectangle(cornerRadius: 16))
-                }
             }
             .padding()
         }
@@ -130,7 +174,7 @@ struct NavigateView: View {
     @ViewBuilder private func landmarkExploreCard(_ landmark: Landmark) -> some View {
         Button {
             destination = landmark
-            mode = .route
+            model.clearRoute()
         } label: {
             VStack(alignment: .leading, spacing: 8) {
                 if let url = model.landmarkPhotoURLs[landmark.id] {
@@ -154,6 +198,33 @@ struct NavigateView: View {
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(.quaternary))
         }
         .buttonStyle(.plain)
+    }
+
+    private func routePreview(_ plan: RoutePlan) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Route preview", systemImage: "point.topleft.down.to.point.bottomright.curvepath").font(.headline)
+            Text("Walking distance · \(Int(plan.totalDistanceMeters.rounded())) m")
+                .font(.title3.bold())
+            if !plan.physicalValidationComplete {
+                Text("Demo route from the published campus graph · not physically validated")
+                    .font(.caption).foregroundStyle(.orange)
+            }
+            ForEach(Array(plan.edges.enumerated()), id: \.element.id) { index, edge in
+                HStack(alignment: .top, spacing: 8) {
+                    Text("\(index + 1)").font(.caption.bold()).frame(width: 22, height: 22).background(Color.sidequestLime).clipShape(Circle())
+                    VStack(alignment: .leading) {
+                        Text(edge.instruction).font(.subheadline)
+                        Text("\(Int(edge.distanceMeters.rounded())) m walking · \(edge.kind)").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            Button("Preview camera simulation demo") { showCamera = true }
+                .buttonStyle(.borderedProminent)
+                .frame(maxWidth: .infinity)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.sidequestLime.opacity(0.22), in: RoundedRectangle(cornerRadius: 18))
     }
 
     private var routeBuilder: some View {
@@ -233,9 +304,6 @@ struct NavigateView: View {
                 .foregroundStyle(.red)
             Text("Return to a known landmark and confirm it again. Sidequest does not infer precise indoor position from “I’m here.”")
                 .font(.footnote).foregroundStyle(.secondary)
-        }
-        .fullScreenCover(isPresented: $showCamera) {
-            CameraGuidanceView(steps: cameraSteps, confirmedFacingDegrees: start?.facingDegrees, simulationMode: !plan.physicalValidationComplete)
         }
     }
 
@@ -378,6 +446,164 @@ private struct SimulatedCameraSurface: View {
             }
         }
         .onAppear { pulse = true }
+    }
+}
+
+private struct CameraSimulationView: View {
+    @Environment(\.dismiss) private var dismiss
+    let steps: [RouteCameraStep]
+    let destination: String
+    @StateObject private var camera = CameraPreviewModel()
+    @StateObject private var compass = CompassHeadingModel()
+    @State private var stepIndex = 0
+
+    private var step: RouteCameraStep? { steps.indices.contains(stepIndex) ? steps[stepIndex] : nil }
+    private var remainingMeters: Double { steps.dropFirst(stepIndex).reduce(0) { $0 + $1.distanceMeters } }
+    private var relativeArrowDegrees: Double {
+        guard let bearing = step?.bearingDegrees, let heading = compass.heading else { return 0 }
+        let difference = (bearing - heading).truncatingRemainder(dividingBy: 360)
+        return difference >= 0 ? difference : difference + 360
+    }
+
+    var body: some View {
+        ZStack {
+            if camera.permission == .authorized, camera.isReady {
+                CameraPreviewLayer(session: camera.session).ignoresSafeArea()
+            } else {
+                LinearGradient(colors: [Color(red: 0.03, green: 0.06, blue: 0.05), Color(red: 0.11, green: 0.17, blue: 0.13)], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
+                VStack(spacing: 12) {
+                    Image(systemName: "camera.viewfinder").font(.system(size: 46)).foregroundStyle(.white.opacity(0.7))
+                    Text(camera.permission == .denied ? "Camera access is off" : "Camera preview unavailable")
+                        .font(.headline).foregroundStyle(.white)
+                    Text("Compass guidance demo is still available over this preview.").font(.caption).foregroundStyle(.white.opacity(0.75))
+                }
+            }
+
+            VStack(spacing: 0) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("DEMO · EXPLORE GUIDANCE").font(.caption.bold()).foregroundStyle(Color.sidequestLime)
+                        Text("To \(destination)").font(.headline).foregroundStyle(.white)
+                    }
+                    Spacer()
+                    Button("Done") { dismiss() }.buttonStyle(.borderedProminent)
+                }
+                .padding(.top, 14).padding(.horizontal)
+                Spacer()
+                if let step {
+                    VStack(spacing: 8) {
+                        ZStack {
+                            Circle().fill(.black.opacity(0.45)).frame(width: 92, height: 92)
+                            Image(systemName: "arrow.up.fill")
+                                .font(.system(size: 40, weight: .black))
+                                .foregroundStyle(Color.sidequestLime)
+                                .rotationEffect(.degrees(relativeArrowDegrees))
+                                .shadow(color: .black.opacity(0.8), radius: 8)
+                        }
+                        Text("\(Int(step.distanceMeters.rounded())) m · \(step.kind)").font(.caption.bold()).foregroundStyle(.white)
+                        Text("Arrow turns with your phone compass").font(.caption).foregroundStyle(.white.opacity(0.85))
+                    }
+                    .padding(14).background(.black.opacity(0.4), in: RoundedRectangle(cornerRadius: 18))
+                    Spacer()
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text("Step \(stepIndex + 1) of \(steps.count)").font(.caption.bold())
+                            Spacer()
+                            Text("\(Int(remainingMeters.rounded())) m left").font(.caption.bold())
+                        }
+                        Text(step.instruction).font(.headline)
+                        if let heading = compass.heading {
+                            Label("Compass \(Int(heading.rounded()))°", systemImage: "location.north.fill").font(.caption)
+                        } else {
+                            Label("Move the phone to calibrate the compass", systemImage: "location.north.line").font(.caption)
+                        }
+                        HStack {
+                            Button("Previous") { stepIndex = max(0, stepIndex - 1) }.disabled(stepIndex == 0)
+                            Spacer()
+                            if stepIndex + 1 < steps.count { Button("Next") { stepIndex += 1 }.buttonStyle(.borderedProminent) }
+                            else { Button("Finish") { dismiss() }.buttonStyle(.borderedProminent) }
+                        }
+                    }
+                    .foregroundStyle(.white).padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18)).padding()
+                }
+            }
+        }
+        .task {
+            await camera.requestAndStart()
+            compass.start()
+        }
+        .onDisappear { camera.stop(); compass.stop() }
+    }
+}
+
+@MainActor private final class CameraPreviewModel: ObservableObject {
+    let session = AVCaptureSession()
+    @Published var permission = AVCaptureDevice.authorizationStatus(for: .video)
+    @Published var isReady = false
+
+    func requestAndStart() async {
+        if permission == .notDetermined {
+            _ = await AVCaptureDevice.requestAccess(for: .video)
+            permission = AVCaptureDevice.authorizationStatus(for: .video)
+        }
+        guard permission == .authorized, !isReady else { return }
+        session.beginConfiguration()
+        do {
+            session.sessionPreset = .high
+            guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+                session.commitConfiguration(); return
+            }
+            let input = try AVCaptureDeviceInput(device: device)
+            guard session.canAddInput(input) else { session.commitConfiguration(); return }
+            session.addInput(input)
+            session.commitConfiguration()
+            session.startRunning()
+            isReady = true
+        } catch {
+            session.commitConfiguration()
+            if session.isRunning { session.stopRunning() }
+            isReady = false
+        }
+    }
+
+    func stop() { if session.isRunning { session.stopRunning() }; isReady = false }
+}
+
+private struct CameraPreviewLayer: UIViewRepresentable {
+    let session: AVCaptureSession
+    func makeUIView(context: Context) -> CameraPreviewHost {
+        let view = CameraPreviewHost()
+        view.previewLayer.session = session
+        view.previewLayer.videoGravity = .resizeAspectFill
+        return view
+    }
+    func updateUIView(_ uiView: CameraPreviewHost, context: Context) { uiView.previewLayer.session = session }
+}
+
+private final class CameraPreviewHost: UIView {
+    override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
+    var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
+}
+
+@MainActor private final class CompassHeadingModel: NSObject, ObservableObject, @preconcurrency CLLocationManagerDelegate {
+    @Published var heading: CLLocationDirection?
+    private let manager = CLLocationManager()
+
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.headingFilter = 2
+        manager.headingOrientation = .portrait
+    }
+    func start() {
+        guard CLLocationManager.headingAvailable() else { return }
+        if manager.authorizationStatus == .notDetermined { manager.requestWhenInUseAuthorization() }
+        manager.startUpdatingHeading()
+    }
+    func stop() { manager.stopUpdatingHeading() }
+    func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
+        let reading = newHeading.trueHeading >= 0 ? newHeading.trueHeading : newHeading.magneticHeading
+        if reading >= 0 { heading = reading }
     }
 }
 
