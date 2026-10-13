@@ -32,6 +32,9 @@ declare
   node_gate uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1';
   node_hall uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2';
   node_lab uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3';
+  node_courtyard uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4';
+  node_stairs uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb5';
+  node_lift uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb6';
   channel_a uuid := 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1';
   channel_b uuid := 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2';
   channel_c uuid := 'cccccccc-cccc-4ccc-8ccc-ccccccccccc3';
@@ -108,12 +111,19 @@ begin
   insert into public.route_nodes(id,route_version_id,landmark_id,coordinate_kind,latitude,longitude,node_kind,is_accessible) values
     (node_gate,route_id,landmark_gate,'outdoor_geographic',28.5457,77.2732,'entrance',true),
     (node_hall,route_id,landmark_hall,'outdoor_geographic',28.5459,77.2734,'hall',true),
-    (node_lab,route_id,landmark_lab,'outdoor_geographic',28.5460,77.2735,'hall',true)
-  on conflict(id) do update set landmark_id=excluded.landmark_id,latitude=excluded.latitude,longitude=excluded.longitude;
+    (node_lab,route_id,landmark_lab,'outdoor_geographic',28.5460,77.2735,'hall',true),
+    (node_courtyard,route_id,null,'outdoor_geographic',28.5458,77.27328,'path',true),
+    (node_stairs,route_id,null,'outdoor_geographic',28.54591,77.27341,'stairs',false),
+    (node_lift,route_id,null,'outdoor_geographic',28.54596,77.27344,'lift',true)
+  on conflict(id) do update set landmark_id=excluded.landmark_id,coordinate_kind=excluded.coordinate_kind,latitude=excluded.latitude,longitude=excluded.longitude,node_kind=excluded.node_kind,is_accessible=excluded.is_accessible;
   insert into public.route_edges(id,route_version_id,from_node_id,to_node_id,kind,distance_meters,geometry,instruction,is_accessible,is_bidirectional) values
-    ('abababab-abab-4aba-8aba-ababababab01',route_id,node_gate,node_hall,'walkway',32,'[{"latitude":28.5457,"longitude":77.2732},{"latitude":28.5459,"longitude":77.2734}]','Walk east from the Main Gate to Innovation Hall.',true,true),
-    ('abababab-abab-4aba-8aba-ababababab02',route_id,node_hall,node_lab,'corridor',18,'[{"latitude":28.5459,"longitude":77.2734},{"latitude":28.5460,"longitude":77.2735}]','Continue along the Academic Block corridor to Seminar Room 1.',true,true)
-  on conflict(id) do update set distance_meters=excluded.distance_meters,geometry=excluded.geometry,instruction=excluded.instruction;
+    ('abababab-abab-4aba-8aba-ababababab01',route_id,node_gate,node_hall,'walkway',32,'[{"latitude":28.5457,"longitude":77.2732},{"latitude":28.5459,"longitude":77.2734}]','Follow the step-free courtyard path from IIIT Delhi Main Gate to Innovation Hall.',true,true),
+    ('abababab-abab-4aba-8aba-ababababab02',route_id,node_hall,node_lift,'lift',18,'[{"latitude":28.5459,"longitude":77.2734},{"latitude":28.54596,"longitude":77.27344}]','At the Innovation Hall lobby in Academic Block, take the elevator to the upper corridor.',true,true),
+    ('abababab-abab-4aba-8aba-ababababab03',route_id,node_gate,node_courtyard,'walkway',18,'[{"latitude":28.5457,"longitude":77.2732},{"latitude":28.5458,"longitude":77.27328}]','Walk across the IIIT Delhi Main Courtyard toward Academic Block.',true,true),
+    ('abababab-abab-4aba-8aba-ababababab04',route_id,node_courtyard,node_stairs,'stairs',16,'[{"latitude":28.5458,"longitude":77.27328},{"latitude":28.54591,"longitude":77.27341}]','Turn right at the Academic Block entrance and take the stairs to the upper lobby.',false,true),
+    ('abababab-abab-4aba-8aba-ababababab05',route_id,node_stairs,node_lab,'corridor',10,'[{"latitude":28.54591,"longitude":77.27341},{"latitude":28.5460,"longitude":77.2735}]','Turn left from the stair landing and follow the corridor to Seminar Room 1.',true,true),
+    ('abababab-abab-4aba-8aba-ababababab06',route_id,node_lift,node_lab,'corridor',12,'[{"latitude":28.54596,"longitude":77.27344},{"latitude":28.5460,"longitude":77.2735}]','Exit the elevator, turn left, and follow the step-free corridor to Seminar Room 1.',true,true)
+  on conflict(id) do update set route_version_id=excluded.route_version_id,from_node_id=excluded.from_node_id,to_node_id=excluded.to_node_id,kind=excluded.kind,distance_meters=excluded.distance_meters,geometry=excluded.geometry,instruction=excluded.instruction,is_accessible=excluded.is_accessible,is_bidirectional=excluded.is_bidirectional;
 
   insert into public.events(id,college_id,organization_id,title,description,category,visibility,price_minor,currency,eligibility,status,created_by,client_request_id,published_at) values
     (event_a,college_id,org_id,'IIIT Delhi Welcome Workshop','Meet student clubs, learn how campus events work, and find your first community.','Orientation','college_only',0,'INR','IIIT Delhi students','published',organizer_id,'12121212-1212-4121-8121-121212121211',now_at),

@@ -139,6 +139,13 @@ Last updated: 2026-10-13 (Asia/Kolkata)
 - Camera demo now has a centered compass-relative arrow and a clearly labeled simulated movement sequence (straight, right, left, arrival), with a location progress marker and walked/remaining distance. The demo stages are confined to the explicitly labeled simulation preview.
 - iPhone 17 simulator and signed physical-device Debug builds pass. This revision installed on the connected iPhone 17; launch was denied because iOS reported the phone locked, so the camera preview has not yet been physically exercised.
 
+### IIIT Delhi route profiles (2026-10-13)
+
+- Expanded only the development IIIT Delhi route graph with Academic Block courtyard, stairs, and elevator nodes. The ordinary route calculates via the courtyard stairs; the accessible route excludes that stair edge and calculates through Innovation Hall and the elevator.
+- Verified the hosted development route RPC returns distinct edge sequences and summed distances: 44 m via stairs and 62 m via elevator/step-free path. Both use IIIT Delhi Main Gate and Seminar Room 1 endpoints and remain physically unvalidated.
+- The camera demo now reads each displayed instruction, edge kind, distance, and compass bearing from the selected backend route. Thus the accessible toggle changes route topology and camera guidance, not only its label.
+- iPhone 17 simulator Debug build passes. Physical device is still reported locked, so route switching/camera interaction on the handset remains pending.
+
 - Temporary access: the requested username login is active against Supabase Auth and the scoped IIIT Delhi administrator membership is verified. Replace the temporary password before sharing the site beyond this test.
 - Security action: rotate the database password that was accidentally posted in chat; it was not stored or used by this implementation.
 - Blocker: no authorized Apple APNs signing key/team configuration is available, so the delivery worker source is not deployed and push receipt is unverified. The durable inbox and retry jobs are deployed.

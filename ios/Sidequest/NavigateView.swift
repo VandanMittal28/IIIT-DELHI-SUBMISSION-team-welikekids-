@@ -34,12 +34,13 @@ struct NavigateView: View {
             .task { if model.landmarks.isEmpty { await model.reloadLandmarks() };applyPreparedDestination() }
             .onChange(of:model.pendingNavigationDestinationId){applyPreparedDestination()}
             .onChange(of: destination) { model.clearRoute() }
+            .onChange(of: accessibleOnly) { model.clearRoute() }
             .refreshable { await model.reloadLandmarks() }
             .fullScreenCover(isPresented: $showCamera) {
                 if let plan = model.routePlan {
                     let steps = plan.cameraSteps(floorPlans: model.floorPlans)
                     if !plan.physicalValidationComplete {
-                        CameraSimulationView(walkingDistance: plan.totalDistanceMeters, destination: destination?.name ?? "Destination")
+                        CameraSimulationView(plan: plan, floorPlans: model.floorPlans, destination: destination?.name ?? "Destination", accessibleRoute: accessibleOnly)
                     } else {
                         CameraGuidanceView(steps: steps, confirmedFacingDegrees: start?.facingDegrees, simulationMode: false)
                     }
@@ -203,6 +204,11 @@ struct NavigateView: View {
     private func routePreview(_ plan: RoutePlan) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Label("Route preview", systemImage: "point.topleft.down.to.point.bottomright.curvepath").font(.headline)
+            Text("\(start?.name ?? "Starting landmark") → \(destination?.name ?? "Destination")")
+                .font(.subheadline)
+            Label(accessibleOnly ? "Step-free route · lift where mapped" : "Standard campus route · stairs where mapped",
+                  systemImage: accessibleOnly ? "figure.roll" : "figure.walk")
+                .font(.caption).foregroundStyle(.secondary)
             Text("Walking distance · \(Int(plan.totalDistanceMeters.rounded())) m")
                 .font(.title3.bold())
             if !plan.physicalValidationComplete {
@@ -451,29 +457,46 @@ private struct SimulatedCameraSurface: View {
 
 private struct CameraSimulationView: View {
     @Environment(\.dismiss) private var dismiss
-    let walkingDistance: Double
+    let plan: RoutePlan
+    let floorPlans: [UUID: FloorPlan]
     let destination: String
+    let accessibleRoute: Bool
     @StateObject private var camera = CameraPreviewModel()
     @StateObject private var compass = CompassHeadingModel()
     @State private var initialHeading: CLLocationDirection?
     @State private var simulatedProgress = 0.0
     @State private var isSimulating = false
 
-    private var demoSteps: [(instruction: String, turnDegrees: Double)] {
-        [
-            ("Walk straight", 0),
-            ("Take a right", 90),
-            ("Take a left", 0),
-            ("You’ve arrived at \(destination)", 0)
-        ]
+    private struct DemoStep: Identifiable {
+        let id: UUID
+        let instruction: String
+        let distanceMeters: Double
+        let kind: String
+        let bearingDegrees: Double?
+        let fallbackTurnDegrees: Double
     }
-    private var stepIndex: Int { min(Int(simulatedProgress * 3), demoSteps.count - 1) }
-    private var step: (instruction: String, turnDegrees: Double) { demoSteps[stepIndex] }
-    private var walkedMeters: Double { walkingDistance * simulatedProgress }
-    private var remainingMeters: Double { walkingDistance * (1 - simulatedProgress) }
+    private var demoSteps: [DemoStep] {
+        let cameraSteps = plan.cameraSteps(floorPlans: floorPlans)
+        return plan.edges.enumerated().map { index, edge in
+            let words = edge.instruction.lowercased()
+            let fallbackTurn = words.contains("right") ? 90.0 : (words.contains("left") ? 270.0 : 0.0)
+            return DemoStep(id: edge.id, instruction: edge.instruction, distanceMeters: edge.distanceMeters,
+                            kind: edge.kind, bearingDegrees: cameraSteps.indices.contains(index) ? cameraSteps[index].bearingDegrees : nil,
+                            fallbackTurnDegrees: fallbackTurn)
+        }
+    }
+    private var stepIndex: Int { min(Int(simulatedProgress * Double(max(1, demoSteps.count))), demoSteps.count) }
+    private var step: DemoStep? { demoSteps.indices.contains(stepIndex) ? demoSteps[stepIndex] : nil }
+    private var walkedMeters: Double { plan.totalDistanceMeters * simulatedProgress }
+    private var remainingMeters: Double { plan.totalDistanceMeters * (1 - simulatedProgress) }
     private var relativeArrowDegrees: Double {
-        guard let heading = compass.heading else { return step.turnDegrees }
-        let desiredHeading = (initialHeading ?? heading) + step.turnDegrees
+        guard let heading = compass.heading else { return step?.fallbackTurnDegrees ?? 0 }
+        let cumulativeTurn = demoSteps.prefix(stepIndex + (step == nil ? 0 : 1)).reduce(0.0) { total, item in
+            total + item.fallbackTurnDegrees
+        }
+        let baseHeading = initialHeading ?? demoSteps.first?.bearingDegrees ?? step?.bearingDegrees ?? heading
+        let hasTurnInstruction = demoSteps.prefix(stepIndex + (step == nil ? 0 : 1)).contains { $0.fallbackTurnDegrees != 0 }
+        let desiredHeading = hasTurnInstruction ? baseHeading + cumulativeTurn : (step?.bearingDegrees ?? baseHeading)
         let difference = (desiredHeading - heading).truncatingRemainder(dividingBy: 360)
         return difference >= 0 ? difference : difference + 360
     }
@@ -508,7 +531,7 @@ private struct CameraSimulationView: View {
                     HStack {
                         Text("SIMULATED LOCATION").font(.caption.bold()).foregroundStyle(Color.sidequestLime)
                         Spacer()
-                        Text("\(Int(walkedMeters.rounded())) m / \(Int(walkingDistance.rounded())) m").font(.caption.bold())
+                        Text("\(Int(walkedMeters.rounded())) m / \(Int(plan.totalDistanceMeters.rounded())) m").font(.caption.bold())
                     }
                     GeometryReader { geometry in
                         ZStack(alignment: .leading) {
@@ -520,16 +543,18 @@ private struct CameraSimulationView: View {
                     }
                     .frame(height: 18)
                     HStack {
-                        Text("Step \(stepIndex + 1) of \(demoSteps.count)").font(.caption.bold())
+                        Text(step == nil ? "Arrived" : "Step \(stepIndex + 1) of \(demoSteps.count)").font(.caption.bold())
                         Spacer()
                         Text("\(Int(remainingMeters.rounded())) m left").font(.caption.bold())
                     }
-                    Text(step.instruction).font(.title3.bold())
-                    Text("Demo directions: straight → right → left").font(.caption).foregroundStyle(.white.opacity(0.75))
+                    Text(step?.instruction ?? "You’ve arrived at \(destination)").font(.title3.bold())
+                    Label(accessibleRoute ? "Step-free route · lift and accessible corridors" : "Campus route · stairs and corridors", systemImage: accessibleRoute ? "figure.roll" : "figure.walk")
+                        .font(.caption).foregroundStyle(.white.opacity(0.8))
+                    if let step { Text("\(Int(step.distanceMeters.rounded())) m · \(step.kind)").font(.caption).foregroundStyle(.white.opacity(0.8)) }
                     if let heading = compass.heading {
                         Label("Phone compass \(Int(heading.rounded()))°", systemImage: "location.north.fill").font(.caption)
                     } else {
-                        Label("Compass unavailable — arrow shows the demo turn", systemImage: "location.north.line").font(.caption)
+                        Label("Compass unavailable — arrow follows the route instruction", systemImage: "location.north.line").font(.caption)
                     }
                     HStack {
                         Button("Restart") { isSimulating = false; simulatedProgress = 0 }
