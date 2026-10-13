@@ -4,7 +4,7 @@
 
 ### ADR-001 — PostgreSQL is the authorization and transaction boundary
 
-All contextual roles are stored in `college_memberships`, `memberships`, and event assignments. Row-level security protects reads, and privileged mutations use narrowly granted database functions that repeat authorization checks. User-editable Auth metadata is never an authority source. This keeps the Next.js and iOS clients on one contract.
+All contextual roles are stored in `college_memberships`, `memberships`, host/co-host relationships, and event assignments. Row-level security protects reads, and privileged mutations use narrowly granted database functions that repeat authorization checks. Co-host organizers inherit event management through the same server predicate, while staff assignment accepts only active organizer/volunteer memberships from a host organization. User-editable Auth metadata is never an authority source. This keeps the Next.js and iOS clients on one contract.
 
 ### ADR-002 — Events and editions are separate
 

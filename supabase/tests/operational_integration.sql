@@ -6,11 +6,16 @@ insert into auth.users(id,email) values
 ('10000000-0000-0000-0000-000000000002','organizer@example.invalid'),
 ('10000000-0000-0000-0000-000000000003','student@example.invalid'),
 ('10000000-0000-0000-0000-000000000004','volunteer@example.invalid'),
-('10000000-0000-0000-0000-000000000005','outsider@example.invalid');
+('10000000-0000-0000-0000-000000000005','outsider@example.invalid'),
+('10000000-0000-0000-0000-000000000006','cohost@example.invalid');
 insert into public.colleges(id,slug,name) values('20000000-0000-0000-0000-000000000001','test-college','Test College');
 insert into public.college_memberships(college_id,user_id,is_admin,status) values('20000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001',true,'active');
-insert into public.organizations(id,college_id,slug,name) values('30000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001','test-org','Test Org');
-insert into public.memberships(organization_id,user_id,role,status) values('30000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000002','organizer','active');
+insert into public.organizations(id,college_id,slug,name) values
+('30000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001','test-org','Test Org'),
+('30000000-0000-0000-0000-000000000002','20000000-0000-0000-0000-000000000001','cohost-org','Cohost Org');
+insert into public.memberships(organization_id,user_id,role,status) values
+('30000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000002','organizer','active'),
+('30000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000006','organizer','active');
 
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000002',true);
 select set_config('request.jwt.claim.role','authenticated',true);
@@ -25,8 +30,14 @@ do $$ declare result jsonb; begin
  perform public.update_event_details((select value from test_state where key='event'),'Integration event updated','A real local integration workflow','Workshop','Students',2500);
  perform public.set_event_cover_image((select value from test_state where key='event'),'20000000-0000-0000-0000-000000000001/'||(select value from test_state where key='event')::text||'/cover.webp');
  perform public.create_event_edition((select value from test_state where key='event'),'Next edition',now()+interval '5 days',now()+interval '6 days',now()+interval '7 days',now()+interval '8 days',10,true);
+ perform public.add_event_cohost((select value from test_state where key='event'),'30000000-0000-0000-0000-000000000002');
  result:=public.create_role_invitation('30000000-0000-0000-0000-000000000001','volunteer@example.invalid','event_volunteer');
  insert into test_state values('invitation',(result->>'invitation_token')::uuid);
+end $$;
+
+select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000006',true);
+do $$ begin
+ if (select count(*) from public.get_event_staff_candidates((select value from test_state where key='edition')))<>2 then raise exception 'cohost organizer management access failed'; end if;
 end $$;
 
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000003',true);
@@ -46,7 +57,14 @@ select public.accept_role_invitation((select value from test_state where key='in
 do $$ begin if not exists(select 1 from public.memberships where organization_id='30000000-0000-0000-0000-000000000001' and user_id='10000000-0000-0000-0000-000000000004' and role='event_volunteer' and status='active') then raise exception 'invitation acceptance failed'; end if; end $$;
 
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000002',true);
-select public.assign_event_staff((select value from test_state where key='edition'),'10000000-0000-0000-0000-000000000004','event_volunteer');
+do $$ declare assigned jsonb; replay jsonb; begin
+ if (select count(*) from public.get_event_staff_candidates((select value from test_state where key='edition')))<>3 then raise exception 'staff candidate directory incorrect'; end if;
+ begin perform public.assign_event_staff((select value from test_state where key='edition'),'10000000-0000-0000-0000-000000000005','event_volunteer'); raise exception 'non-member assigned as staff'; exception when sqlstate 'PGRST' then null; end;
+ assigned:=public.assign_event_staff((select value from test_state where key='edition'),'10000000-0000-0000-0000-000000000004','event_volunteer');
+ replay:=public.assign_event_staff((select value from test_state where key='edition'),'10000000-0000-0000-0000-000000000004','event_volunteer');
+ if (assigned->>'idempotent_replay')::boolean or not (replay->>'idempotent_replay')::boolean then raise exception 'staff assignment idempotency failed'; end if;
+ if (select count(*) from public.audit_records where action='staff.assign' and entity_id=(select value from test_state where key='edition'))<>1 then raise exception 'staff assignment audit duplicated'; end if;
+end $$;
 select public.update_edition_capacity((select value from test_state where key='edition'),1,true,true);
 do $$ begin
  if (select count(*) from public.get_registration_roster((select value from test_state where key='edition')))<>1 then raise exception 'roster incorrect'; end if;

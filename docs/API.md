@@ -88,7 +88,7 @@ Authenticated, security-invoker organizer/volunteer projection of capacity and a
 
 ## Management
 
-`create_organization`, `assign_context_role`, `assign_event_staff`, `add_event_cohost`, `update_event_details`, `approve_event`, `update_edition_capacity`, `create_event_edition`, `create_event_session`, `set_event_cover_image`, `cancel_event`, and campus/venue authoring RPCs repeat contextual authorization server-side and write audit records for sensitive actions.
+`create_organization`, `assign_context_role`, `assign_event_staff`, `add_event_cohost`, `update_event_details`, `approve_event`, `update_edition_capacity`, `create_event_edition`, `create_event_session`, `set_event_cover_image`, `cancel_event`, and campus/venue authoring RPCs repeat contextual authorization server-side and write audit records for sensitive actions. Host and co-host organizers receive the same event-management boundary. `get_event_staff_candidates(edition_id)` returns only active organizers and volunteers from those organizations; assignment rejects arbitrary account IDs and is retry-idempotent.
 
 `create_role_invitation` returns a one-time token whose hash—not the raw token—is stored. It is bound to a normalized email, role, organization, inviter, and seven-day expiry. `accept_role_invitation` requires a signed-in Auth user whose verified account email matches, consumes the token once, and activates the scoped membership. Neither endpoint can grant college-administrator authority.
 
