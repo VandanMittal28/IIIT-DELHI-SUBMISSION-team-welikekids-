@@ -32,6 +32,8 @@ The native app exposes public student account creation using the same username c
 
 The admin form accepts either an email address or a college-issued username. A username is normalized by removing spaces and appending `@sidequest.local` before Supabase Auth is called. Create the matching internal Auth email as a trusted operator; never expose this convention as a public self-registration path. Passwords belong only in Supabase Auth and must not be committed to the repository.
 
+The Admin dashboard's profile provisioning panel creates student, organizer, or additional college-admin credentials through the protected `create-user-profile` Edge Function. Organizer credentials are attached to the selected college organization and can manage only their scoped events/reports. Students receive the native iOS experience; they do not receive organizer permissions.
+
 ## Admin website
 
 ```sh
