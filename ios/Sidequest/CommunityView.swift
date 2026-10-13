@@ -68,10 +68,39 @@ private struct ChannelView: View {
     let channel:CommunityChannel
     @State private var draft=""
     @State private var error:String?
+    @State private var reportedMessage:CommunityMessage?
     var body: some View { List {
-        ForEach(model.communityMessages.filter{$0.channelId==channel.id}.reversed()) { message in Text(message.body) }
+        ForEach(model.communityMessages.filter{$0.channelId==channel.id}.reversed()) { message in
+            HStack(alignment:.top) {
+                Text(message.body)
+                Spacer()
+                Menu { Button("Report message",systemImage:"exclamationmark.bubble"){reportedMessage=message} } label: { Image(systemName:"ellipsis.circle").accessibilityLabel("Message actions") }
+            }
+        }
         Section { TextField("Message",text:$draft,axis:.vertical);Button("Post") { Task { do { try await model.postMessage(channelId:channel.id,body:draft);draft="" } catch { self.error=error.localizedDescription } } }.disabled(draft.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty);if let error{Text(error).foregroundStyle(.red)} }
-    }.navigationTitle(channel.title).navigationBarTitleDisplayMode(.inline) }
+    }.navigationTitle(channel.title).navigationBarTitleDisplayMode(.inline).sheet(item:$reportedMessage){MessageReportForm(message:$0)} }
+}
+
+private struct MessageReportForm:View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    let message:CommunityMessage
+    @State private var reason=""
+    @State private var error:String?
+    @State private var busy=false
+    var body:some View {
+        NavigationStack {
+            Form {
+                Section("Reported message") { Text(message.body).foregroundStyle(.secondary) }
+                Section("Reason") { TextField("Why should moderators review this?",text:$reason,axis:.vertical).lineLimit(3...8) }
+                if let error { Text(error).foregroundStyle(.red) }
+                Button(busy ? "Submitting…":"Submit report") { busy=true;Task{do{try await model.reportMessage(messageId:message.id,description:reason);dismiss()}catch{self.error=error.localizedDescription;busy=false}} }
+                    .disabled(busy||reason.trimmingCharacters(in:.whitespacesAndNewlines).count<5)
+            }
+            .navigationTitle("Report message")
+            .toolbar { ToolbarItem(placement:.cancellationAction){Button("Cancel"){dismiss()}} }
+        }
+    }
 }
 
 private struct ReportForm: View {

@@ -20,21 +20,25 @@ do $$ declare result jsonb; begin
  insert into test_state values('event',(result->>'event_id')::uuid),('edition',(result->>'edition_id')::uuid);
  perform public.publish_event((result->>'event_id')::uuid);
  if (select count(*) from public.channels where edition_id=(result->>'edition_id')::uuid)<>1 then raise exception 'edition channel missing'; end if;
- perform public.update_event_details((result->>'event_id')::uuid,'Integration event updated','A real local integration workflow','Workshop','Students',2500);
- perform public.set_event_cover_image((result->>'event_id')::uuid,'20000000-0000-0000-0000-000000000001/'||(result->>'event_id')||'/cover.webp');
- perform public.create_event_edition((result->>'event_id')::uuid,'Next edition',now()+interval '5 days',now()+interval '6 days',now()+interval '7 days',now()+interval '8 days',10,true);
+ result:=public.post_message((select id from public.channels where edition_id=(select value from test_state where key='edition')),'Organizer-authored discussion message');
+ insert into test_state values('message',(result->>'message_id')::uuid);
+ perform public.update_event_details((select value from test_state where key='event'),'Integration event updated','A real local integration workflow','Workshop','Students',2500);
+ perform public.set_event_cover_image((select value from test_state where key='event'),'20000000-0000-0000-0000-000000000001/'||(select value from test_state where key='event')::text||'/cover.webp');
+ perform public.create_event_edition((select value from test_state where key='event'),'Next edition',now()+interval '5 days',now()+interval '6 days',now()+interval '7 days',now()+interval '8 days',10,true);
  result:=public.create_role_invitation('30000000-0000-0000-0000-000000000001','volunteer@example.invalid','event_volunteer');
  insert into test_state values('invitation',(result->>'invitation_token')::uuid);
 end $$;
 
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000003',true);
-do $$ declare result jsonb; begin
+do $$ declare result jsonb; own_message jsonb; begin
  result:=public.register_for_event((select value from test_state where key='edition'),'40000000-0000-0000-0000-000000000002');
  if result->>'status'<>'registered' or result->>'pass_token' is null then raise exception 'registration/pass failed'; end if;
  insert into test_state values('pass',(result->>'pass_token')::uuid),('registration',(result->>'registration_id')::uuid);
  begin perform public.assign_context_role('30000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000003','organizer'); raise exception 'student granted staff role'; exception when sqlstate 'PGRST' then null; end;
  begin perform public.create_campus('20000000-0000-0000-0000-000000000001','Forbidden Campus',28.5,77.2); raise exception 'student authored campus'; exception when sqlstate 'PGRST' then null; end;
  begin perform public.get_assignable_event_staff((select value from test_state where key='edition')); raise exception 'student read assignable staff'; exception when sqlstate 'PGRST' then null; end;
+ own_message:=public.post_message((select id from public.channels where edition_id=(select value from test_state where key='edition')),'Student-authored discussion message');
+ begin perform public.submit_message_report((own_message->>'message_id')::uuid,'Self report should be denied'); raise exception 'student reported own message'; exception when sqlstate 'PGRST' then null; end;
 end $$;
 
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000004',true);
@@ -62,9 +66,13 @@ do $$ declare first jsonb; replay jsonb; begin
 end $$;
 
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000003',true);
-do $$ declare report_result jsonb; review_result jsonb; begin
+do $$ declare report_result jsonb; review_result jsonb; message_report jsonb; message_report_replay jsonb; begin
  report_result:=public.submit_report((select value from test_state where key='edition'),'Safety','Local integration report','normal');
  insert into test_state values('report',(report_result->>'report_id')::uuid);
+ message_report:=public.submit_message_report((select value from test_state where key='message'),'This message needs moderator review');
+ message_report_replay:=public.submit_message_report((select value from test_state where key='message'),'This message needs moderator review');
+ if (message_report->>'idempotent_replay')::boolean or not (message_report_replay->>'idempotent_replay')::boolean or message_report->>'report_id'<>message_report_replay->>'report_id' then raise exception 'message report idempotency failed'; end if;
+ insert into test_state values('message_report',(message_report->>'report_id')::uuid);
  review_result:=public.submit_review((select value from test_state where key='edition'),5,'Verified local attendance review');
  if (review_result->>'persisted')::boolean<>true then raise exception 'review failed'; end if;
  perform public.register_device_token('integration-device-token','sandbox');
@@ -75,6 +83,10 @@ select public.transition_report((select value from test_state where key='report'
 select public.transition_report((select value from test_state where key='report'),'assigned','10000000-0000-0000-0000-000000000004','assigned');
 select public.transition_report((select value from test_state where key='report'),'in_progress',null,'working');
 select public.transition_report((select value from test_state where key='report'),'resolved',null,'done');
+select public.moderate_message((select value from test_state where key='message'),'hidden');
+do $$ begin
+ begin perform public.submit_message_report((select value from test_state where key='message'),'Hidden message should be unavailable'); raise exception 'new hidden message report accepted'; exception when sqlstate 'PGRST' then null; end;
+end $$;
 
 reset role;
 insert into storage.objects(bucket_id,name,owner_id) values
@@ -106,10 +118,13 @@ select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000005'
 do $$ begin
  if exists(select 1 from storage.objects where bucket_id='report-attachments') then raise exception 'unrelated user read report evidence'; end if;
  begin perform public.add_report_attachment((select value from test_state where key='report'),'10000000-0000-0000-0000-000000000003/'||(select value from test_state where key='report')::text||'/evidence.webp'); raise exception 'outsider linked report evidence'; exception when sqlstate 'PGRST' then null; end;
+ begin perform public.submit_message_report((select value from test_state where key='message'),'Outsider should be denied'); raise exception 'outsider reported inaccessible message'; exception when sqlstate 'PGRST' then null; end;
 end $$;
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000003',true);
 do $$ begin
  if (select count(*) from storage.objects where bucket_id='report-attachments')<>1 then raise exception 'reporter could not read own evidence'; end if;
+ if exists(select 1 from public.messages where id=(select value from test_state where key='message')) then raise exception 'student read hidden message'; end if;
+ if not (public.submit_message_report((select value from test_state where key='message'),'Retry after moderation')->>'idempotent_replay')::boolean then raise exception 'hidden message report retry was not idempotent'; end if;
 end $$;
 reset role;
 set role anon;
@@ -156,6 +171,8 @@ end $$;
 do $$ begin
  if (select estimated_inside from public.edition_occupancy where edition_id=(select value from test_state where key='edition'))<>1 then raise exception 'occupancy incorrect'; end if;
  if (select status::text from public.reports where id=(select value from test_state where key='report'))<>'resolved' then raise exception 'report workflow incomplete'; end if;
+ if (select count(*) from public.reports where reporter_id='10000000-0000-0000-0000-000000000003' and reported_message_id=(select value from test_state where key='message'))<>1 then raise exception 'message report linkage incorrect'; end if;
+ if (select status::text from public.messages where id=(select value from test_state where key='message'))<>'hidden' then raise exception 'message moderation failed'; end if;
  if (select sample_size from public.event_review_summary where event_id=(select value from test_state where key='event'))<>1 then raise exception 'review analytics incorrect'; end if;
  if (select count(*) from public.notifications where title='Campus route changed')<>1 then raise exception 'closure notification missing or duplicated'; end if;
  if (select count(*) from public.notifications where title='Campus route reopened')<>1 then raise exception 'reopening notification missing or duplicated'; end if;

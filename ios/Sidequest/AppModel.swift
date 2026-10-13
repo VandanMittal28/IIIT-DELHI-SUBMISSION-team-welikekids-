@@ -369,6 +369,15 @@ final class AppModel {
         await reloadCommunity()
     }
 
+    func reportMessage(messageId: UUID, description: String) async throws {
+        guard let client else { throw SidequestError.notConfigured }
+        _ = try await client.rpc("submit_message_report", params: [
+            "p_message_id": messageId.uuidString,
+            "p_description": description,
+        ]).execute()
+        await reloadCommunity()
+    }
+
     func submitReport(editionId: UUID, category: String, description: String, priority: String, attachmentData: Data? = nil) async throws -> String? {
         guard let client else { throw SidequestError.notConfigured }
         if let attachmentData, attachmentData.count > 10 * 1024 * 1024 {

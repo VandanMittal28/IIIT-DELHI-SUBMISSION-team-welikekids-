@@ -54,6 +54,10 @@ Camera guidance derives each step bearing from the returned route node order: WG
 
 The student uploads evidence directly to a private Storage path scoped by user and report, then calls a narrow authenticated RPC to link it. The RPC verifies the report author, path prefix, actual Storage object, and object owner before creating the database record. A unique report/path index makes retries idempotent; only newly created links produce audit rows. Failed linking triggers best-effort removal of the still-unlinked object, and a scoped Storage delete policy permits that cleanup without allowing linked evidence to be deleted.
 
+### ADR-014 — Message reports retain moderated source context
+
+A discussion report references the immutable message row and enters the same persisted status workflow as an event report. The submitter must have edition access and cannot report their own message; a partial uniqueness index makes retries idempotent. Hiding a message removes it from student reads but keeps it visible to scoped event managers so triage retains evidence and moderation remains auditable.
+
 ## Environments
 
 - Local source and builds do not contain credentials or operational fixtures.
