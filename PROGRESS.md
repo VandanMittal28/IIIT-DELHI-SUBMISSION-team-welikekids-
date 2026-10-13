@@ -45,6 +45,7 @@ Last updated: 2026-10-13 (Asia/Kolkata)
 - [x] Admin website deployed to Vercel from GitHub `main` with the `admin` root and production Supabase configuration.
 - [x] Temporary college-issued username login added on top of Supabase Auth; no password is stored in source control.
 - [x] Native iOS sign-in and student sign-up use the same username/password convention; Supabase's internal email identity remains hidden from the UI.
+- [x] Development project now contains clearly labeled demo college, organization, published event, registration/pass, discussion channel, volunteer assignment, and an unvalidated sample route; demo account passwords remain outside source control.
 - [ ] Authenticated real-data staging journey, physical-iPhone verification, APNs worker deployment, and iOS production release authorization.
 
 ## Completed slice acceptance criteria
