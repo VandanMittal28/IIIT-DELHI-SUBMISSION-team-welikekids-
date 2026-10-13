@@ -48,6 +48,7 @@ Last updated: 2026-10-13 (Asia/Kolkata)
 - [x] IIIT Delhi-focused operations redesign: admin presents login first, removes occupancy/announcement/report/moderation/co-host/roster/lifecycle clutter, and keeps volunteer response, assignment, event editing, and venue changes.
 - [x] Native iOS now opens on a branded IIIT Delhi sign-in gate; community is a shared discussion/announcement space, and Profile includes on-device avatar selection.
 - [x] Development project now contains clearly labeled demo college, organization, published event, registration/pass, discussion channel, volunteer assignment, and an unvalidated sample route; demo account passwords remain outside source control.
+- [x] Development project now has a complete idempotent IIIT Delhi simulation seed: three published events, four venues, three sessions, active student passes, volunteer assignments, published route graph, announcements, community messages, attendance, report, review, follow, and inbox notifications.
 - [ ] Authenticated real-data staging journey, physical-iPhone verification, APNs worker deployment, and iOS production release authorization.
 
 ## Completed slice acceptance criteria
@@ -102,6 +103,7 @@ Last updated: 2026-10-13 (Asia/Kolkata)
 - Expanded release suite passes cross-role denial, event update/edition/media operations, registration rosters, duplicate scans, wall-clock attendance ordering, audited corrections, assigned-report states, and complete route/review behavior.
 - Hosted advisors after the full schema: 0 security errors; 0 performance errors/warnings. All 43 security warnings are reviewed authenticated `SECURITY DEFINER` transaction endpoints under ADR-005.
 - Development demo verification: three username-backed Auth users sign in with HTTP 200; the admin has an active college-admin membership, the organizer has active organizer and volunteer memberships, the student has a registered demo event and active opaque pass, and published discovery returns the labeled demo event.
+- IIIT Delhi simulation verification: the hosted seed produced three IIIT Delhi events, four mapped venues, three route nodes and two edges, three student registrations/passes, three volunteer assignments, three announcements, attendance, one report, one verified review, community messages, and notifications. Student-authenticated REST reads returned all three events with their selected venues and four active journey passes including the pre-existing demo event.
 - Physical-device verification: the paired iPhone accepted a signed Debug build using the active Personal Team `43WAD8RCVQ`; `in.sidequest.student` installed and launched successfully, and the native test target passed on the physical device. Camera, APNs, and AR interaction still require manual on-device exercise.
 - Simplified IIIT Delhi UI verification: admin production build and iOS simulator build pass after the operations/login/community/profile redesign.
 - Concurrent capacity test: 10 simultaneous requests against capacity 3 produced exactly 3 registrations and 7 waitlist entries.
