@@ -50,6 +50,16 @@ struct EditionReviewSummary:Decodable,Identifiable,Equatable {
     enum CodingKeys:String,CodingKey { case eventId="event_id",editionId="edition_id",sampleSize="sample_size",averageRating="average_rating" }
 }
 
+struct AttendanceHistoryItem:Decodable,Identifiable,Equatable {
+    let id:UUID;let editionId:UUID;let eventId:UUID;let title:String;let action:String;let recordedAt:Date
+    enum CodingKeys:String,CodingKey { case id,title,action;case editionId="edition_id",eventId="event_id",recordedAt="recorded_at" }
+}
+
+struct SubmittedReviewItem:Decodable,Identifiable,Equatable {
+    let id:UUID;let eventId:UUID;let editionId:UUID;let title:String;let rating:Int;let body:String?;let createdAt:Date;let updatedAt:Date
+    enum CodingKeys:String,CodingKey { case id,title,rating,body;case eventId="event_id",editionId="edition_id",createdAt="created_at",updatedAt="updated_at" }
+}
+
 struct RegistrationResult: Decodable, Equatable {
     let registrationId: UUID
     let status: String

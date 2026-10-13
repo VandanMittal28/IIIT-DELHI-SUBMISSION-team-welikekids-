@@ -54,6 +54,8 @@ Authenticated RPC with `p_registration_id`. A student may cancel only their own 
 
 Authenticated, security-invoker view of the caller’s registrations, registration deadlines, waitlist positions, event timeline, and active pass tokens. Underlying table policies are authoritative; clients refetch this view after mutations and reconnects.
 
+`my_attendance_history` and `my_submitted_reviews` are authenticated security-invoker views filtered by `auth.uid()`. They expose only the signed-in student's persisted attendance transitions and review records for the Profile history; an unrelated account receives no rows.
+
 ## `edition_registration_summary`
 
 Authenticated, security-invoker organizer/volunteer projection of capacity and actual registered, waitlisted, and cancelled counts. RLS prevents unrelated organizations and colleges from seeing an edition’s counts.

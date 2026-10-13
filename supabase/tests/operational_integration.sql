@@ -117,12 +117,15 @@ select set_config('request.jwt.claim.role','authenticated',true);
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000005',true);
 do $$ begin
  if exists(select 1 from storage.objects where bucket_id='report-attachments') then raise exception 'unrelated user read report evidence'; end if;
+ if exists(select 1 from public.my_attendance_history) or exists(select 1 from public.my_submitted_reviews) then raise exception 'outsider read student profile history'; end if;
  begin perform public.add_report_attachment((select value from test_state where key='report'),'10000000-0000-0000-0000-000000000003/'||(select value from test_state where key='report')::text||'/evidence.webp'); raise exception 'outsider linked report evidence'; exception when sqlstate 'PGRST' then null; end;
  begin perform public.submit_message_report((select value from test_state where key='message'),'Outsider should be denied'); raise exception 'outsider reported inaccessible message'; exception when sqlstate 'PGRST' then null; end;
 end $$;
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000003',true);
 do $$ begin
  if (select count(*) from storage.objects where bucket_id='report-attachments')<>1 then raise exception 'reporter could not read own evidence'; end if;
+ if (select count(*) from public.my_attendance_history)<>3 then raise exception 'student attendance history incorrect'; end if;
+ if (select count(*) from public.my_submitted_reviews)<>1 then raise exception 'student review history incorrect'; end if;
  if exists(select 1 from public.messages where id=(select value from test_state where key='message')) then raise exception 'student read hidden message'; end if;
  if not (public.submit_message_report((select value from test_state where key='message'),'Retry after moderation')->>'idempotent_replay')::boolean then raise exception 'hidden message report retry was not idempotent'; end if;
 end $$;

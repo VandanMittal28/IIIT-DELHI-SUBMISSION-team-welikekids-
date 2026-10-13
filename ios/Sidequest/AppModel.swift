@@ -38,6 +38,8 @@ final class AppModel {
     private(set) var campuses: [CampusPoint] = []
     private(set) var sessionsByEdition: [UUID:[EventSessionScheduleItem]] = [:]
     private(set) var reviewSummariesByEvent: [UUID:[EditionReviewSummary]] = [:]
+    private(set) var attendanceHistory:[AttendanceHistoryItem]=[]
+    private(set) var submittedReviews:[SubmittedReviewItem]=[]
     private(set) var organizations: [OrganizationProfile] = []
     private(set) var followedOrganizationIds: Set<UUID> = []
     private(set) var communityState: LoadState = .idle
@@ -108,6 +110,8 @@ final class AppModel {
         journeyState = .idle
         savedEventIds = []
         profile = nil
+        attendanceHistory=[]
+        submittedReviews=[]
         await stopLiveUpdates()
     }
 
@@ -432,6 +436,7 @@ final class AppModel {
         _ = try await client.rpc("submit_review", params: ReviewRequest(
             pEditionId: editionId, pRating: rating, pBody: body
         )).execute()
+        await reloadProfile()
     }
 
     func registerDeviceToken(_ token: String) async throws {
@@ -453,8 +458,10 @@ final class AppModel {
             async let collegeRows: [CollegeOption] = client.from("colleges").select("id,name").order("name").execute().value
             async let organizationRows: [OrganizationProfile] = client.from("organizations").select("id,name,description,college_id").eq("is_active",value:true).order("name").execute().value
             async let followRows: [FollowRow] = client.from("follows").select("organization_id").execute().value
-            let values = try await (profileRows,collegeRows,organizationRows,followRows)
-            profile=values.0.first; colleges=values.1; organizations=values.2; followedOrganizationIds=Set(values.3.map(\.organizationId))
+            async let attendanceRows:[AttendanceHistoryItem] = client.from("my_attendance_history").select("id,edition_id,event_id,title,action,recorded_at").order("recorded_at",ascending:false).limit(100).execute().value
+            async let reviewRows:[SubmittedReviewItem] = client.from("my_submitted_reviews").select("id,event_id,edition_id,title,rating,body,created_at,updated_at").order("updated_at",ascending:false).limit(100).execute().value
+            let values = try await (profileRows,collegeRows,organizationRows,followRows,attendanceRows,reviewRows)
+            profile=values.0.first; colleges=values.1; organizations=values.2; followedOrganizationIds=Set(values.3.map(\.organizationId));attendanceHistory=values.4;submittedReviews=values.5
         } catch { /* Profile form displays the current authenticated defaults. */ }
     }
 

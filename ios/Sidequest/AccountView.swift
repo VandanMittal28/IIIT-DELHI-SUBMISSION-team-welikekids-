@@ -48,6 +48,18 @@ struct AccountView: View {
                         Text(notificationStatus).font(.footnote).foregroundStyle(.secondary)
                         Button("Enable event notifications") { Task { await requestNotifications() } }
                     }
+                    Section("Attendance history") {
+                        if model.attendanceHistory.isEmpty { Text("No attendance transitions recorded.").foregroundStyle(.secondary) }
+                        ForEach(model.attendanceHistory) { item in
+                            VStack(alignment:.leading,spacing:3){Text(item.title).font(.headline);Text(item.action.replacingOccurrences(of:"_",with:" ").capitalized);Text(item.recordedAt.formatted(date:.abbreviated,time:.shortened)).font(.caption).foregroundStyle(.secondary)}
+                        }
+                    }
+                    Section("Submitted reviews") {
+                        if model.submittedReviews.isEmpty { Text("No verified-attendee reviews submitted.").foregroundStyle(.secondary) }
+                        ForEach(model.submittedReviews) { item in
+                            VStack(alignment:.leading,spacing:3){Text(item.title).font(.headline);Text("\(item.rating) / 5");if let body=item.body{Text(body).foregroundStyle(.secondary)};Text("Updated \(item.updatedAt.formatted(date:.abbreviated,time:.shortened))").font(.caption).foregroundStyle(.secondary)}
+                        }
+                    }
                     Button("Sign out", role: .destructive) { Task { await model.signOut() } }
                     Section("Account lifecycle") { Button("Request account deletion",role:.destructive){showDeletionConfirmation=true};Text("This immediately deactivates notification delivery and marks the account for secure deletion processing.").font(.footnote).foregroundStyle(.secondary) }
                 } else {
