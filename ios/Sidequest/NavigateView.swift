@@ -135,8 +135,14 @@ private struct RouteMap: View {
         } else if coordinates.isEmpty {
             ContentUnavailableView("Indoor plan unavailable", systemImage: "building.2", description: Text("The published floor image could not be loaded. Continue with the stored text and voice steps."))
         } else {
-            Map { MapPolyline(coordinates: coordinates).stroke(.blue, lineWidth: 6) }
-                .mapStyle(.standard)
+            let center = coordinates[coordinates.count / 2]
+            Map(initialPosition: .region(MKCoordinateRegion(center: center, latitudinalMeters: 180, longitudinalMeters: 180))) {
+                MapPolyline(coordinates: coordinates).stroke(.blue, lineWidth: 6)
+                ForEach(Array(coordinates.enumerated()), id: \.offset) { index, coordinate in
+                    Marker(index == 0 ? "Start" : (index == coordinates.count - 1 ? "Destination" : "Step \(index)"), coordinate: coordinate)
+                }
+            }
+            .mapStyle(.standard)
         }
     }
 }

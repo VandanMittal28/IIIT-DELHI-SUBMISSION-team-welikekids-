@@ -114,14 +114,25 @@ export default function Home() {
 
   async function createEvent(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError(null); setNotice(null);
+    const opens = new Date(draft.registrationOpensAt);
+    const closes = new Date(draft.registrationClosesAt);
+    const starts = new Date(draft.startsAt);
+    const ends = new Date(draft.endsAt);
+    if ([opens, closes, starts, ends].some((value) => Number.isNaN(value.getTime()))) {
+      setError("Enter all registration and event dates before creating the event."); setBusy(false); return;
+    }
+    if (!(opens < closes && closes <= ends && starts < ends)) {
+      setError("Check the schedule: registration must open before it closes, and the event must end after it starts."); setBusy(false); return;
+    }
+    if (!draft.organizationId) { setError("Choose the IIIT Delhi organization first."); setBusy(false); return; }
     const { data, error: createError } = await getSupabase().rpc("create_event", {
       p_client_request_id: crypto.randomUUID(), p_organization_id: draft.organizationId,
       p_title: draft.title, p_description: draft.description, p_category: draft.category,
       p_visibility: draft.visibility, p_price_minor: Math.round(Number(draft.priceRupees) * 100),
       p_currency: "INR", p_eligibility: draft.eligibility,
-      p_registration_opens_at: new Date(draft.registrationOpensAt).toISOString(),
-      p_registration_closes_at: new Date(draft.registrationClosesAt).toISOString(),
-      p_starts_at: new Date(draft.startsAt).toISOString(), p_ends_at: new Date(draft.endsAt).toISOString(),
+      p_registration_opens_at: opens.toISOString(),
+      p_registration_closes_at: closes.toISOString(),
+      p_starts_at: starts.toISOString(), p_ends_at: ends.toISOString(),
       p_capacity: Number(draft.capacity), p_waitlist_enabled: draft.waitlistEnabled,
     });
     if (createError) setError(messageFrom(createError));
