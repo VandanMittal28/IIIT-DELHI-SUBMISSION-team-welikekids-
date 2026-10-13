@@ -17,9 +17,13 @@ export function ProfileProvisioningPanel({
   collegeId?: string;
   colleges: College[];
   organizations: Organization[];
-  onChanged(): void;
+  onChanged(): void | Promise<void>;
 }) {
   const [selectedCollegeId, setSelectedCollegeId] = useState(collegeId ?? colleges[0]?.id ?? "");
+  const [creatingCollege, setCreatingCollege] = useState(false);
+  const [newCollegeName, setNewCollegeName] = useState("");
+  const [newCollegeSlug, setNewCollegeSlug] = useState("");
+  const [newCollegeTimezone, setNewCollegeTimezone] = useState("Asia/Kolkata");
   const [username, setUsername] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
@@ -73,12 +77,31 @@ export function ProfileProvisioningPanel({
     else {
       setMessage(`${organizationName.trim()} created under ${collegeName}.`);
       setOrganizationName(""); setOrganizationSlug("");
-      onChanged();
+      await onChanged();
     }
     setBusy(false);
   }
 
-  const activeOrganizations = organizations.filter((organization) => organization.is_active);
+  async function createCollege(event: React.FormEvent) {
+    event.preventDefault(); setBusy(true); setError(null); setMessage(null);
+    const { data, error: createError } = await getSupabase().rpc("create_college", {
+      p_name: newCollegeName.trim(),
+      p_slug: newCollegeSlug.trim().toLowerCase(),
+      p_timezone: newCollegeTimezone,
+    });
+    if (createError) setError(createError.message);
+    else if (data?.persisted !== true || typeof data.college_id !== "string") setError("The backend did not confirm that the college was saved. Please retry.");
+    else {
+      await onChanged();
+      setSelectedCollegeId(data.college_id);
+      setCreatingCollege(false);
+      setMessage(`${newCollegeName.trim()} created. You can now create its organization and accounts.`);
+      setNewCollegeName(""); setNewCollegeSlug(""); setNewCollegeTimezone("Asia/Kolkata");
+    }
+    setBusy(false);
+  }
+
+  const activeOrganizations = selectedOrganizations;
   const inactiveOrganizations = organizations.filter((organization) => !organization.is_active);
 
   return <section className="ops-card ops-wide">
@@ -94,12 +117,20 @@ export function ProfileProvisioningPanel({
         {colleges.map((college) => <option key={college.id} value={college.id}>{college.name}</option>)}
       </select>
     </label>
+    {platformAdmin && <button type="button" className="secondary" onClick={() => setCreatingCollege((value) => !value)}>{creatingCollege ? "Cancel new college" : "Create a college"}</button>}
+    {creatingCollege && <form className="ops-form" onSubmit={createCollege}>
+      <h3>New college</h3>
+      <label className="field">College name<input required minLength={2} maxLength={160} value={newCollegeName} onChange={event => { const value = event.target.value; setNewCollegeName(value); setNewCollegeSlug(value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")); }} placeholder="College name" /></label>
+      <label className="field">College ID<input required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" value={newCollegeSlug} onChange={event => setNewCollegeSlug(event.target.value.toLowerCase())} placeholder="college-id" /></label>
+      <label className="field">Timezone<input required value={newCollegeTimezone} onChange={event => setNewCollegeTimezone(event.target.value)} placeholder="Asia/Kolkata" /></label>
+      <button disabled={busy}>{busy ? "Creating…" : "Create college and continue"}</button>
+    </form>}
     <h3>Active organizations</h3>
-    {activeOrganizations.length === 0 ? <p className="helper">No active organizations yet. Create one below.</p> : <div className="management-grid">{activeOrganizations.map((organization) => <article className="ops-form" key={organization.id}><strong>{organization.name}</strong><span>{colleges.find((college) => college.id === organization.college_id)?.name}</span><span className="status-dot">Active</span></article>)}</div>}
-    {inactiveOrganizations.length > 0 && <details><summary>Inactive organizations</summary><ul>{inactiveOrganizations.map((organization) => <li key={organization.id}>{organization.name} · {colleges.find((college) => college.id === organization.college_id)?.name ?? "College"} · Paused</li>)}</ul></details>}
+    {activeOrganizations.length === 0 ? <p className="helper">No active organizations for {collegeName} yet. Create one below before adding an organizer.</p> : <div className="management-grid">{activeOrganizations.map((organization) => <article className="ops-form" key={organization.id}><strong>{organization.name}</strong><span>{collegeName}</span><span className="status-dot">Active</span></article>)}</div>}
+    {inactiveOrganizations.filter((organization) => organization.college_id === selectedCollegeId).length > 0 && <details><summary>Inactive organizations</summary><ul>{inactiveOrganizations.filter((organization) => organization.college_id === selectedCollegeId).map((organization) => <li key={organization.id}>{organization.name} · Paused</li>)}</ul></details>}
     <div className="management-grid">
       <form className="ops-form" onSubmit={createOrganization}>
-        <h3>Create organization</h3>
+        <h3>Create organization for {collegeName}</h3>
         <label className="field">Organization name<input required minLength={2} maxLength={160} value={organizationName} onChange={event => setOrganizationName(event.target.value)} placeholder="Robotics Club" /></label>
         <label className="field">Organization ID<input required pattern="[a-z0-9-]+" value={organizationSlug} onChange={event => setOrganizationSlug(event.target.value.toLowerCase())} placeholder="robotics-club" /></label>
         <button disabled={busy || !selectedCollegeId}>{busy ? "Saving…" : "Create organization"}</button>

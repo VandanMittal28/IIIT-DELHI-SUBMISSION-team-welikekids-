@@ -2,6 +2,14 @@
 
 Last updated: 2026-10-13 (Asia/Kolkata)
 
+### Global college and account provisioning (2026-10-13)
+
+- Added a platform-admin-only `create_college` RPC with name/slug/timezone validation and an audit record; direct browser inserts are not granted.
+- Admin can create a college, have it selected immediately, create/choose its organization, then provision student or organizer username/password accounts. Organization lists are scoped to the selected college.
+- Integration coverage verifies a platform administrator can create a college and an ordinary student cannot.
+- Hosted migration `20261013164243_platform_admin_college_creation` is applied. A rollback-only hosted SQL check confirmed authorized college creation/auditing, student denial, `anon` execution denial, and no retained test college.
+- Website production build and targeted ESLint for `ProfileProvisioningPanel.tsx` pass. Full local SQL integration tests are unavailable because Docker is not installed; the hosted rollback check covered the new RPC authorization and audit behavior.
+
 ### Global Sidequest administration (2026-10-13)
 
 - Corrected the role model: Sidequest Admin is a platform-wide administrator, not an IIIT Delhi/college administrator. Added `platform_admins` with self-only client visibility and an authorization helper; creation of organizations is granted globally only to that role, while college and organizer workflows remain scoped.
