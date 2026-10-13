@@ -136,6 +136,7 @@ Last updated: 2026-10-13 (Asia/Kolkata)
 - The Explore page now asks the student to pick a current published landmark, confirm “I’m here”, choose a destination, then preview the route from the same page. Campus map and nearby cards remain below the flow.
 - The demo preview no longer enters the ARKit production view. It uses an isolated camera preview with a compass-relative arrow that turns as the phone heading changes, plus current instruction, per-leg distance, and remaining walking distance. Camera denial or missing simulator camera falls back to a labeled demo surface.
 - Route summary labels the backend graph's summed edge length as walking distance, rather than implying straight-line displacement. It opens only after successful route calculation.
+- Camera demo now has a centered compass-relative arrow and a clearly labeled simulated movement sequence (straight, right, left, arrival), with a location progress marker and walked/remaining distance. The demo stages are confined to the explicitly labeled simulation preview.
 - iPhone 17 simulator and signed physical-device Debug builds pass. This revision installed on the connected iPhone 17; launch was denied because iOS reported the phone locked, so the camera preview has not yet been physically exercised.
 
 - Temporary access: the requested username login is active against Supabase Auth and the scoped IIIT Delhi administrator membership is verified. Replace the temporary password before sharing the site beyond this test.

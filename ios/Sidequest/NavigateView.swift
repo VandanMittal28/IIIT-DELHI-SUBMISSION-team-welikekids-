@@ -39,7 +39,7 @@ struct NavigateView: View {
                 if let plan = model.routePlan {
                     let steps = plan.cameraSteps(floorPlans: model.floorPlans)
                     if !plan.physicalValidationComplete {
-                        CameraSimulationView(steps: steps, destination: destination?.name ?? "Destination")
+                        CameraSimulationView(walkingDistance: plan.totalDistanceMeters, destination: destination?.name ?? "Destination")
                     } else {
                         CameraGuidanceView(steps: steps, confirmedFacingDegrees: start?.facingDegrees, simulationMode: false)
                     }
@@ -451,17 +451,30 @@ private struct SimulatedCameraSurface: View {
 
 private struct CameraSimulationView: View {
     @Environment(\.dismiss) private var dismiss
-    let steps: [RouteCameraStep]
+    let walkingDistance: Double
     let destination: String
     @StateObject private var camera = CameraPreviewModel()
     @StateObject private var compass = CompassHeadingModel()
-    @State private var stepIndex = 0
+    @State private var initialHeading: CLLocationDirection?
+    @State private var simulatedProgress = 0.0
+    @State private var isSimulating = false
 
-    private var step: RouteCameraStep? { steps.indices.contains(stepIndex) ? steps[stepIndex] : nil }
-    private var remainingMeters: Double { steps.dropFirst(stepIndex).reduce(0) { $0 + $1.distanceMeters } }
+    private var demoSteps: [(instruction: String, turnDegrees: Double)] {
+        [
+            ("Walk straight", 0),
+            ("Take a right", 90),
+            ("Take a left", 0),
+            ("You’ve arrived at \(destination)", 0)
+        ]
+    }
+    private var stepIndex: Int { min(Int(simulatedProgress * 3), demoSteps.count - 1) }
+    private var step: (instruction: String, turnDegrees: Double) { demoSteps[stepIndex] }
+    private var walkedMeters: Double { walkingDistance * simulatedProgress }
+    private var remainingMeters: Double { walkingDistance * (1 - simulatedProgress) }
     private var relativeArrowDegrees: Double {
-        guard let bearing = step?.bearingDegrees, let heading = compass.heading else { return 0 }
-        let difference = (bearing - heading).truncatingRemainder(dividingBy: 360)
+        guard let heading = compass.heading else { return step.turnDegrees }
+        let desiredHeading = (initialHeading ?? heading) + step.turnDegrees
+        let difference = (desiredHeading - heading).truncatingRemainder(dividingBy: 360)
         return difference >= 0 ? difference : difference + 360
     }
 
@@ -490,49 +503,78 @@ private struct CameraSimulationView: View {
                 }
                 .padding(.top, 14).padding(.horizontal)
                 Spacer()
-                if let step {
-                    VStack(spacing: 8) {
-                        ZStack {
-                            Circle().fill(.black.opacity(0.45)).frame(width: 92, height: 92)
-                            Image(systemName: "arrow.up.fill")
-                                .font(.system(size: 40, weight: .black))
-                                .foregroundStyle(Color.sidequestLime)
-                                .rotationEffect(.degrees(relativeArrowDegrees))
-                                .shadow(color: .black.opacity(0.8), radius: 8)
-                        }
-                        Text("\(Int(step.distanceMeters.rounded())) m · \(step.kind)").font(.caption.bold()).foregroundStyle(.white)
-                        Text("Arrow turns with your phone compass").font(.caption).foregroundStyle(.white.opacity(0.85))
+                Spacer()
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("SIMULATED LOCATION").font(.caption.bold()).foregroundStyle(Color.sidequestLime)
+                        Spacer()
+                        Text("\(Int(walkedMeters.rounded())) m / \(Int(walkingDistance.rounded())) m").font(.caption.bold())
                     }
-                    .padding(14).background(.black.opacity(0.4), in: RoundedRectangle(cornerRadius: 18))
-                    Spacer()
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            Text("Step \(stepIndex + 1) of \(steps.count)").font(.caption.bold())
-                            Spacer()
-                            Text("\(Int(remainingMeters.rounded())) m left").font(.caption.bold())
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(.white.opacity(0.25)).frame(height: 5)
+                            Capsule().fill(Color.sidequestLime).frame(width: max(5, geometry.size.width * simulatedProgress), height: 5)
+                            Image(systemName: "location.fill").font(.caption).foregroundStyle(Color.sidequestLime)
+                                .position(x: max(7, min(geometry.size.width - 7, geometry.size.width * simulatedProgress)), y: 9)
                         }
-                        Text(step.instruction).font(.headline)
-                        if let heading = compass.heading {
-                            Label("Compass \(Int(heading.rounded()))°", systemImage: "location.north.fill").font(.caption)
+                    }
+                    .frame(height: 18)
+                    HStack {
+                        Text("Step \(stepIndex + 1) of \(demoSteps.count)").font(.caption.bold())
+                        Spacer()
+                        Text("\(Int(remainingMeters.rounded())) m left").font(.caption.bold())
+                    }
+                    Text(step.instruction).font(.title3.bold())
+                    Text("Demo directions: straight → right → left").font(.caption).foregroundStyle(.white.opacity(0.75))
+                    if let heading = compass.heading {
+                        Label("Phone compass \(Int(heading.rounded()))°", systemImage: "location.north.fill").font(.caption)
+                    } else {
+                        Label("Compass unavailable — arrow shows the demo turn", systemImage: "location.north.line").font(.caption)
+                    }
+                    HStack {
+                        Button("Restart") { isSimulating = false; simulatedProgress = 0 }
+                        Spacer()
+                        if simulatedProgress >= 1 {
+                            Button("Finish") { dismiss() }.buttonStyle(.borderedProminent)
                         } else {
-                            Label("Move the phone to calibrate the compass", systemImage: "location.north.line").font(.caption)
-                        }
-                        HStack {
-                            Button("Previous") { stepIndex = max(0, stepIndex - 1) }.disabled(stepIndex == 0)
-                            Spacer()
-                            if stepIndex + 1 < steps.count { Button("Next") { stepIndex += 1 }.buttonStyle(.borderedProminent) }
-                            else { Button("Finish") { dismiss() }.buttonStyle(.borderedProminent) }
+                            Button(isSimulating ? "Simulating…" : "Simulate walking") { startSimulation() }
+                                .buttonStyle(.borderedProminent).disabled(isSimulating)
                         }
                     }
-                    .foregroundStyle(.white).padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18)).padding()
                 }
+                .foregroundStyle(.white).padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18)).padding()
+            }
+            GeometryReader { geometry in
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 52, weight: .black))
+                    .foregroundStyle(Color.sidequestLime)
+                    .shadow(color: .black.opacity(0.85), radius: 9)
+                    .rotationEffect(.degrees(relativeArrowDegrees))
+                    .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+                    .accessibilityLabel("Compass direction arrow")
+                    .allowsHitTesting(false)
             }
         }
         .task {
             await camera.requestAndStart()
             compass.start()
         }
-        .onDisappear { camera.stop(); compass.stop() }
+        .onChange(of: compass.heading) { _, newHeading in
+            if initialHeading == nil { initialHeading = newHeading }
+        }
+        .onDisappear { isSimulating = false; camera.stop(); compass.stop() }
+    }
+
+    private func startSimulation() {
+        guard !isSimulating else { return }
+        isSimulating = true
+        Task { @MainActor in
+            while simulatedProgress < 1 {
+                try? await Task.sleep(for: .milliseconds(180))
+                simulatedProgress = min(1, simulatedProgress + 0.02)
+            }
+            isSimulating = false
+        }
     }
 }
 
