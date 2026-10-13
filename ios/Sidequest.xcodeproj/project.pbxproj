@@ -42,7 +42,7 @@
 		82807BCAE15EBB71B83165AB /* SidequestApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidequestApp.swift; sourceTree = "<group>"; };
 		848244A16E3B01C81A51B865 /* Sidequest.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Sidequest.xcconfig; sourceTree = "<group>"; };
 		BC4A1A1119ADA00E1AB6ACC6 /* MyJourneyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyJourneyView.swift; sourceTree = "<group>"; };
-		BC89B425E0BC244A246C1CBF /* Sidequest.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Sidequest.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BC89B425E0BC244A246C1CBF /* Sidequest.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sidequest.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CB50F2CB43780838A53159CA /* CommunityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityView.swift; sourceTree = "<group>"; };
 		F6A76DDECFA530B17872D113 /* SidequestTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SidequestTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FFE957684005C03E66C7866E /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
@@ -167,7 +167,6 @@
 						ProvisioningStyle = Automatic;
 					};
 					BF4D45E014BA5D38246E2BE0 = {
-						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -330,6 +329,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 43WAD8RCVQ;
 				INFOPLIST_FILE = Sidequest/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -423,6 +423,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 43WAD8RCVQ;
 				INFOPLIST_FILE = Sidequest/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

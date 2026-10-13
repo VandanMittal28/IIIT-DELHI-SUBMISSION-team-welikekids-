@@ -300,8 +300,16 @@ private struct CameraGuidanceView: View {
         ZStack {
             Color.black.ignoresSafeArea()
             if permission == .authorized, let step {
-                if let confirmedFacingDegrees, let alignedBearing = step.bearingRelativeToConfirmedFacing(confirmedFacingDegrees) {
+                if ARWorldTrackingConfiguration.isSupported,
+                   let confirmedFacingDegrees,
+                   let alignedBearing = step.bearingRelativeToConfirmedFacing(confirmedFacingDegrees) {
                     AnchoredARPreview(bearingDegrees: alignedBearing, stepID: step.id, trackingMessage: $trackingMessage).ignoresSafeArea()
+                } else if simulationMode {
+                    SimulatedCameraSurface(step: step)
+                        .ignoresSafeArea()
+                }
+                if simulationMode {
+                    SimulatedArrowOverlay()
                 }
                     VStack {
                         Label(step.bearingDegrees == nil ? "Spatial arrow unavailable for this transition." : (simulationMode ? "DEMO · simulated live camera guidance" : "Live camera guidance · turn your phone to follow the anchored arrow"), systemImage: step.bearingDegrees == nil ? "exclamationmark.triangle" : "location.north.line.fill")
@@ -331,8 +339,13 @@ private struct CameraGuidanceView: View {
                     .padding().background(.ultraThinMaterial).clipShape(RoundedRectangle(cornerRadius: 16)).padding()
                 }
             } else if permission == .denied || permission == .restricted {
-                ContentUnavailableView("Camera unavailable", systemImage: "camera.fill", description: Text("Use map, text, or voice guidance. Camera access can be changed in Settings."))
-                    .foregroundStyle(.white)
+                if simulationMode, let step {
+                    SimulatedCameraSurface(step: step)
+                        .ignoresSafeArea()
+                } else {
+                    ContentUnavailableView("Camera unavailable", systemImage: "camera.fill", description: Text("Use map, text, or voice guidance. Camera access can be changed in Settings."))
+                        .foregroundStyle(.white)
+                }
             } else { ProgressView("Requesting camera access…").tint(.white).foregroundStyle(.white) }
             VStack { HStack { Spacer(); Button("Done") { dismiss() }.buttonStyle(.borderedProminent).padding() }; Spacer() }
         }
@@ -342,6 +355,44 @@ private struct CameraGuidanceView: View {
                 permission = AVCaptureDevice.authorizationStatus(for: .video)
             }
         }
+    }
+}
+
+private struct SimulatedCameraSurface: View {
+    let step: RouteCameraStep
+    @State private var pulse = false
+
+    var body: some View {
+        ZStack {
+            LinearGradient(colors: [.black, Color(red: 0.08, green: 0.12, blue: 0.10)], startPoint: .top, endPoint: .bottom)
+            VStack(spacing: 18) {
+                Image(systemName: "camera.viewfinder").font(.title).foregroundStyle(.white.opacity(0.7))
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 110, weight: .bold))
+                    .foregroundStyle(Color.sidequestLime)
+                    .shadow(color: .green.opacity(0.8), radius: pulse ? 20 : 8)
+                    .scaleEffect(pulse ? 1.05 : 0.96)
+                    .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
+                Text("SIMULATED AR ARROW").font(.caption.bold()).foregroundStyle(.orange)
+                Text(step.instruction).font(.headline).multilineTextAlignment(.center).foregroundStyle(.white).padding(.horizontal, 24)
+            }
+        }
+        .onAppear { pulse = true }
+    }
+}
+
+private struct SimulatedArrowOverlay: View {
+    var body: some View {
+        VStack {
+            Spacer()
+            Image(systemName: "arrow.up.circle.fill")
+                .font(.system(size: 92, weight: .bold))
+                .foregroundStyle(Color.sidequestLime)
+                .shadow(color: .black.opacity(0.8), radius: 10)
+            Text("DEMO AR ARROW").font(.caption.bold()).foregroundStyle(.orange)
+            Spacer().frame(height: 170)
+        }
+        .allowsHitTesting(false)
     }
 }
 
