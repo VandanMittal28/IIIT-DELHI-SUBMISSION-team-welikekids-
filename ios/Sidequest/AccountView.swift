@@ -28,6 +28,7 @@ struct AccountView: View {
     @State private var showDeletionConfirmation = false
     @State private var avatarItem: PhotosPickerItem?
     @State private var avatarData: Data?
+    @State private var reportEdition: JourneyItem?
 
     var body: some View {
         NavigationStack {
@@ -67,7 +68,7 @@ struct AccountView: View {
                         }
                     }
                     Button("Sign out", role: .destructive) { Task { await model.signOut() } }
-                    Section("Support") { Text("Need help with an event? Open the event in My Journey and submit a report from its details.").font(.footnote); Label("Report an event issue", systemImage: "flag") }
+                    Section("Support") { Text("Send an event issue directly to the IIIT Delhi operations team.").font(.footnote); Button { reportEdition = model.journey.first(where: { $0.status != "cancelled" }) } label: { Label("Report an event issue", systemImage: "flag") }.disabled(model.journey.filter { $0.status != "cancelled" }.isEmpty) }
                     Section("Account lifecycle") { Button("Request account deletion",role:.destructive){showDeletionConfirmation=true};Text("This immediately deactivates notification delivery and marks the account for secure deletion processing.").font(.footnote).foregroundStyle(.secondary) }
                 } else {
                     Section("Student account") {
@@ -98,6 +99,7 @@ struct AccountView: View {
                 } else { notificationStatus = note.userInfo?["error"] as? String ?? "APNs registration failed" }
             }
             .alert("Request account deletion?",isPresented:$showDeletionConfirmation){Button("Cancel",role:.cancel){};Button("Request deletion",role:.destructive){Task{do{try await model.requestAccountDeletion()}catch{errorMessage=error.localizedDescription}}}} message:{Text("You will be signed out. An administrator must complete identity deletion under the retention policy.")}
+            .sheet(item: $reportEdition) { item in EventIssueForm(item: item) }
         }
     }
 
@@ -128,4 +130,14 @@ struct AccountView: View {
             await MainActor.run { UIApplication.shared.registerForRemoteNotifications() }
         } catch { notificationStatus = error.localizedDescription }
     }
+}
+
+private struct EventIssueForm: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    let item: JourneyItem
+    @State private var detail = ""
+    @State private var error: String?
+    @State private var busy = false
+    var body: some View { NavigationStack { Form { Section(item.title) { TextField("What happened?", text: $detail, axis: .vertical).lineLimit(4...8) }; if let error { Text(error).foregroundStyle(.red) }; Button(busy ? "Sending…" : "Send report") { busy = true; Task { do { _ = try await model.submitReport(editionId: item.editionId, category: "Event issue", description: detail, priority: "normal", attachmentData: nil); dismiss() } catch { self.error = error.localizedDescription; busy = false } } }.disabled(busy || detail.trimmingCharacters(in: .whitespacesAndNewlines).count < 5) }.navigationTitle("Report issue").toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } } } }
 }
