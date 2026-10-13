@@ -202,6 +202,7 @@ struct NavigateView: View {
     @ViewBuilder private func route(_ plan: RoutePlan) -> some View {
         let cameraSteps = plan.cameraSteps(floorPlans: model.floorPlans)
         let cameraReady = plan.physicalValidationComplete && start?.facingDegrees != nil && cameraSteps.contains { $0.bearingDegrees != nil }
+        let simulationReady = !plan.physicalValidationComplete && confirmedHere && start?.facingDegrees != nil && !cameraSteps.isEmpty
         Section("Route · \(Int(plan.totalDistanceMeters.rounded())) m") {
             if !plan.physicalValidationComplete {
                 Label("This route has not been physically validated. Camera arrows are disabled; use map, text, or voice guidance.", systemImage: "exclamationmark.shield")
@@ -219,8 +220,13 @@ struct NavigateView: View {
                 Label("Camera arrows need a stored facing direction and route geometry. Map, text, and voice remain available.", systemImage: "viewfinder.circle")
                     .font(.footnote).foregroundStyle(.orange)
             }
-            Button(cameraReady ? "Start aligned camera guidance" : "Camera guidance needs alignment data") { showCamera = true }
-                .disabled(!cameraReady)
+            if simulationReady {
+                Button("Preview camera simulation (demo)") { showCamera = true }
+                    .buttonStyle(.bordered)
+            } else {
+                Button(cameraReady ? "Start aligned camera guidance" : "Camera guidance needs alignment data") { showCamera = true }
+                    .disabled(!cameraReady)
+            }
         }
         Section {
             Button("I’m lost — realign") { confirmedHere = false; model.clearRoute() }
@@ -229,7 +235,7 @@ struct NavigateView: View {
                 .font(.footnote).foregroundStyle(.secondary)
         }
         .fullScreenCover(isPresented: $showCamera) {
-            CameraGuidanceView(steps: cameraSteps, confirmedFacingDegrees: start?.facingDegrees)
+            CameraGuidanceView(steps: cameraSteps, confirmedFacingDegrees: start?.facingDegrees, simulationMode: !plan.physicalValidationComplete)
         }
     }
 
@@ -283,6 +289,7 @@ private struct CameraGuidanceView: View {
     @Environment(\.dismiss) private var dismiss
     let steps: [RouteCameraStep]
     let confirmedFacingDegrees: Double?
+    let simulationMode: Bool
     @State private var permission: AVAuthorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
     @State private var trackingMessage = "Move your phone slowly while tracking starts."
     @State private var stepIndex = 0
@@ -297,8 +304,12 @@ private struct CameraGuidanceView: View {
                     AnchoredARPreview(bearingDegrees: alignedBearing, stepID: step.id, trackingMessage: $trackingMessage).ignoresSafeArea()
                 }
                     VStack {
-                        Label(step.bearingDegrees == nil ? "Spatial arrow unavailable for this transition." : "Live camera guidance · turn your phone to follow the anchored arrow", systemImage: step.bearingDegrees == nil ? "exclamationmark.triangle" : "location.north.line.fill")
+                        Label(step.bearingDegrees == nil ? "Spatial arrow unavailable for this transition." : (simulationMode ? "DEMO · simulated live camera guidance" : "Live camera guidance · turn your phone to follow the anchored arrow"), systemImage: step.bearingDegrees == nil ? "exclamationmark.triangle" : "location.north.line.fill")
                             .font(.footnote).padding(8).background(.ultraThinMaterial).clipShape(Capsule()).padding(.top, 60)
+                        if simulationMode {
+                            Text("Simulation only — this route is not physically validated. Use the map for real navigation.")
+                                .font(.caption.bold()).foregroundStyle(.orange).padding(8).background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
+                        }
                     Spacer()
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Step \(stepIndex + 1) of \(steps.count)").font(.caption.bold())
