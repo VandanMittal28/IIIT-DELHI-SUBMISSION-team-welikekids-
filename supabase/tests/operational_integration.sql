@@ -107,10 +107,17 @@ do $$ declare report_result jsonb; review_result jsonb; message_report jsonb; me
 end $$;
 
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000004',true);
-select public.transition_report((select value from test_state where key='report'),'acknowledged',null,'seen');
-select public.transition_report((select value from test_state where key='report'),'assigned','10000000-0000-0000-0000-000000000004','assigned');
-select public.transition_report((select value from test_state where key='report'),'in_progress',null,'working');
-select public.transition_report((select value from test_state where key='report'),'resolved',null,'done');
+do $$ declare first jsonb; replay jsonb; begin
+ first:=public.transition_report((select value from test_state where key='report'),'acknowledged',null,'seen');
+ replay:=public.transition_report((select value from test_state where key='report'),'acknowledged',null,'seen');
+ if (first->>'idempotent_replay')::boolean or not (replay->>'idempotent_replay')::boolean then raise exception 'report transition idempotency failed'; end if;
+ begin perform public.transition_report((select value from test_state where key='report'),'in_progress',null,'skipped assignment'); raise exception 'report assignment state skipped'; exception when sqlstate 'PGRST' then null; end;
+ begin perform public.transition_report((select value from test_state where key='report'),'assigned',null,'missing assignee'); raise exception 'null report assignee accepted'; exception when sqlstate 'PGRST' then null; end;
+ begin perform public.transition_report((select value from test_state where key='report'),'assigned','10000000-0000-0000-0000-000000000006','unassigned candidate'); raise exception 'unassigned report candidate accepted'; exception when sqlstate 'PGRST' then null; end;
+ perform public.transition_report((select value from test_state where key='report'),'assigned','10000000-0000-0000-0000-000000000004','assigned');
+ perform public.transition_report((select value from test_state where key='report'),'in_progress',null,'working');
+ perform public.transition_report((select value from test_state where key='report'),'resolved',null,'done');
+end $$;
 select public.moderate_message((select value from test_state where key='message'),'hidden');
 do $$ begin
  begin perform public.submit_message_report((select value from test_state where key='message'),'Hidden message should be unavailable'); raise exception 'new hidden message report accepted'; exception when sqlstate 'PGRST' then null; end;
@@ -205,6 +212,8 @@ end $$;
 do $$ begin
  if (select estimated_inside from public.edition_occupancy where edition_id=(select value from test_state where key='edition'))<>1 then raise exception 'occupancy incorrect'; end if;
  if (select status::text from public.reports where id=(select value from test_state where key='report'))<>'resolved' then raise exception 'report workflow incomplete'; end if;
+ if (select count(*) from public.report_status_history where report_id=(select value from test_state where key='report'))<>5 then raise exception 'report history duplicated or incomplete'; end if;
+ if (select count(*) from public.notifications where title='Report updated')<>4 then raise exception 'report transition notification count incorrect'; end if;
  if (select count(*) from public.reports where reporter_id='10000000-0000-0000-0000-000000000003' and reported_message_id=(select value from test_state where key='message'))<>1 then raise exception 'message report linkage incorrect'; end if;
  if (select status::text from public.messages where id=(select value from test_state where key='message'))<>'hidden' then raise exception 'message moderation failed'; end if;
  if (select sample_size from public.event_review_summary where event_id=(select value from test_state where key='event'))<>1 then raise exception 'review analytics incorrect'; end if;
