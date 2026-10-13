@@ -301,14 +301,44 @@ do $$ begin
 end $$;
 reset role;
 update public.profiles set status='active' where id='10000000-0000-0000-0000-000000000003';
+set role authenticated;
 select set_config('request.jwt.claim.role','authenticated',true);
+select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000005',true);
+do $$ declare result jsonb; begin
+ result:=public.register_for_event((select value from test_state where key='edition'),'40000000-0000-0000-0000-000000000013');
+ if result->>'status'<>'waitlisted' then raise exception 'event cancellation fixture was not waitlisted'; end if;
+end $$;
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000002',true);
 do $$ declare first jsonb; replay jsonb; begin
  first:=public.cancel_event((select value from test_state where key='event'),'Integration cancellation');
  replay:=public.cancel_event((select value from test_state where key='event'),'Integration cancellation');
  if (first->>'idempotent_replay')::boolean or not (replay->>'idempotent_replay')::boolean then raise exception 'event cancellation idempotency failed'; end if;
- if (select count(*) from public.notifications where title='Event cancelled')<>1 then raise exception 'cancellation notification duplicated'; end if;
+ if (first->>'cancelled_registrations')::integer<>2 then raise exception 'event registrations were not all cancelled'; end if;
  if not exists(select 1 from public.events where id=(select value from test_state where key='event') and status='cancelled' and cancelled_at is not null) then raise exception 'event cancellation state incomplete'; end if;
+ if exists(
+   select 1 from public.registrations registration
+   join public.event_editions edition on edition.id=registration.edition_id
+   where edition.event_id=(select value from test_state where key='event')
+     and (registration.status<>'cancelled' or registration.cancelled_at is null)
+ ) then raise exception 'event cancellation left an enrolment active'; end if;
+ if exists(
+   select 1 from public.waitlist_entries waitlist
+   join public.event_editions edition on edition.id=waitlist.edition_id
+   where edition.event_id=(select value from test_state where key='event') and waitlist.status='waiting'
+ ) then raise exception 'event cancellation left a waitlist entry active'; end if;
+ if exists(
+   select 1 from public.passes pass
+   join public.registrations registration on registration.id=pass.registration_id
+   join public.event_editions edition on edition.id=registration.edition_id
+   where edition.event_id=(select value from test_state where key='event') and pass.status='active'
+ ) then raise exception 'event cancellation left an attendee pass active'; end if;
+ perform set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000003',true);
+ if (select count(*) from public.notifications where title='Event cancelled')<>1 then raise exception 'confirmed attendee cancellation notification missing or duplicated'; end if;
+ perform set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000005',true);
+ if (select count(*) from public.notifications where title='Event cancelled')<>1 then raise exception 'waitlisted attendee cancellation notification missing or duplicated'; end if;
+end $$;
+reset role;
+do $$ begin
  if (select count(*) from public.audit_records where action='event.cancel' and entity_id=(select value from test_state where key='event'))<>1 then raise exception 'cancellation audit duplicated'; end if;
 end $$;
 
