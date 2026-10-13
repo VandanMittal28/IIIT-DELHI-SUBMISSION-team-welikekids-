@@ -5,6 +5,8 @@ import SwiftUI
 
 struct NavigateView: View {
     @Environment(AppModel.self) private var model
+    private enum NavigationMode: String, CaseIterable { case explore = "Explore", route = "Route" }
+    @State private var mode: NavigationMode = .explore
     @State private var start: Landmark?
     @State private var destination: Landmark?
     @State private var accessibleOnly = false
@@ -24,7 +26,17 @@ struct NavigateView: View {
                 default:
                     if model.landmarks.isEmpty {
                         ContentUnavailableView("No published landmarks", systemImage: "mappin.slash", description: Text("A college administrator must publish validated campus data before navigation can begin."))
-                    } else { routeBuilder }
+                    } else {
+                        VStack(spacing: 0) {
+                            Picker("Navigation mode", selection: $mode) {
+                                ForEach(NavigationMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                            }
+                            .pickerStyle(.segmented)
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                            if mode == .explore { exploreContent } else { routeBuilder }
+                        }
+                    }
                 }
             }
             .navigationTitle("Navigate")
@@ -34,7 +46,115 @@ struct NavigateView: View {
         }
     }
 
-    private func applyPreparedDestination(){guard let id=model.pendingNavigationDestinationId,let landmark=model.landmarks.first(where:{$0.id==id})else{return};destination=landmark;model.consumeNavigationDestination()}
+    private func applyPreparedDestination(){guard let id=model.pendingNavigationDestinationId,let landmark=model.landmarks.first(where:{$0.id==id})else{return};destination=landmark;mode = .route;model.consumeNavigationDestination()}
+
+    private var exploreRegion: MKCoordinateRegion {
+        let points = model.landmarks.compactMap { landmark -> CLLocationCoordinate2D? in
+            guard let latitude = landmark.latitude, let longitude = landmark.longitude else { return nil }
+            return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        }
+        guard !points.isEmpty else {
+            if let campus = model.campuses.first {
+                return MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: campus.latitude, longitude: campus.longitude), latitudinalMeters: 500, longitudinalMeters: 500)
+            }
+            return MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 28.5458, longitude: 77.2732), latitudinalMeters: 500, longitudinalMeters: 500)
+        }
+        let latitude = points.map(\.latitude).reduce(0, +) / Double(points.count)
+        let longitude = points.map(\.longitude).reduce(0, +) / Double(points.count)
+        return MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude), latitudinalMeters: 500, longitudinalMeters: 500)
+    }
+
+    private var exploreContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Explore IIIT Delhi").font(.title2.bold())
+                    Text("Discover venues around campus, then start a verified route when you are ready.")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Map(initialPosition: .region(exploreRegion)) {
+                    ForEach(model.landmarks) { landmark in
+                        if let latitude = landmark.latitude, let longitude = landmark.longitude {
+                            Annotation(landmark.name, coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude)) {
+                                Button {
+                                    destination = landmark
+                                    mode = .route
+                                } label: {
+                                    Image(systemName: destination?.id == landmark.id ? "mappin.circle.fill" : "mappin.circle")
+                                        .font(.title2).foregroundStyle(Color.sidequestInk).padding(4)
+                                        .background(.white, in: Circle())
+                                }
+                                .accessibilityLabel("Explore \(landmark.name)")
+                            }
+                        }
+                    }
+                }
+                .frame(height: 280)
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+                .overlay(alignment: .topLeading) {
+                    Label("Tap a pin to choose a destination", systemImage: "hand.tap")
+                        .font(.caption.bold()).padding(9).background(.ultraThinMaterial, in: Capsule()).padding(10)
+                }
+
+                HStack {
+                    Text("Nearby on campus").font(.headline)
+                    Spacer()
+                    Text("\(model.landmarks.count) places").font(.caption).foregroundStyle(.secondary)
+                }
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 12) {
+                        ForEach(model.landmarks) { landmark in landmarkExploreCard(landmark) }
+                    }
+                }
+
+                if let destination {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Selected destination", systemImage: "checkmark.circle.fill").font(.headline).foregroundStyle(Color.sidequestInk)
+                        Text(destination.name).font(.title3.bold())
+                        Text("Confirm your current landmark before starting the route. Sidequest will use the published graph and any current closures.")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                        Button("Start route to \(destination.name)") { mode = .route }
+                            .buttonStyle(.borderedProminent)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.sidequestLime.opacity(0.28), in: RoundedRectangle(cornerRadius: 16))
+                }
+            }
+            .padding()
+        }
+    }
+
+    @ViewBuilder private func landmarkExploreCard(_ landmark: Landmark) -> some View {
+        Button {
+            destination = landmark
+            mode = .route
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                if let url = model.landmarkPhotoURLs[landmark.id] {
+                    AsyncImage(url: url) { image in image.resizable().scaledToFill() } placeholder: { Color.sidequestLime.opacity(0.22) }
+                        .frame(width: 190, height: 105).clipped()
+                } else {
+                    ZStack { Color.sidequestLime.opacity(0.22); Image(systemName: "building.2.fill").font(.largeTitle).foregroundStyle(Color.sidequestInk) }
+                        .frame(width: 190, height: 105)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(landmark.name).font(.subheadline.bold()).lineLimit(2)
+                    Text(landmark.coordinateKind == "outdoor" ? "Outdoor landmark" : "Indoor venue")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Label("Navigate here", systemImage: "arrow.triangle.turn.up.right.diamond")
+                        .font(.caption.bold()).foregroundStyle(Color.sidequestInk)
+                }
+                .padding(.horizontal, 10).padding(.bottom, 10)
+            }
+            .frame(width: 190, alignment: .leading)
+            .background(.background, in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(.quaternary))
+        }
+        .buttonStyle(.plain)
+    }
 
     private var routeBuilder: some View {
         Form {
