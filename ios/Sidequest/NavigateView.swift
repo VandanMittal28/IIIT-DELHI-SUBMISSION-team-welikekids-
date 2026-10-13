@@ -296,8 +296,9 @@ private struct CameraGuidanceView: View {
                 if let confirmedFacingDegrees, let alignedBearing = step.bearingRelativeToConfirmedFacing(confirmedFacingDegrees) {
                     AnchoredARPreview(bearingDegrees: alignedBearing, stepID: step.id, trackingMessage: $trackingMessage).ignoresSafeArea()
                 }
-                VStack {
-                    Text(step.bearingDegrees == nil ? "Spatial arrow unavailable for this transition." : trackingMessage).font(.footnote).padding(8).background(.ultraThinMaterial).clipShape(Capsule()).padding(.top, 60)
+                    VStack {
+                        Label(step.bearingDegrees == nil ? "Spatial arrow unavailable for this transition." : "Live camera guidance · turn your phone to follow the anchored arrow", systemImage: step.bearingDegrees == nil ? "exclamationmark.triangle" : "location.north.line.fill")
+                            .font(.footnote).padding(8).background(.ultraThinMaterial).clipShape(Capsule()).padding(.top, 60)
                     Spacer()
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Step \(stepIndex + 1) of \(steps.count)").font(.caption.bold())

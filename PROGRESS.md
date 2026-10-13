@@ -127,6 +127,7 @@ Last updated: 2026-10-13 (Asia/Kolkata)
 - Added a map-first `Explore` mode to the native Navigate tab, modeled on the verified Sanskriti/Mappls Visit/Nearby interaction pattern: the student sees the published IIIT Delhi landmarks on a MapKit map, can tap a pin, browse horizontally-scrolling nearby landmark cards, view stored reference photos, and hand off to the existing route flow.
 - Explore selection only chooses a destination. Starting navigation still requires an explicit “I’m here and facing this direction” confirmation and calls the authoritative `calculate_route` graph RPC; no route geometry or location data was fabricated in the client.
 - iOS simulator Debug build passes after the change. Physical camera/AR validation remains blocked until a route is physically validated and the paired iPhone is available.
+- Camera guidance now clearly presents as live AR guidance: ARWorldTracking keeps the route arrow anchored while the student turns and moves, the current route instruction remains visible, and tracking interruptions/drift continue to offer map/text/voice fallback. This remains intentionally disabled for routes without physical validation.
 
 - Temporary access: the requested username login is active against Supabase Auth and the scoped IIIT Delhi administrator membership is verified. Replace the temporary password before sharing the site beyond this test.
 - Security action: rotate the database password that was accidentally posted in chat; it was not stored or used by this implementation.
