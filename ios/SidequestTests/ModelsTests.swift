@@ -51,4 +51,21 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(steps[1].bearingDegrees!, 120, accuracy: 0.1)
         XCTAssertEqual(steps[0].bearingRelativeToConfirmedFacing(30)!, 60, accuracy: 0.1)
     }
+
+    func testOpenMeetupFeedAndRegistrationDecode() throws {
+        let json = #"[{"id":"00000000-0000-0000-0000-000000000050","title":"Canteen Chai Meetup","description":"Grab chai and meet someone new.","location_note":null,"icebreaker":"What's been the best part of your week?","audience":"selected_colleges","capacity":12,"going_count":12,"starts_at":"2026-10-14T10:30:00+00:00","ends_at":"2026-10-14T11:30:00+00:00","status":"published","college_name":"IIIT Delhi","host_name":"Aarav","host_headline":"Final-year CSE","host_verified":true,"venue_name":"Student Activity Centre","campus_name":"IIIT Delhi Campus","destination_landmark_id":null,"participating_colleges":["DTU","IIIT Delhi"],"my_status":null,"is_eligible":true}]"#.data(using: .utf8)!
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let meetup = try XCTUnwrap(decoder.decode([OpenMeetup].self, from: json).first)
+        XCTAssertTrue(meetup.hostVerified)
+        XCTAssertTrue(meetup.isFull)
+        XCTAssertFalse(meetup.isGoing)
+        XCTAssertEqual(meetup.spotsLeft, 0)
+        XCTAssertEqual(meetup.audienceLabel, "Open to DTU, IIIT Delhi")
+
+        let resultJSON = #"{"registration_id":"00000000-0000-0000-0000-000000000051","status":"going","going_count":5,"capacity":12,"idempotent_replay":false}"#.data(using: .utf8)!
+        let result = try JSONDecoder().decode(MeetupRegistrationResult.self, from: resultJSON)
+        XCTAssertEqual(result.status, "going")
+        XCTAssertEqual(result.goingCount, 5)
+    }
 }

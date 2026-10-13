@@ -319,3 +319,57 @@ struct CommunityChannel: Decodable, Identifiable, Equatable {
     let id:UUID; let editionId:UUID; let eventId:UUID; let title:String; let organizationId:UUID; let organizationName:String; let startsAt:Date
     enum CodingKeys:String,CodingKey { case id,title; case editionId="edition_id",eventId="event_id",organizationId="organization_id",organizationName="organization_name",startsAt="starts_at" }
 }
+
+struct OpenMeetup: Decodable, Identifiable, Equatable, Hashable {
+    let id: UUID
+    let title: String
+    let description: String
+    let locationNote: String?
+    let icebreaker: String
+    let audience: String
+    let capacity: Int
+    let goingCount: Int
+    let startsAt: Date
+    let endsAt: Date
+    let status: String
+    let collegeName: String
+    let hostName: String
+    let hostHeadline: String?
+    let hostVerified: Bool
+    let venueName: String
+    let campusName: String
+    let destinationLandmarkId: UUID?
+    let participatingColleges: [String]
+    let myStatus: String?
+    let isEligible: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, description, icebreaker, audience, capacity, status
+        case locationNote = "location_note", goingCount = "going_count"
+        case startsAt = "starts_at", endsAt = "ends_at", collegeName = "college_name"
+        case hostName = "host_name", hostHeadline = "host_headline", hostVerified = "host_verified"
+        case venueName = "venue_name", campusName = "campus_name", destinationLandmarkId = "destination_landmark_id"
+        case participatingColleges = "participating_colleges", myStatus = "my_status", isEligible = "is_eligible"
+    }
+
+    var isGoing: Bool { myStatus == "going" }
+    var isFull: Bool { goingCount >= capacity }
+    var spotsLeft: Int { max(0, capacity - goingCount) }
+    var audienceLabel: String {
+        if audience == "all_colleges" { return "Open to all participating colleges" }
+        if participatingColleges.count <= 1 { return "Open to \(participatingColleges.first ?? collegeName) students" }
+        return "Open to \(participatingColleges.joined(separator: ", "))"
+    }
+}
+
+struct MeetupRegistrationResult: Decodable, Equatable {
+    let registrationId: UUID
+    let status: String
+    let goingCount: Int
+    let capacity: Int
+    let idempotentReplay: Bool
+    enum CodingKeys: String, CodingKey {
+        case status, capacity
+        case registrationId = "registration_id", goingCount = "going_count", idempotentReplay = "idempotent_replay"
+    }
+}

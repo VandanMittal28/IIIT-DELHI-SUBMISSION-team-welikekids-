@@ -60,6 +60,19 @@ Authenticated, security-invoker view of the caller’s registrations, registrati
 
 Authenticated, security-invoker organizer/volunteer projection of capacity and actual registered, waitlisted, and cancelled counts. RLS prevents unrelated organizations and colleges from seeing an edition’s counts.
 
+## Open Meetups
+
+Casual social meetups are separate from events: no organization, pass, waitlist, attendance scan, or event channel.
+
+- `open_meetup_feed` — authenticated security-invoker view. Returns meetups the caller is eligible for, hosts, or has joined, with venue/landmark, public host card (`host_name`, `host_headline`, `host_verified`), `participating_colleges`, `going_count`/`capacity`, `icebreaker`, `my_status`, and `is_eligible`.
+- `join_open_meetup(p_meetup_id)` / `leave_open_meetup(p_meetup_id)` — act only for `auth.uid()`. Join locks the meetup row, is idempotent, enforces capacity (`MEETUP_FULL`) and college eligibility (`NOT_ELIGIBLE`). Returns `{"registration_id","status":"going|cancelled","going_count","capacity","idempotent_replay"}`.
+- Eligibility uses active `college_memberships` (administrator-granted), not the self-editable `profiles.college_id`. `all_colleges` admits any student with an active college membership; `selected_colleges` always includes the host college.
+- `set_meetup_host` / `revoke_meetup_host` — college administrators recognise an active member of their college as a host. Creating a meetup never grants recognition; `host_verified` becomes false when recognition is revoked or the host’s account/membership is inactive.
+- `create_open_meetup(...)` — idempotent by `p_client_request_id`; allowed for the recognised host or the host college’s administrator. Venue must be on the host college campus. A predefined icebreaker is assigned when none is supplied.
+- `set_open_meetup_status(p_meetup_id, 'published'|'cancelled')` — host or college administrator; cancelling releases every spot.
+
+Clients have read-only table access; every write goes through these functions. `supabase/tests/open_meetups_integration.sql` covers the authorization, duplicate, capacity, and eligibility rules. `supabase/open_meetups_demo_seed.sql` is development-only demo content.
+
 ## Navigation
 
 - `create_campus`, `create_building`, `create_floor`, and `create_landmark` require contextual college-administrator authority.

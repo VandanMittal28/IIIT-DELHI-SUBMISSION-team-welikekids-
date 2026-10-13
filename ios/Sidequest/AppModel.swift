@@ -44,6 +44,9 @@ final class AppModel {
     private(set) var organizations: [OrganizationProfile] = []
     private(set) var followedOrganizationIds: Set<UUID> = []
     private(set) var communityState: LoadState = .idle
+    private(set) var meetups: [OpenMeetup] = []
+    private(set) var meetupState: LoadState = .idle
+    private(set) var meetupActionStates: [UUID: LoadState] = [:]
     var searchText = ""
     var categoryFilter = ""
     var collegeFilter = ""
@@ -120,6 +123,9 @@ final class AppModel {
         profile = nil
         attendanceHistory=[]
         submittedReviews=[]
+        meetups = []
+        meetupState = .idle
+        meetupActionStates = [:]
         await stopLiveUpdates()
     }
 
@@ -272,6 +278,55 @@ final class AppModel {
             .rpc("cancel_registration", params: ["p_registration_id": item.registrationId.uuidString])
             .execute()
         await reloadJourney()
+    }
+
+    func reloadMeetups() async {
+        guard let client else { meetupState = .failed(SidequestError.notConfigured.localizedDescription); return }
+        guard isAuthenticated else { meetups = []; meetupState = .loaded; return }
+        meetupState = .loading
+        do {
+            meetups = try await client.from("open_meetup_feed")
+                .select("id,title,description,location_note,icebreaker,audience,capacity,going_count,starts_at,ends_at,status,college_name,host_name,host_headline,host_verified,venue_name,campus_name,destination_landmark_id,participating_colleges,my_status,is_eligible")
+                .eq("status", value: "published")
+                .gte("ends_at", value: Date.now.ISO8601Format())
+                .order("starts_at", ascending: true)
+                .limit(50)
+                .execute()
+                .value
+            meetupState = .loaded
+        } catch { meetupState = .failed(error.localizedDescription) }
+    }
+
+    func meetup(id: UUID) -> OpenMeetup? { meetups.first { $0.id == id } }
+
+    @discardableResult
+    func joinMeetup(_ meetup: OpenMeetup) async throws -> MeetupRegistrationResult {
+        try await changeMeetupRegistration(meetup, rpc: "join_open_meetup")
+    }
+
+    @discardableResult
+    func leaveMeetup(_ meetup: OpenMeetup) async throws -> MeetupRegistrationResult {
+        try await changeMeetupRegistration(meetup, rpc: "leave_open_meetup")
+    }
+
+    private func changeMeetupRegistration(_ meetup: OpenMeetup, rpc: String) async throws -> MeetupRegistrationResult {
+        guard let client else { throw SidequestError.notConfigured }
+        guard isAuthenticated else { throw SidequestError.authenticationRequired }
+        meetupActionStates[meetup.id] = .loading
+        do {
+            let result: MeetupRegistrationResult = try await client
+                .rpc(rpc, params: ["p_meetup_id": meetup.id.uuidString])
+                .execute()
+                .value
+            meetupActionStates[meetup.id] = .loaded
+            await reloadMeetups()
+            return result
+        } catch {
+            meetupActionStates[meetup.id] = .failed(error.localizedDescription)
+            // Capacity or eligibility may have changed server-side; show the authoritative state.
+            await reloadMeetups()
+            throw error
+        }
     }
 
     func reloadSavedEvents() async {

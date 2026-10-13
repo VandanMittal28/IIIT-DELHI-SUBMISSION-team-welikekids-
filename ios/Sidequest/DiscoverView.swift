@@ -24,11 +24,12 @@ struct DiscoverView: View {
                         Button("Try again") { Task { await model.reloadEvents() } }
                     }
                 default:
-                    if model.events.isEmpty {
-                        ContentUnavailableView("Nothing published yet", systemImage: "calendar.badge.plus", description: Text("When organizers publish events, they’ll appear here automatically."))
-                    } else {
-                        ScrollView {
-                            LazyVStack(spacing: 14) {
+                    ScrollView {
+                        LazyVStack(spacing: 14) {
+                            OpenMeetupsSection().padding(.bottom, 6)
+                            if model.events.isEmpty {
+                                ContentUnavailableView("Nothing published yet", systemImage: "calendar.badge.plus", description: Text("When organizers publish events, they’ll appear here automatically."))
+                            } else {
                                 ForEach(model.events) { event in
                                     NavigationLink(value: event) { EventCard(event: event, imageURL: model.eventImageURLs[event.id], isSaved: model.savedEventIds.contains(event.id)) }.buttonStyle(.plain)
                                 }
@@ -36,9 +37,9 @@ struct DiscoverView: View {
                                     Button("Show more") { Task { await model.loadNextPage() } }
                                         .buttonStyle(.borderedProminent).padding(.vertical)
                                 }
-                            }.padding()
-                        }.refreshable { await model.reloadEvents() }
-                    }
+                            }
+                        }.padding()
+                    }.refreshable { await model.reloadEvents(); await model.reloadMeetups() }
                 }
             }
             .background(Color.sidequestMist)
@@ -48,6 +49,7 @@ struct DiscoverView: View {
                     if comparing { compareIds.insert(selectedEvent.id) } else { compareIds.remove(selectedEvent.id) }
                 }
             }
+            .navigationDestination(for: OpenMeetup.self) { meetup in OpenMeetupDetailView(initial: meetup) }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button { showFilters=true } label: { Image(systemName:"line.3.horizontal.decrease.circle") }.accessibilityLabel("Event filters")
