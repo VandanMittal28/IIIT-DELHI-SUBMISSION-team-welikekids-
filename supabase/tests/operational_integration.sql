@@ -12,6 +12,7 @@ insert into public.colleges(id,slug,name) values
 ('20000000-0000-0000-0000-000000000001','test-college','Test College'),
 ('20000000-0000-0000-0000-000000000002','other-college','Other College');
 insert into public.college_memberships(college_id,user_id,is_admin,status) values('20000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001',true,'active');
+insert into public.platform_admins(user_id) values('10000000-0000-0000-0000-000000000001');
 insert into public.organizations(id,college_id,slug,name) values
 ('30000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001','test-org','Test Org'),
 ('30000000-0000-0000-0000-000000000002','20000000-0000-0000-0000-000000000001','cohost-org','Cohost Org');
@@ -24,6 +25,11 @@ insert into public.venues(id,campus_id,name,kind) values('22000000-0000-0000-000
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000002',true);
 select set_config('request.jwt.claim.role','authenticated',true);
 create temporary table test_state(key text primary key,value uuid);
+do $$ declare result jsonb; begin
+ result:=public.create_organization('20000000-0000-0000-0000-000000000002','Platform Managed Org','platform-managed-org',null);
+ if result->>'persisted'<>'true' then raise exception 'platform administrator could not create an organization across colleges'; end if;
+ if exists(select 1 from public.memberships where organization_id=(result->>'organization_id')::uuid and user_id='10000000-0000-0000-0000-000000000001') then raise exception 'platform administrator was silently assigned as a college organizer'; end if;
+end $$;
 do $$ declare result jsonb; begin
  result:=public.create_event('40000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001','Integration event','A real local integration workflow','Workshop','public',0,'INR',null,now()-interval '1 hour',now()+interval '1 hour',now()+interval '2 hours',now()+interval '4 hours',1,true);
  insert into test_state values('event',(result->>'event_id')::uuid),('edition',(result->>'edition_id')::uuid);
@@ -46,6 +52,7 @@ end $$;
 
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000003',true);
 do $$ declare result jsonb; own_message jsonb; begin
+ begin perform public.create_organization('20000000-0000-0000-0000-000000000002','Forbidden Org','forbidden-org',null); raise exception 'student created a global organization'; exception when sqlstate 'PGRST' then null; end;
  result:=public.register_for_event((select value from test_state where key='edition'),'40000000-0000-0000-0000-000000000002');
  if result->>'status'<>'registered' or result->>'pass_token' is null then raise exception 'registration/pass failed'; end if;
  insert into test_state values('pass',(result->>'pass_token')::uuid),('registration',(result->>'registration_id')::uuid);

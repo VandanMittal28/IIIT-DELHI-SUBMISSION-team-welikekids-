@@ -62,6 +62,10 @@ A discussion report references the immutable message row and enters the same per
 
 College administrators may correct landmark metadata and edit edge geometry, instructions, distance, directionality, and accessibility while a route version is a draft. Once published, the graph is immutable: further corrections require a new version and validation pass. This prevents an already validated route identifier from silently changing underneath student navigation. Session schedule edits remain separately authorized and audited, must fit inside the edition window, and cannot move an event to another college.
 
+### ADR-016 — Sidequest administration is global; college and organization roles stay scoped
+
+The Sidequest platform administrator is represented by a trusted row in `platform_admins`, not a college membership or user-editable Auth metadata. The platform administrator can create organizations and provision student/organizer accounts across colleges through authorized server operations, but creating an organization does not grant an organizer membership. College administrators and organizers retain their existing college- and organization-scoped permissions. Initial platform-admin bootstrap is a one-time trusted database-operator action documented in `supabase/bootstrap/platform_admin.sql.example`.
+
 ## Environments
 
 - Local source and builds do not contain credentials or operational fixtures.
