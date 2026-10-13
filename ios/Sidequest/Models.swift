@@ -373,3 +373,22 @@ struct MeetupRegistrationResult: Decodable, Equatable {
         case registrationId = "registration_id", goingCount = "going_count", idempotentReplay = "idempotent_replay"
     }
 }
+
+struct DiscussionThread: Decodable, Identifiable, Equatable {
+    let id:UUID; let collegeId:UUID; let authorId:UUID; let title:String; let body:String; let createdAt:Date; let updatedAt:Date
+    enum CodingKeys:String,CodingKey { case id,title,body; case collegeId="college_id",authorId="author_id",createdAt="created_at",updatedAt="updated_at" }
+}
+
+struct DiscussionReply: Decodable, Identifiable, Equatable {
+    let id:UUID; let threadId:UUID; let authorId:UUID; let body:String; let createdAt:Date
+    enum CodingKeys:String,CodingKey { case id,body; case threadId="thread_id",authorId="author_id",createdAt="created_at" }
+}
+
+struct EventMediaRecord: Decodable, Identifiable, Equatable {
+    let id:UUID; let editionId:UUID; let uploadedBy:UUID; let storagePath:String; let caption:String?; let createdAt:Date
+    enum CodingKeys:String,CodingKey { case id,caption; case editionId="edition_id",uploadedBy="uploaded_by",storagePath="storage_path",createdAt="created_at" }
+}
+
+struct EventMediaPhoto: Identifiable, Equatable {
+    let id:UUID; let caption:String?; let createdAt:Date; let url:URL
+}

@@ -24,6 +24,8 @@ Returns:
 {"event_id":"uuid","edition_id":"uuid","status":"draft","idempotent_replay":false}
 ```
 
+`create_event_with_venue` is the organizer-facing creation contract. It uses the same request ID and schedule validation, requires a venue in the selected organization’s college, and creates the first venue session in the same transaction. A venue or session failure rolls the event and edition back together. Retrying a successful request does not create duplicate sessions.
+
 ## `published_event_feed`
 
 Read-only security-invoker view. It exposes published event records and their next edition, organization, and college. RLS limits signed-out discovery to `public` visibility and applies college/organization scope for authenticated users. Both the admin preview and iOS discovery use this projection.
@@ -98,6 +100,8 @@ Clients have read-only table access; every write goes through these functions. `
 - `get_assignable_event_staff(edition_id)` returns only staff already assigned to that edition and only after the caller passes the same server-side edition-management check used by report transitions. The admin uses it instead of accepting a manually typed account identifier.
 - `publish_announcement` and `change_session_venue` accept a client-retained request ID, commit authoritative rows before queuing delivery work, and return the original result on retry. Venue changes also reject a venue outside the event's college.
 - `post_message` requires channel access; `moderate_message` preserves the row, changes its visibility state, and records an audit event.
+- `create_discussion_thread(title, body)` lets any active signed-in profile with a selected college start a college-scoped forum thread; `reply_discussion_thread(thread_id, body)` lets active members of that same college respond. RLS prevents cross-college reads; thread/reply writes go through authenticated server-side operations.
+- `event_media` lists photos only to an attendee with a confirmed registration or assigned event staff. Uploads use a private `event-attendee-media` bucket, a path bound to edition and uploader, and `add_event_media` verifies the owned Storage object before publishing it to the event gallery. Waitlisted, cancelled, signed-out, and unrelated users cannot read or upload event photos.
 - `submit_review` requires an attendance entry, supports update-by-the-same-attendee, and enforces one review per user/event. `event_review_summary` includes the actual sample size.
 - `toggle_organization_follow`, `saved_events`, and `my_community_channels` persist student personalization without using profile metadata for authorization.
 

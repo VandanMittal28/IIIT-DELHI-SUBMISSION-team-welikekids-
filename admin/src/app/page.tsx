@@ -43,6 +43,8 @@ export default function Home() {
   const [adminCollegeIds, setAdminCollegeIds] = useState<string[]>([]);
   const [platformAdmin, setPlatformAdmin] = useState(false);
   const [colleges, setColleges] = useState<{ id: string; name: string }[]>([]);
+  const [venues, setVenues] = useState<{id:string;name:string;college_id:string}[]>([]);
+  const [venueId, setVenueId] = useState("");
   const [draft, setDraft] = useState<EventDraft>(emptyDraft);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,6 +95,15 @@ export default function Home() {
     setOrganizations(orgs);
     const activeOrgs = orgs.filter((organization) => organization.is_active !== false);
     setDraft((current) => ({ ...current, organizationId: activeOrgs.some((org) => org.id === current.organizationId) ? current.organizationId : activeOrgs[0]?.id || "" }));
+    const [venueResult,campusResult]=await Promise.all([
+      supabase.from("venues").select("id,name,campus_id").order("name"),
+      supabase.from("campuses").select("id,college_id"),
+    ]);
+    if(venueResult.error||campusResult.error) throw venueResult.error??campusResult.error;
+    const campusColleges=new Map(campusResult.data.map((campus)=>[campus.id,campus.college_id]));
+    const availableVenues=venueResult.data.flatMap((venue)=>{const college_id=campusColleges.get(venue.campus_id);return college_id?[{id:venue.id,name:venue.name,college_id}]:[]});
+    setVenues(availableVenues);
+    setVenueId((current)=>availableVenues.some((venue)=>venue.id===current)?current:availableVenues.find((venue)=>venue.college_id===activeOrgs[0]?.college_id)?.id??"");
     const [eventsResult, feedResult, registrationResult] = await Promise.all([
       supabase.from("events").select("id,title,description,category,eligibility,price_minor,status,organization_id,college_id").order("created_at", { ascending: false }),
       supabase.from("published_event_feed").select("*").order("starts_at", { ascending: true }).limit(8),
@@ -121,6 +132,8 @@ export default function Home() {
   const registrationsByEvent = useMemo(() => new Map(registrationSummaries.map((summary) => [summary.event_id, summary])), [registrationSummaries]);
   const managedEventIds = useMemo(() => events.map((item) => item.id), [events]);
   const activeOrganizations = useMemo(() => organizations.filter((organization) => organization.is_active !== false), [organizations]);
+  const selectedOrganizationCollegeId=activeOrganizations.find((organization)=>organization.id===draft.organizationId)?.college_id;
+  const availableEventVenues=venues.filter((venue)=>venue.college_id===selectedOrganizationCollegeId);
 
   async function signIn(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError(null);
@@ -146,7 +159,10 @@ export default function Home() {
       setError("Check the schedule: registration must open before it closes, and the event must end after it starts."); setBusy(false); return;
     }
     if (!draft.organizationId) { setError("Choose the IIIT Delhi organization first."); setBusy(false); return; }
-    const { data, error: createError } = await getSupabase().rpc("create_event", {
+    const selectedOrganization=organizations.find((organization)=>organization.id===draft.organizationId);
+    const selectedVenue=venues.find((venue)=>venue.id===venueId&&venue.college_id===selectedOrganization?.college_id);
+    if(!selectedVenue){setError("Choose a venue that belongs to the selected organization’s college.");setBusy(false);return;}
+    const { data, error: createError } = await getSupabase().rpc("create_event_with_venue", {
       p_client_request_id: crypto.randomUUID(), p_organization_id: draft.organizationId,
       p_title: draft.title, p_description: draft.description, p_category: draft.category,
       p_visibility: draft.visibility, p_price_minor: Math.round(Number(draft.priceRupees) * 100),
@@ -155,6 +171,7 @@ export default function Home() {
       p_registration_closes_at: closes.toISOString(),
       p_starts_at: starts.toISOString(), p_ends_at: ends.toISOString(),
       p_capacity: Number(draft.capacity), p_waitlist_enabled: draft.waitlistEnabled,
+      p_venue_id: selectedVenue.id,
     });
     if (createError) setError(messageFrom(createError));
     else {
@@ -187,12 +204,14 @@ export default function Home() {
     <main className={styles.dashboard}>
       <section className={styles.hero}><div><p className={styles.eyebrow}>{platformAdmin ? "Sidequest platform control" : "College operations"}</p><h1>{platformAdmin ? "One platform. Every campus." : "Campus events, made simple."}</h1><p>{platformAdmin ? "Manage colleges, organizations, and student or organizer access across Sidequest." : "Create events, choose your campus venue, assign volunteers, and publish to students."}</p></div>{!platformAdmin && <div className={styles.stats}><span><strong>{events.length}</strong> events</span><span><strong>{published.length}</strong> live</span></div>}</section>
       {error && <Alert>{error}</Alert>}{notice && <div className={styles.notice}>{notice}</div>}
+      {!platformAdmin && <nav aria-label="Dashboard sections" className={styles.dashboardNav}><a href="#create-event">Create event</a><a href="#publishing-desk">Publishing desk</a>{events.length>0&&<a href="#event-operations">Volunteer & event tools</a>}{adminCollegeIds.length>0&&<a href="#campus-data">Campus map</a>}</nav>}
       {!platformAdmin && <details className={styles.panel}><summary>Have a volunteer invitation?</summary><form onSubmit={acceptInvitation} className={styles.stack}><label>One-time invitation code<input required value={inviteCode} onChange={e=>setInviteCode(e.target.value)} placeholder="Paste invitation code" /></label><button>Activate volunteer access</button></form></details>}
       {!platformAdmin && (activeOrganizations.length === 0 ? <section className={styles.empty}><h2>{adminCollegeIds.length > 0 ? "Create your first organization" : "No organizer access yet"}</h2><p>{adminCollegeIds.length > 0 ? "Your college administrator access is active. Create an authorized organization below to begin managing events." : "Your account is valid, but it has no active organizer membership. Ask a college administrator to invite you; Sidequest will not grant access from profile metadata."}</p></section> : <div className={styles.columns}>
-        <section className={styles.panel}><div className={styles.panelHead}><p className={styles.eyebrow}>New event</p><h2>Create the first edition</h2></div><form onSubmit={createEvent} className={styles.formGrid}>
-          <label className={styles.full}>Active organization<select required value={draft.organizationId} onChange={(e) => setDraft({ ...draft, organizationId: e.target.value })}>{activeOrganizations.map((org) => <option value={org.id} key={org.id}>{org.name}</option>)}</select></label>
+        <section className={styles.panel} id="create-event"><div className={styles.panelHead}><p className={styles.eyebrow}>New event</p><h2>Create the first edition</h2></div><form onSubmit={createEvent} className={styles.formGrid}>
+          <label className={styles.full}>Active organization<select required value={draft.organizationId} onChange={(e) => {const organizationId=e.target.value;setDraft({ ...draft, organizationId });const collegeId=activeOrganizations.find((organization)=>organization.id===organizationId)?.college_id;setVenueId(venues.find((venue)=>venue.college_id===collegeId)?.id??"")}}>{activeOrganizations.map((org) => <option value={org.id} key={org.id}>{org.name}</option>)}</select></label>
           <label className={styles.full}>Event title<input required minLength={3} maxLength={160} value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="Name students will recognize" /></label>
           <label className={styles.full}>Description<textarea required minLength={10} maxLength={10000} rows={4} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder="What will happen, and who is it for?" /></label>
+          <label className={styles.full}>Campus venue<select required value={venueId} onChange={(e)=>setVenueId(e.target.value)}><option value="" disabled>{availableEventVenues.length?"Choose a venue":"No venues are configured for this college"}</option>{availableEventVenues.map((venue)=><option value={venue.id} key={venue.id}>{venue.name}</option>)}</select><small>{availableEventVenues.length?"Students will see this venue on their ticket, with a direct route when campus navigation data exists.":"Add a campus and venue in Campus map before creating this event."}</small></label>
           <label>Category<input required value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} placeholder="Workshop" /></label>
           <label>Visibility<select value={draft.visibility} onChange={(e) => setDraft({ ...draft, visibility: e.target.value as EventDraft["visibility"] })}><option value="public">Public</option><option value="college_only">College only</option><option value="organization_only">Organization only</option></select></label>
           <label>Price (₹)<input required min={0} step="0.01" type="number" value={draft.priceRupees} onChange={(e) => setDraft({ ...draft, priceRupees: e.target.value })} /></label>
@@ -203,13 +222,13 @@ export default function Home() {
           <label>Ends<input required type="datetime-local" value={draft.endsAt} onChange={(e) => setDraft({ ...draft, endsAt: e.target.value })} /></label>
           <label className={styles.full}>Eligibility<input value={draft.eligibility} onChange={(e) => setDraft({ ...draft, eligibility: e.target.value })} placeholder="Leave blank if everyone is eligible" /></label>
           <label className={`${styles.full} ${styles.check}`}><input type="checkbox" checked={draft.waitlistEnabled} onChange={(e) => setDraft({ ...draft, waitlistEnabled: e.target.checked })} /> Enable waitlist when capacity is reached</label>
-          <button className={styles.full} disabled={busy}>{busy ? "Saving…" : "Create draft"}</button>
+          <button className={styles.full} disabled={busy||availableEventVenues.length===0}>{busy ? "Saving…" : "Create event draft"}</button>
         </form></section>
-        <aside className={styles.side}><section className={styles.panel}><div className={styles.panelHead}><p className={styles.eyebrow}>Your events</p><h2>Publishing desk</h2></div>{events.length === 0 ? <p className={styles.muted}>No events yet. Your first confirmed draft will appear here.</p> : <div className={styles.list}>{events.map((item) => { const summary = registrationsByEvent.get(item.id); return <article key={item.id} className={styles.eventRow}><div><span className={styles.pill}>{item.status?.replace("_", " ")}</span><h3>{item.title}</h3><p>{item.category}</p>{summary && <p>{summary.registered_count}/{summary.capacity} registered · {summary.waitlisted_count} waiting</p>}</div>{item.status === "draft" && <button disabled={busy} onClick={() => void publishEvent(item.id)}>Publish</button>}{publishedIds.has(item.id) && <span className={styles.live}>Live</span>}</article>; })}</div>}</section>
+        <aside className={styles.side}><section className={styles.panel} id="publishing-desk"><div className={styles.panelHead}><p className={styles.eyebrow}>Your events</p><h2>Publishing desk</h2></div>{events.length === 0 ? <p className={styles.muted}>No events yet. Your first confirmed draft will appear here.</p> : <div className={styles.list}>{events.map((item) => { const summary = registrationsByEvent.get(item.id); return <article key={item.id} className={styles.eventRow}><div><span className={styles.pill}>{item.status?.replace("_", " ")}</span><h3>{item.title}</h3><p>{item.category}</p>{summary && <p>{summary.registered_count}/{summary.capacity} registered · {summary.waitlisted_count} waiting</p>}</div>{item.status === "draft" && <button disabled={busy} onClick={() => void publishEvent(item.id)}>Publish</button>}{publishedIds.has(item.id) && <span className={styles.live}>Live</span>}</article>; })}</div>}</section>
         <section className={styles.panel}><div className={styles.panelHead}><p className={styles.eyebrow}>Student view</p><h2>Live discovery</h2></div>{published.length === 0 ? <p className={styles.muted}>No published events. Students see a useful empty state, never fictional recommendations.</p> : <div className={styles.list}>{published.map((item) => <article key={item.id} className={styles.feedCard}><p>{item.college_name} · {item.category}</p><h3>{item.title}</h3><span>{item.starts_at ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.starts_at)) : "Schedule pending"}</span></article>)}</div>}</section></aside>
       </div>)}
-      {!platformAdmin && events.length > 0 && <section className={styles.operations}><div className={styles.sectionTitle}><p className={styles.eyebrow}>Live event operations</p><h2>Volunteer and response desk</h2><p>Every action below confirms against the authoritative backend. Realtime is only a refresh signal.</p></div><div className={styles.volunteerGrid}><VolunteerScanner onRecorded={() => user && void loadData(user)} /><OperationsPanel eventIds={managedEventIds} /></div><ManagementPanel events={events} organizations={organizations} onChanged={() => user && void loadData(user)} /></section>}
-      {!platformAdmin && adminCollegeIds.length > 0 && <section className={styles.operations}><CampusEditor collegeIds={adminCollegeIds} /></section>}
+      {!platformAdmin && events.length > 0 && <section className={styles.operations} id="event-operations"><div className={styles.sectionTitle}><p className={styles.eyebrow}>Live event operations</p><h2>Volunteer and response desk</h2><p>Every action below confirms against the authoritative backend. Realtime is only a refresh signal.</p></div><div className={styles.volunteerGrid}><VolunteerScanner onRecorded={() => user && void loadData(user)} /><OperationsPanel eventIds={managedEventIds} /></div><ManagementPanel events={events} organizations={organizations} onChanged={() => user && void loadData(user)} /></section>}
+      {!platformAdmin && adminCollegeIds.length > 0 && <section className={styles.operations} id="campus-data"><CampusEditor collegeIds={adminCollegeIds} /></section>}
       {platformAdmin && <section className={styles.operations}><ProfileProvisioningPanel platformAdmin colleges={colleges} organizations={organizations.map(({ id, name, college_id, is_active }) => ({ id, name, college_id, is_active: is_active !== false }))} onChanged={async () => { if (user) await loadData(user); }} /></section>}
       {!platformAdmin && adminCollegeIds.length > 0 && <section className={styles.operations}><ProfileProvisioningPanel platformAdmin={false} collegeId={adminCollegeIds[0]} colleges={colleges} organizations={organizations.map(({ id, name, college_id, is_active }) => ({ id, name, college_id, is_active: is_active !== false }))} onChanged={async () => { if (user) await loadData(user); }} /></section>}
     </main>

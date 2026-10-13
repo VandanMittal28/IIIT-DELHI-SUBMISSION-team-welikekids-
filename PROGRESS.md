@@ -175,3 +175,11 @@ Last updated: 2026-10-13 (Asia/Kolkata)
 - Blocker: physical route data and validation have not been supplied; no route is marked physically validated and AR behavior remains unverified.
 - Hosted database: every version-controlled migration through `20261013060346_managed_schedule_route_editing.sql` is applied and visible in Supabase migration history. The APNs function itself still requires Apple credentials before deployment.
 - Next: invite/bootstrap a trusted administrator, enter authorized real college/event/route data through the admin, add student and volunteer accounts, and run the complete persisted staging journey on a physical iPhone.
+
+### Student community, venue-linked tickets, and organizer workflow (2026-10-13)
+
+- Event creation now requires selecting a venue belonging to the selected organization’s college and creates the event plus venue session atomically through `create_event_with_venue`; the student ticket exposes direct navigation from the designated gate, event discussion, event photos, and issue reporting.
+- Community now separates official updates, searchable organization directory, and college-scoped discussion forum. Students can create threads and replies; registered attendees can share event photos in a private bucket. Existing event chat and message-reporting flows remain available; Profile now links report status and clearer student account details.
+- Hosted migrations `20261013174433` and `20261013174621` are applied. Forum thread/reply persistence and college visibility, RPC authorization, event/venue atomicity and retry idempotency were exercised using rollback-only transactions. Media bucket is private and restricted to confirmed attendees/event staff.
+- Latest iPhone simulator test suite passes; admin production build and edited-file lint passed earlier in this turn’s implementation. Full repository lint still has the two documented pre-existing hook-effect errors in `ManagementPanel.tsx` and `OperationsPanel.tsx`. Physical camera/AR behavior remains unverified.
+- Pending push and Vercel production deployment verification for this changeset. No global-role changes were made to the `testing01` account; its authority remains unchanged.

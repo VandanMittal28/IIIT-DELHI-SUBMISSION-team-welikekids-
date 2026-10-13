@@ -44,6 +44,7 @@ struct AccountView: View {
                         TextField("Full name",text:$fullName)
                         Picker("College",selection:$collegeId) { Text("Not selected").tag(nil as UUID?);ForEach(model.colleges){college in Text(college.name).tag(Optional(college.id))} }
                         TextField("Interests, comma separated",text:$interests)
+                        Text("A clear name, college, interests and photo help your campus community recognize you.").font(.footnote).foregroundStyle(.secondary)
                         Button("Save profile") { Task { do { try await model.saveProfile(fullName:fullName,collegeId:collegeId,interests:interests.split(separator:",").map{String($0).trimmingCharacters(in:.whitespaces)}.filter{!$0.isEmpty},preferences:["announcements":announcementNotifications,"venue_changes":venueNotifications,"reminders":reminderNotifications,"reports":reportNotifications]);notificationStatus="Profile preferences saved" } catch { errorMessage=error.localizedDescription } } }
                     }
                     Section("Notifications") {
@@ -65,6 +66,17 @@ struct AccountView: View {
                         if model.submittedReviews.isEmpty { Text("No verified-attendee reviews submitted.").foregroundStyle(.secondary) }
                         ForEach(model.submittedReviews) { item in
                             VStack(alignment:.leading,spacing:3){Text(item.title).font(.headline);Text("\(item.rating) / 5");if let body=item.body{Text(body).foregroundStyle(.secondary)};Text("Updated \(item.updatedAt.formatted(date:.abbreviated,time:.shortened))").font(.caption).foregroundStyle(.secondary)}
+                        }
+                    }
+                    Section("My reports") {
+                        let myReports=model.reports.sorted{$0.createdAt>$1.createdAt}
+                        if myReports.isEmpty { Text("Your submitted event reports will appear here with their latest status.").foregroundStyle(.secondary) }
+                        ForEach(myReports) { report in
+                            VStack(alignment:.leading,spacing:5) {
+                                HStack { Text(report.category).font(.headline);Spacer();Text(report.status.replacingOccurrences(of:"_",with:" ").capitalized).font(.caption.bold()).foregroundStyle(report.status == "resolved" ? .green:.secondary) }
+                                Text(report.description).lineLimit(3).foregroundStyle(.secondary)
+                                Text(report.createdAt.formatted(date:.abbreviated,time:.shortened)).font(.caption2).foregroundStyle(.tertiary)
+                            }
                         }
                     }
                     Button("Sign out", role: .destructive) { Task { await model.signOut() } }
@@ -90,7 +102,7 @@ struct AccountView: View {
                 }
             }
             .navigationTitle("Profile")
-            .task { await model.restoreSession() }
+            .task { await model.restoreSession(); if model.isAuthenticated { await model.reloadCommunity() } }
             .onChange(of:model.profile) { _,profile in guard let profile else{return};fullName=profile.fullName ?? "";collegeId=profile.collegeId;interests=profile.interests.joined(separator:", ");announcementNotifications=profile.notificationPreferences["announcements"] ?? true;venueNotifications=profile.notificationPreferences["venue_changes"] ?? true;reminderNotifications=profile.notificationPreferences["reminders"] ?? true;reportNotifications=profile.notificationPreferences["reports"] ?? true }
             .onChange(of: avatarItem) { _, item in Task { avatarData = try? await item?.loadTransferable(type: Data.self) } }
             .onReceive(NotificationCenter.default.publisher(for: .sidequestDeviceToken)) { note in

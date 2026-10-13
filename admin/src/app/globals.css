@@ -30,6 +30,11 @@ code { background: #edf0e9; padding: 2px 5px; border-radius: 5px; }
 .management-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:22px; }
 .check-line { display:flex; gap:8px; align-items:center; color:#526057; font-size:13px; margin:4px 0; }
 .ops-card button.danger { background:#8f2e23; }
+.dashboardNav{position:sticky;top:76px;z-index:3;display:flex;gap:8px;overflow-x:auto;padding:10px 12px;margin:0 0 22px;border:1px solid #dfe3da;border-radius:16px;background:rgba(250,251,247,.94);backdrop-filter:blur(12px);scrollbar-width:thin}
+.dashboardNav a{flex:0 0 auto;padding:10px 14px;border-radius:999px;background:#edf0e9;color:#344238;font-size:13px;font-weight:750;white-space:nowrap}
+.dashboardNav a:hover,.dashboardNav a:focus-visible{background:#e9ff63;outline:2px solid #56704e;outline-offset:1px}
+#create-event,#publishing-desk,#event-operations,#campus-data{scroll-margin-top:150px}
+.formGrid label small{color:#69756b;font-size:11px;font-weight:500;line-height:1.45}
 .volunteerGrid + .ops-card { margin-top:22px; }
 .route-builder { margin-top:24px; border-top:1px solid #dfe3da; padding-top:18px; }
 .route-builder > summary { cursor:pointer; font-size:18px; font-weight:800; margin-bottom:18px; }
