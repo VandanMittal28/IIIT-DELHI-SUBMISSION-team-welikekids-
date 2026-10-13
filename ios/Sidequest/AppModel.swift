@@ -36,6 +36,8 @@ final class AppModel {
     private(set) var profile: StudentProfile?
     private(set) var colleges: [CollegeOption] = []
     private(set) var campuses: [CampusPoint] = []
+    private(set) var sessionsByEdition: [UUID:[EventSessionScheduleItem]] = [:]
+    private(set) var reviewSummariesByEvent: [UUID:[EditionReviewSummary]] = [:]
     private(set) var organizations: [OrganizationProfile] = []
     private(set) var followedOrganizationIds: Set<UUID> = []
     private(set) var communityState: LoadState = .idle
@@ -168,6 +170,24 @@ final class AppModel {
             urls[event.id] = try? await client.storage.from("event-media").createSignedURL(path: path, expiresIn: 3600)
         }
         eventImageURLs = urls
+    }
+
+    func loadEventDetails(for event:EventFeedItem) async throws {
+        guard let client else { throw SidequestError.notConfigured }
+        async let sessions:[EventSessionScheduleItem] = client.from("published_event_session_schedule")
+            .select("id,edition_id,title,starts_at,ends_at,venue_name,campus_name")
+            .eq("edition_id",value:event.editionId).order("starts_at").execute().value
+        async let summaries:[EditionReviewSummary] = client.from("edition_review_summary")
+            .select("event_id,edition_id,sample_size,average_rating")
+            .eq("event_id",value:event.id).execute().value
+        let (loadedSessions,loadedSummaries)=try await(sessions,summaries)
+        sessionsByEdition[event.editionId]=loadedSessions
+        reviewSummariesByEvent[event.id]=loadedSummaries
+    }
+
+    private func refreshLoadedEventDetails() async {
+        let loadedEditionIDs=Set(sessionsByEdition.keys)
+        for event in events where loadedEditionIDs.contains(event.editionId) { try? await loadEventDetails(for:event) }
     }
 
     func reloadJourney() async {
@@ -351,7 +371,7 @@ final class AppModel {
             for stream in communityChanges { liveUpdateTasks.append(Task { for await _ in stream { await self.reloadCommunity() } }) }
             for stream in journeyChanges { liveUpdateTasks.append(Task { for await _ in stream { await self.reloadJourney() } }) }
             liveUpdateTasks.append(Task { for await _ in routeChanges { self.clearRoute(); await self.reloadLandmarks() } })
-            liveUpdateTasks.append(Task { for await _ in venueChanges { self.clearRoute(); await self.reloadEvents() } })
+            liveUpdateTasks.append(Task { for await _ in venueChanges { self.clearRoute(); await self.reloadEvents(); await self.refreshLoadedEventDetails() } })
         } catch {
             await client.removeChannel(channel)
         }

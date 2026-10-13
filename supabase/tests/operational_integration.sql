@@ -174,6 +174,8 @@ do $$ begin
  if (select count(*) from public.reports where reporter_id='10000000-0000-0000-0000-000000000003' and reported_message_id=(select value from test_state where key='message'))<>1 then raise exception 'message report linkage incorrect'; end if;
  if (select status::text from public.messages where id=(select value from test_state where key='message'))<>'hidden' then raise exception 'message moderation failed'; end if;
  if (select sample_size from public.event_review_summary where event_id=(select value from test_state where key='event'))<>1 then raise exception 'review analytics incorrect'; end if;
+ if (select sample_size from public.edition_review_summary where edition_id=(select value from test_state where key='edition'))<>1 then raise exception 'edition review analytics incorrect'; end if;
+ if (select count(*) from public.published_event_session_schedule where edition_id=(select value from test_state where key='edition'))<>1 then raise exception 'published session schedule incorrect'; end if;
  if (select count(*) from public.notifications where title='Campus route changed')<>1 then raise exception 'closure notification missing or duplicated'; end if;
  if (select count(*) from public.notifications where title='Campus route reopened')<>1 then raise exception 'reopening notification missing or duplicated'; end if;
 end $$;

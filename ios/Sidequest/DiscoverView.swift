@@ -109,6 +109,16 @@ private struct EventDetailView: View {
     let setComparing: (Bool)->Void
     @State private var message: String?
     @State private var errorMessage: String?
+    @State private var isLoadingDetails=false
+
+    private var sessions:[EventSessionScheduleItem]{model.sessionsByEdition[event.editionId] ?? []}
+    private var currentReview:EditionReviewSummary?{model.reviewSummariesByEvent[event.id]?.first{$0.editionId==event.editionId}}
+    private var previousReview:(average:Double,sampleSize:Int)?{
+        let prior=(model.reviewSummariesByEvent[event.id] ?? []).filter{$0.editionId != event.editionId}
+        let count=prior.reduce(0){$0+$1.sampleSize};guard count>0 else{return nil}
+        let total=prior.reduce(0.0){$0+$1.averageRating*Double($1.sampleSize)}
+        return(total/Double(count),count)
+    }
 
     var body: some View {
         ScrollView { VStack(alignment: .leading, spacing: 20) {
@@ -123,6 +133,21 @@ private struct EventDetailView: View {
             Label(event.collegeName, systemImage: "building.columns")
             if let venue=event.venueName { Label(venue,systemImage:"mappin.and.ellipse") }
             Text(event.description).font(.body).lineSpacing(5)
+            GroupBox("Session schedule") {
+                VStack(alignment:.leading,spacing:10) {
+                    if isLoadingDetails { ProgressView("Loading published sessions…") }
+                    else if sessions.isEmpty { Text("No detailed sessions have been published.").foregroundStyle(.secondary) }
+                    else { ForEach(sessions){session in VStack(alignment:.leading,spacing:3){Text(session.title).font(.headline);Text("\(session.startsAt.formatted(date:.abbreviated,time:.shortened))–\(session.endsAt.formatted(date:.omitted,time:.shortened))").font(.subheadline);if let venue=session.venueName{Label([venue,session.campusName].compactMap{$0}.joined(separator:", "),systemImage:"mappin")}}} }
+                }.frame(maxWidth:.infinity,alignment:.leading)
+            }
+            GroupBox("Verified attendee feedback") {
+                VStack(alignment:.leading,spacing:8) {
+                    if let currentReview { LabeledContent("Current edition",value:"\(String(format:"%.1f",currentReview.averageRating)) / 5 · \(currentReview.sampleSize) \(currentReview.sampleSize==1 ? "review":"reviews")") }
+                    else { LabeledContent("Current edition",value:"No reviews yet") }
+                    if let previousReview { LabeledContent("Previous editions",value:"\(String(format:"%.1f",previousReview.average)) / 5 · \(previousReview.sampleSize) \(previousReview.sampleSize==1 ? "review":"reviews")") }
+                    else { LabeledContent("Previous editions",value:"No reviews yet") }
+                }
+            }
             HStack {
                 Button(model.savedEventIds.contains(event.id) ? "Saved" : "Save event", systemImage:model.savedEventIds.contains(event.id) ? "bookmark.fill":"bookmark") { Task { do { try await model.toggleSaved(eventId:event.id) } catch { errorMessage=error.localizedDescription } } }.buttonStyle(.bordered)
                 Button(comparing ? "Comparing" : "Compare", systemImage: comparing ? "checkmark.square.fill" : "square.on.square") { setComparing(!comparing) }
@@ -142,7 +167,7 @@ private struct EventDetailView: View {
             }
             if let message { Text(message).foregroundStyle(.green).font(.footnote) }
             if let errorMessage { Text(errorMessage).foregroundStyle(.red).font(.footnote) }
-        }.padding() }.navigationBarTitleDisplayMode(.inline)
+        }.padding() }.navigationBarTitleDisplayMode(.inline).task{isLoadingDetails=true;defer{isLoadingDetails=false};do{try await model.loadEventDetails(for:event)}catch{errorMessage=error.localizedDescription}}
     }
 
     private func register() async {

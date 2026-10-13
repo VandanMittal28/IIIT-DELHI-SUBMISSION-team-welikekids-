@@ -8,7 +8,7 @@ All contextual roles are stored in `college_memberships`, `memberships`, and eve
 
 ### ADR-002 — Events and editions are separate
 
-An event holds durable identity and organizer metadata. An edition holds capacity and registration/event dates. This supports recurring events without copying organization identity or review history. The first edition is created atomically with the event.
+An event holds durable identity and organizer metadata. An edition holds capacity and registration/event dates, while its sessions hold the published schedule and venue sequence. This supports recurring events without copying organization identity. Review analytics stay grouped by edition so current feedback is never silently blended with previous editions. The first edition is created atomically with the event.
 
 ### ADR-003 — Realtime is an invalidation signal
 

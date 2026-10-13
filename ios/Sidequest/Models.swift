@@ -40,6 +40,16 @@ struct CampusPoint: Decodable, Identifiable, Equatable {
     let id: UUID; let name: String; let latitude: Double; let longitude: Double
 }
 
+struct EventSessionScheduleItem:Decodable,Identifiable,Equatable {
+    let id:UUID;let editionId:UUID;let title:String;let startsAt:Date;let endsAt:Date;let venueName:String?;let campusName:String?
+    enum CodingKeys:String,CodingKey { case id,title;case editionId="edition_id",startsAt="starts_at",endsAt="ends_at",venueName="venue_name",campusName="campus_name" }
+}
+
+struct EditionReviewSummary:Decodable,Identifiable,Equatable {
+    var id:UUID{editionId};let eventId:UUID;let editionId:UUID;let sampleSize:Int;let averageRating:Double
+    enum CodingKeys:String,CodingKey { case eventId="event_id",editionId="edition_id",sampleSize="sample_size",averageRating="average_rating" }
+}
+
 struct RegistrationResult: Decodable, Equatable {
     let registrationId: UUID
     let status: String

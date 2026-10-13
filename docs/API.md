@@ -28,6 +28,8 @@ Returns:
 
 Read-only security-invoker view. It exposes published event records and their next edition, organization, and college. RLS limits signed-out discovery to `public` visibility and applies college/organization scope for authenticated users. Both the admin preview and iOS discovery use this projection.
 
+`published_event_session_schedule` exposes the organizer-authored title, times, venue, and campus for each session of a published edition. `edition_review_summary` groups only attendance-verified reviews by event and edition, preserving current-edition sample size separately from prior-edition feedback. Both are security-invoker views and never synthesize schedule or rating data.
+
 ## `register_for_event`
 
 Authenticated RPC with `p_edition_id` and a client-persisted `p_client_request_id`. The operation locks the edition row, checks the authoritative registration window and capacity, then atomically allocates a registration or FIFO waitlist place. A successful registration creates an opaque UUID pass containing no personal information.
