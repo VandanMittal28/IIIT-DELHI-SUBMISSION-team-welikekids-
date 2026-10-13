@@ -20,9 +20,10 @@
 
 3. Run the Supabase security and performance advisors and resolve findings.
 4. In Auth settings, configure the approved application URLs and require email confirmation for public accounts.
-5. Invite the first trusted administrator through Supabase Auth. After that person exists in `auth.users`, review and run `supabase/bootstrap/initial_admin.sql.example` as a trusted database operator. Public sign-up only creates a profile; it cannot create staff or administrator memberships.
-6. Create organizations and invitations through the admin workflows as they become available. Never seed fictional operational content into production.
-7. For push delivery, configure the Edge Function secrets from `supabase/functions/.env.example`, deploy `deliver-notifications`, and schedule authenticated POST invocations only in the authorized environment. `config.toml` disables platform JWT verification for this worker because its handler verifies `DELIVERY_WEBHOOK_SECRET`. Apple Developer APNs credentials are required; Supabase injects the server key and URL rather than reading them from the committed template.
+5. Invite the first trusted Sidequest platform administrator through Supabase Auth. After that person exists in `auth.users`, review and run `supabase/bootstrap/platform_admin.sql.example` as a trusted database operator. This bootstraps a global Sidequest role; it does not attach the person to a college or organization. Public sign-up only creates an unprivileged profile and cannot create administrator memberships. Use `initial_admin.sql.example` only when deliberately bootstrapping a separate, college-scoped administrator.
+6. Deploy `create-user-profile` after applying its matching migrations so the protected function can provision student and organizer accounts. Never expose its service-role key to a client.
+7. Create organizations and invitations through the admin workflows as they become available. Never seed fictional operational content into production.
+8. For push delivery, configure the Edge Function secrets from `supabase/functions/.env.example`, deploy `deliver-notifications`, and schedule authenticated POST invocations only in the authorized environment. `config.toml` disables platform JWT verification for this worker because its handler verifies `DELIVERY_WEBHOOK_SECRET`. Apple Developer APNs credentials are required; Supabase injects the server key and URL rather than reading them from the committed template.
 
 Development demo data: after the three demo Auth users exist, run `supabase/seed.sql` once in the authorized development project SQL editor (or through the Supabase SQL tool). It is idempotent and creates the IIIT Delhi events, venues, route graph, registrations, passes, volunteer assignments, announcements, messages, attendance, report, review and inbox records used by the end-to-end demo. Do not run this seed against production.
 
@@ -32,7 +33,7 @@ The native app exposes public student account creation using the same username c
 
 The admin form accepts either an email address or a college-issued username. A username is normalized by removing spaces and appending `@sidequest.local` before Supabase Auth is called. Create the matching internal Auth email as a trusted operator; never expose this convention as a public self-registration path. Passwords belong only in Supabase Auth and must not be committed to the repository.
 
-The Admin dashboard's profile provisioning panel creates student, organizer, or additional college-admin credentials through the protected `create-user-profile` Edge Function. Organizer credentials are attached to the selected college organization and can manage only their scoped events/reports. Students receive the native iOS experience; they do not receive organizer permissions.
+The Sidequest platform admin manages organizations and provisions student or organizer accounts across colleges. The role is stored in `platform_admins` and checked in RLS and server-side operations; it is never inferred from profile metadata. A platform admin does not silently become an organizer when creating an organization. Organizer accounts are attached to an organization and can manage only their scoped events/reports. Students receive the native iOS experience; they do not receive organizer permissions.
 
 ## Admin website
 

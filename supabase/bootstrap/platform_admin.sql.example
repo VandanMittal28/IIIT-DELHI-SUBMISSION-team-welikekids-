@@ -1,0 +1,25 @@
+-- Run as a trusted database operator after the intended Sidequest administrator
+-- has been invited and created in Supabase Auth. Replace the placeholder email.
+-- This is a one-time privileged bootstrap, not a public app workflow.
+begin;
+
+do $$
+declare
+  target_user_id uuid;
+begin
+  select u.id into target_user_id
+  from auth.users u
+  join public.profiles p on p.id = u.id
+  where lower(u.email) = lower('PLATFORM_ADMIN_AUTH_EMAIL')
+  limit 1;
+
+  if target_user_id is null then
+    raise exception 'The invited Auth user/profile was not found; no platform administrator was created.';
+  end if;
+
+  insert into public.platform_admins(user_id, granted_by)
+  values (target_user_id, target_user_id)
+  on conflict (user_id) do nothing;
+end $$;
+
+commit;

@@ -2,6 +2,16 @@
 
 Last updated: 2026-10-13 (Asia/Kolkata)
 
+### Global Sidequest administration (2026-10-13)
+
+- Corrected the role model: Sidequest Admin is a platform-wide administrator, not an IIIT Delhi/college administrator. Added `platform_admins` with self-only client visibility and an authorization helper; creation of organizations is granted globally only to that role, while college and organizer workflows remain scoped.
+- The platform admin dashboard now shows colleges and organizations across the platform and provisions student or organization-organizer logins; a platform admin is not silently made an organizer. The profile Edge Function checks platform or matching college-admin authorization server-side.
+- Added a one-time trusted database-operator bootstrap example and documented the role split. The existing college-admin bootstrap remains separate.
+- Added integration coverage for cross-college organization creation by a platform admin, ensuring no organizer membership is granted, and denial of that operation to students.
+- Admin production build and targeted ESLint pass. SQL integration tests were not run because Docker/Supabase local runtime is unavailable in this environment.
+- Hosted verification: the platform-admin migration is applied to project `dzqfsskcgaowcnbpxzzl` and `create-user-profile` Edge Function version 3 is active. The live dashboard's `public.platform_admins` schema-cache error should be resolved after refresh.
+- Still pending: bootstrap the intended platform-admin account using the secure setup flow. No production role has been granted automatically; confirm which existing account should receive it.
+
 ## Acceptance checklist
 
 - [x] Repository and configured-service audit completed.
@@ -146,7 +156,7 @@ Last updated: 2026-10-13 (Asia/Kolkata)
 - The camera demo now reads each displayed instruction, edge kind, distance, and compass bearing from the selected backend route. Thus the accessible toggle changes route topology and camera guidance, not only its label.
 - iOS route summary explicitly says the indoor floor plan is not supplied and marks Building B indoor steps as a text-only simulation instead of drawing an invented map.
 - iPhone 17 simulator Debug build passes. Physical device is still reported locked, so route switching/camera interaction on the handset remains pending.
-- Admin profile now creates organizations and student accounts only, lists active/inactive organizations, and event creation only offers active organizations. Organizer/college-admin profile creation was removed from this panel.
+- Before the global-role correction below, the admin profile was college-scoped and provisioned students plus organizations. The platform-wide role and organizer account choice are now implemented in the updated admin panel and server workflow.
 - Admin production build passes. Repository-wide ESLint still reports hook-effect errors in the existing load effects in `ManagementPanel.tsx` and `OperationsPanel.tsx`.
 - Event deletion now uses the versioned, scoped `cancel_event` operation and reports its confirmed cancelled-registration count in Admin. Hosted dev migrations atomically cancel registrations/waitlist entries and revoke active passes, and registration now locks event before edition so no attendee can register through an in-flight cancellation. Rollback-only live verification confirmed 2 enrollments (one waitlisted) cancelled, passes revoked, 2 notifications queued, retry idempotency, and rejection of a new registration after cancellation; all temporary rows were rolled back.
 
