@@ -77,9 +77,14 @@ final class AppModel {
         if isAuthenticated, journeyState == .idle { await reloadJourney(); await reloadSavedEvents(); await reloadProfile(); await startLiveUpdates() }
     }
 
-    func signIn(email: String, password: String) async throws {
+    private func authEmail(for username: String) -> String {
+        let normalized = username.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized.contains("@") ? normalized : "\(normalized.replacingOccurrences(of: "\\s+", with: "", options: .regularExpression))@sidequest.local"
+    }
+
+    func signIn(username: String, password: String) async throws {
         guard let client else { throw SidequestError.notConfigured }
-        try await client.auth.signIn(email: email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), password: password)
+        try await client.auth.signIn(email: authEmail(for: username), password: password)
         isAuthenticated = true
         await reloadJourney()
         await reloadSavedEvents()
@@ -87,10 +92,10 @@ final class AppModel {
         await startLiveUpdates()
     }
 
-    func createStudentAccount(email: String, password: String) async throws -> StudentSignUpOutcome {
+    func createStudentAccount(username: String, password: String) async throws -> StudentSignUpOutcome {
         guard let client else { throw SidequestError.notConfigured }
         let response = try await client.auth.signUp(
-            email: email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+            email: authEmail(for: username),
             password: password
         )
         guard response.session != nil else {

@@ -11,7 +11,7 @@ struct AccountView: View {
 
     @Environment(AppModel.self) private var model
     @State private var authMode: AuthMode = .signIn
-    @State private var email = ""
+    @State private var username = ""
     @State private var password = ""
     @State private var isWorking = false
     @State private var errorMessage: String?
@@ -68,13 +68,13 @@ struct AccountView: View {
                             ForEach(AuthMode.allCases) { mode in Text(mode.rawValue).tag(mode) }
                         }
                         .pickerStyle(.segmented)
-                        TextField("Email", text: $email).textContentType(.emailAddress).keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()
+                        TextField("Username", text: $username).textContentType(.username).textInputAutocapitalization(.never).autocorrectionDisabled()
                         SecureField("Password", text: $password).textContentType(authMode == .signIn ? .password : .newPassword)
                         if authMode == .createAccount {
                             Text("Creates a student account only. Staff permissions require a separate audited invitation.").font(.footnote).foregroundStyle(.secondary)
                         }
                         Button(isWorking ? "Working…" : authMode.rawValue) { Task { await submitAuthentication() } }
-                            .disabled(isWorking || email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (authMode == .createAccount ? password.count < 8 : password.isEmpty))
+                            .disabled(isWorking || username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (authMode == .createAccount ? password.count < 8 : password.isEmpty))
                     }
                     if let errorMessage { Section { Text(errorMessage).foregroundStyle(.red) } }
                     if let authNotice { Section { Text(authNotice).foregroundStyle(.green) } }
@@ -98,9 +98,9 @@ struct AccountView: View {
         do {
             switch authMode {
             case .signIn:
-                try await model.signIn(email: email, password: password)
+                try await model.signIn(username: username, password: password)
             case .createAccount:
-                let outcome = try await model.createStudentAccount(email: email, password: password)
+                let outcome = try await model.createStudentAccount(username: username, password: password)
                 if outcome == .confirmationRequired {
                     authNotice = "Check your email to confirm the account, then return here and sign in. No staff access was granted."
                     authMode = .signIn

@@ -44,6 +44,7 @@ Last updated: 2026-10-13 (Asia/Kolkata)
 - [x] Existing session schedules, landmarks, and draft route edges can be edited through audited, server-authorized admin workflows; published route graphs remain immutable and suspended accounts lose edition access immediately at the database boundary.
 - [x] Admin website deployed to Vercel from GitHub `main` with the `admin` root and production Supabase configuration.
 - [x] Temporary college-issued username login added on top of Supabase Auth; no password is stored in source control.
+- [x] Native iOS sign-in and student sign-up use the same username/password convention; Supabase's internal email identity remains hidden from the UI.
 - [ ] Authenticated real-data staging journey, physical-iPhone verification, APNs worker deployment, and iOS production release authorization.
 
 ## Completed slice acceptance criteria
