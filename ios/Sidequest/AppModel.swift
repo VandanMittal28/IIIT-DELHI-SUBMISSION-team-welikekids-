@@ -50,6 +50,10 @@ final class AppModel {
     private(set) var meetups: [OpenMeetup] = []
     private(set) var meetupState: LoadState = .idle
     private(set) var meetupActionStates: [UUID: LoadState] = [:]
+    private(set) var hostedMeetups: [OpenMeetup] = []
+    private(set) var hostVenues: [HostVenueOption] = []
+    private(set) var hostCollegeIds: [UUID] = []
+    private(set) var hostingOptionsState: LoadState = .idle
     var searchText = ""
     var categoryFilter = ""
     var collegeFilter = ""
@@ -130,6 +134,10 @@ final class AppModel {
         meetups = []
         meetupState = .idle
         meetupActionStates = [:]
+        hostedMeetups = []
+        hostVenues = []
+        hostCollegeIds = []
+        hostingOptionsState = .idle
         await stopLiveUpdates()
     }
 
@@ -290,7 +298,7 @@ final class AppModel {
         meetupState = .loading
         do {
             meetups = try await client.from("open_meetup_feed")
-                .select("id,title,description,location_note,icebreaker,audience,capacity,going_count,starts_at,ends_at,status,college_name,host_name,host_headline,host_verified,venue_name,campus_name,destination_landmark_id,participating_colleges,my_status,is_eligible")
+                .select("id,title,description,location_note,icebreaker,audience,capacity,going_count,starts_at,ends_at,status,college_name,host_name,host_headline,host_verified,venue_name,campus_name,destination_landmark_id,participating_colleges,my_status,is_eligible,is_host")
                 .eq("status", value: "published")
                 .gte("ends_at", value: Date.now.ISO8601Format())
                 .order("starts_at", ascending: true)
@@ -298,10 +306,94 @@ final class AppModel {
                 .execute()
                 .value
             meetupState = .loaded
-        } catch { meetupState = .failed(error.localizedDescription) }
+        } catch { meetupState = .failed(Self.meetupError(error).localizedDescription) }
     }
 
-    func meetup(id: UUID) -> OpenMeetup? { meetups.first { $0.id == id } }
+    /// PostgREST reports a missing view (PGRST205) or function (PGRST202) when the
+    /// Open Meetups migration has not been applied to the connected project.
+    nonisolated static func isMissingMeetupBackend(code: String?) -> Bool {
+        code == "PGRST202" || code == "PGRST205"
+    }
+
+    private static func meetupError(_ error: Error) -> Error {
+        isMissingMeetupBackend(code: (error as? PostgrestError)?.code) ? SidequestError.meetupsUnavailable : error
+    }
+
+    func meetup(id: UUID) -> OpenMeetup? { meetups.first { $0.id == id } ?? hostedMeetups.first { $0.id == id } }
+
+    /// Meetups the signed-in student hosts, including cancelled and past ones (RLS limits rows to the caller's own).
+    func reloadHostedMeetups() async {
+        guard let client, isAuthenticated else { hostedMeetups = []; return }
+        do {
+            hostedMeetups = try await client.from("open_meetup_feed")
+                .select("id,title,description,location_note,icebreaker,audience,capacity,going_count,starts_at,ends_at,status,college_name,host_name,host_headline,host_verified,venue_name,campus_name,destination_landmark_id,participating_colleges,my_status,is_eligible,is_host")
+                .eq("is_host", value: true)
+                .order("starts_at", ascending: false)
+                .limit(30)
+                .execute()
+                .value
+        } catch { /* Hosting list is secondary; discovery remains usable. */ }
+    }
+
+    /// Colleges the student can host for (active administrator-granted memberships) and their campus venues.
+    func loadHostingOptions() async {
+        guard let client else { hostingOptionsState = .failed(SidequestError.notConfigured.localizedDescription); return }
+        guard isAuthenticated else { hostingOptionsState = .failed(SidequestError.authenticationRequired.localizedDescription); return }
+        struct MembershipRow: Decodable { let collegeId: UUID; enum CodingKeys: String, CodingKey { case collegeId = "college_id" } }
+        hostingOptionsState = .loading
+        do {
+            let userId = try await client.auth.session.user.id
+            let memberships: [MembershipRow] = try await client.from("college_memberships")
+                .select("college_id").eq("user_id", value: userId).eq("status", value: "active").execute().value
+            hostCollegeIds = memberships.map(\.collegeId)
+            hostVenues = hostCollegeIds.isEmpty ? [] : try await client.from("venues")
+                .select("id,name,destination_landmark_id,campus:campuses!inner(name,college_id)")
+                .in("campus.college_id", values: hostCollegeIds)
+                .order("name")
+                .execute()
+                .value
+            if colleges.isEmpty || profile == nil { await reloadProfile() }
+            hostingOptionsState = .loaded
+        } catch { hostingOptionsState = .failed(Self.meetupError(error).localizedDescription) }
+    }
+
+    /// Publishes a meetup hosted by the signed-in student. The server derives the host from the session.
+    func hostMeetup(_ draft: MeetupDraft, requestId: UUID) async throws -> HostMeetupResult {
+        guard let client else { throw SidequestError.notConfigured }
+        guard isAuthenticated else { throw SidequestError.authenticationRequired }
+        guard let collegeId = draft.collegeId, let venueId = draft.venueId else { throw SidequestError.meetupDetailsIncomplete }
+        func trimmed(_ text: String) -> String? { let value = text.trimmingCharacters(in: .whitespacesAndNewlines); return value.isEmpty ? nil : value }
+        do {
+            let result: HostMeetupResult = try await client.rpc("host_open_meetup", params: HostMeetupRequest(
+                pClientRequestId: requestId, pCollegeId: collegeId, pVenueId: venueId,
+                pTitle: draft.title.trimmingCharacters(in: .whitespacesAndNewlines),
+                pDescription: draft.description.trimmingCharacters(in: .whitespacesAndNewlines),
+                pStartsAt: draft.startsAt.ISO8601Format(), pEndsAt: draft.endsAt.ISO8601Format(),
+                pCapacity: draft.capacity, pHostDisplayName: draft.hostName.trimmingCharacters(in: .whitespacesAndNewlines),
+                pAudience: draft.serverAudience, pCollegeIds: draft.serverCollegeIds,
+                pIcebreaker: trimmed(draft.icebreaker), pLocationNote: trimmed(draft.locationNote)
+            )).execute().value
+            await reloadMeetups()
+            await reloadHostedMeetups()
+            return result
+        } catch { throw Self.meetupError(error) }
+    }
+
+    func cancelHostedMeetup(_ meetup: OpenMeetup) async throws {
+        guard let client else { throw SidequestError.notConfigured }
+        guard isAuthenticated else { throw SidequestError.authenticationRequired }
+        meetupActionStates[meetup.id] = .loading
+        do {
+            _ = try await client.rpc("set_open_meetup_status", params: ["p_meetup_id": meetup.id.uuidString, "p_status": "cancelled"]).execute()
+            meetupActionStates[meetup.id] = .loaded
+        } catch {
+            let mapped = Self.meetupError(error)
+            meetupActionStates[meetup.id] = .failed(mapped.localizedDescription)
+            throw mapped
+        }
+        await reloadMeetups()
+        await reloadHostedMeetups()
+    }
 
     @discardableResult
     func joinMeetup(_ meetup: OpenMeetup) async throws -> MeetupRegistrationResult {
@@ -326,10 +418,11 @@ final class AppModel {
             await reloadMeetups()
             return result
         } catch {
-            meetupActionStates[meetup.id] = .failed(error.localizedDescription)
+            let mapped = Self.meetupError(error)
+            meetupActionStates[meetup.id] = .failed(mapped.localizedDescription)
             // Capacity or eligibility may have changed server-side; show the authoritative state.
             await reloadMeetups()
-            throw error
+            throw mapped
         }
     }
 
@@ -617,6 +710,28 @@ private struct RouteRequest: Encodable {
     }
 }
 
+private struct HostMeetupRequest: Encodable {
+    let pClientRequestId: UUID
+    let pCollegeId: UUID
+    let pVenueId: UUID
+    let pTitle: String
+    let pDescription: String
+    let pStartsAt: String
+    let pEndsAt: String
+    let pCapacity: Int
+    let pHostDisplayName: String
+    let pAudience: String
+    let pCollegeIds: [UUID]
+    let pIcebreaker: String?
+    let pLocationNote: String?
+    enum CodingKeys: String, CodingKey {
+        case pClientRequestId = "p_client_request_id", pCollegeId = "p_college_id", pVenueId = "p_venue_id"
+        case pTitle = "p_title", pDescription = "p_description", pStartsAt = "p_starts_at", pEndsAt = "p_ends_at"
+        case pCapacity = "p_capacity", pHostDisplayName = "p_host_display_name", pAudience = "p_audience"
+        case pCollegeIds = "p_college_ids", pIcebreaker = "p_icebreaker", pLocationNote = "p_location_note"
+    }
+}
+
 private struct ReviewRequest: Encodable {
     let pEditionId: UUID
     let pRating: Int
@@ -654,7 +769,7 @@ struct BackendConfiguration: Equatable {
 }
 
 enum SidequestError: LocalizedError {
-    case notConfigured, authenticationRequired, attachmentTooLarge
+    case notConfigured, authenticationRequired, attachmentTooLarge, meetupsUnavailable, meetupDetailsIncomplete
     var errorDescription: String? {
         switch self {
         case .notConfigured:
@@ -663,6 +778,10 @@ enum SidequestError: LocalizedError {
             "Sign in from Profile before registering."
         case .attachmentTooLarge:
             "The report photo must be 10 MB or smaller."
+        case .meetupsUnavailable:
+            "Open Meetups isn’t available on this server yet. They’ll appear here once the database update is applied."
+        case .meetupDetailsIncomplete:
+            "Choose your college and a venue before publishing."
         }
     }
 }

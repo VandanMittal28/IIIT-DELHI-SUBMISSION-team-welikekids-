@@ -127,6 +127,27 @@ end $$;
 -- College administrator cancellation releases every spot.
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-0000000000a1',true);
 select public.set_open_meetup_status((select value from meetup_state where key='single'),'cancelled');
+
+-- Cancelled meetups reject joins; leaving and re-joining restores the count exactly once.
+select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-0000000000a4',true);
+do $$ declare result jsonb; open_meetup uuid:=(select value from meetup_state where key='open'); begin
+ begin perform public.join_open_meetup((select value from meetup_state where key='single')); raise exception 'joined cancelled meetup'; exception when sqlstate 'PGRST' then if sqlerrm not like '%MEETUP_UNAVAILABLE%' then raise; end if; end;
+ perform public.join_open_meetup(open_meetup);
+ perform public.leave_open_meetup(open_meetup);
+ result:=public.join_open_meetup(open_meetup);
+ if (result->>'going_count')::int<>2 or (select count(*) from public.open_meetup_registrations where meetup_id=open_meetup)<>1 then raise exception 'rejoin miscounted'; end if;
+ result:=public.leave_open_meetup(open_meetup);
+ if (result->>'going_count')::int<>1 then raise exception 'second leave miscounted'; end if;
+end $$;
+
+-- Ended meetups reject joins.
+reset role;
+update public.open_meetups set starts_at=now()-interval '2 hours',ends_at=now()-interval '1 hour' where id=(select value from meetup_state where key='open');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-0000000000a5',true);
+do $$ begin
+ begin perform public.join_open_meetup((select value from meetup_state where key='open')); raise exception 'joined ended meetup'; exception when sqlstate 'PGRST' then if sqlerrm not like '%MEETUP_ENDED%' then raise; end if; end;
+end $$;
 reset role;
 do $$ begin
  if (select going_count from public.open_meetups where id=(select value from meetup_state where key='single'))<>0

@@ -1,6 +1,7 @@
 -- Development-only Open Meetups demo for the IIIT Delhi scenario.
 -- Run AFTER supabase/seed.sql in the authorized development project. Safe to re-run. Never run against production.
 -- Registrations are not seeded: students create them through the app's "I'm Going" button.
+-- Only Open Meetups tables are written. Venue navigation stays under set_venue_navigation (college administrators).
 
 do $$
 #variable_conflict use_variable
@@ -11,8 +12,6 @@ declare
   venue_hall uuid := '55555555-5555-4555-8555-555555555552';
   venue_seminar uuid := '55555555-5555-4555-8555-555555555553';
   venue_sac uuid := '55555555-5555-4555-8555-555555555554';
-  landmark_hall uuid := '99999999-9999-4999-8999-999999999992';
-  landmark_lab uuid := '99999999-9999-4999-8999-999999999993';
   day_one timestamptz := date_trunc('day', now()) + interval '1 day';
   day_two timestamptz := date_trunc('day', now()) + interval '2 days';
   day_three timestamptz := date_trunc('day', now()) + interval '3 days';
@@ -20,10 +19,6 @@ begin
   if not exists (select 1 from public.college_memberships m where m.college_id = college_id and m.user_id = host_id and m.status = 'active') then
     raise exception 'Run supabase/seed.sql before this file.';
   end if;
-
-  -- Connect venues to existing landmarks only where an administrator has not already chosen one.
-  update public.venues set destination_landmark_id = landmark_hall where id = venue_hall and destination_landmark_id is null;
-  update public.venues set destination_landmark_id = landmark_lab where id = venue_seminar and destination_landmark_id is null;
 
   insert into public.meetup_hosts (user_id, college_id, display_name, headline, verified_by)
   values (host_id, college_id, 'Aarav', 'Final-year CSE · Student mentor', admin_id)

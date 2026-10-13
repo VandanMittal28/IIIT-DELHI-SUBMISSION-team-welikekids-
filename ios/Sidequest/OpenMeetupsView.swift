@@ -3,6 +3,8 @@ import SwiftUI
 /// Discover section for casual meetups where students meet new people.
 struct OpenMeetupsSection: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @State private var showHostForm = false
 
     private var visibleMeetups: [OpenMeetup] {
         let query = model.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -15,13 +17,50 @@ struct OpenMeetupsSection: View {
         if !(searching && visibleMeetups.isEmpty) {
             VStack(alignment: .leading, spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Open Meetups").font(.title3.bold()).foregroundStyle(Color.sidequestInk)
+                    Text("Open Meetups").font(.title3.bold()).foregroundStyle(Color.sidequestInk).accessibilityAddTraits(.isHeader)
                     Text("Casual hangouts to meet new people — no club or friend group needed.").font(.footnote).foregroundStyle(.secondary)
                 }
+                hostActions
                 content
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .task { if model.meetupState == .idle { await model.reloadMeetups() } }
+            .task {
+                if model.meetupState == .idle { await model.reloadMeetups() }
+                await model.reloadHostedMeetups()
+            }
+            .sheet(isPresented: $showHostForm) { HostMeetupView() }
+        }
+    }
+
+    private var hostActions: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) { hostButton; myMeetupsLink }
+            VStack(alignment: .leading, spacing: 8) { hostButton; myMeetupsLink }
+        }
+    }
+
+    private var hostButton: some View {
+        Button { showHostForm = true } label: {
+            Label("Host a Meetup", systemImage: "plus.bubble.fill")
+                .font(.subheadline.bold())
+                .padding(.horizontal, 16).padding(.vertical, 10)
+                .foregroundStyle(Color.sidequestInk)
+                .background(Color.sidequestLime, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens a form to publish your own meetup")
+    }
+
+    @ViewBuilder private var myMeetupsLink: some View {
+        if !model.hostedMeetups.isEmpty {
+            NavigationLink { MyHostedMeetupsView() } label: {
+                Label("My meetups (\(model.hostedMeetups.count))", systemImage: "person.crop.circle.badge.checkmark")
+                    .font(.subheadline.bold())
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .foregroundStyle(Color.sidequestInk)
+                    .background(.white, in: Capsule())
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -39,10 +78,17 @@ struct OpenMeetupsSection: View {
             .background(.white, in: RoundedRectangle(cornerRadius: 20))
         default:
             if visibleMeetups.isEmpty {
-                Label("No open meetups yet. When a recognised host publishes one, it’ll appear here.", systemImage: "cup.and.saucer")
+                Label("No open meetups yet. Be the first — tap Host a Meetup.", systemImage: "cup.and.saucer")
                     .font(.subheadline).foregroundStyle(.secondary)
                     .padding(18).frame(maxWidth: .infinity, alignment: .leading)
                     .background(.white, in: RoundedRectangle(cornerRadius: 20))
+            } else if typeSize.isAccessibilitySize {
+                // Large text: stack full-width cards so nothing is truncated.
+                VStack(spacing: 12) {
+                    ForEach(visibleMeetups) { meetup in
+                        NavigationLink(value: meetup) { OpenMeetupCard(meetup: meetup, fullWidth: true) }.buttonStyle(.plain)
+                    }
+                }
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 12) {
@@ -60,6 +106,8 @@ struct OpenMeetupsSection: View {
 
 private struct OpenMeetupCard: View {
     let meetup: OpenMeetup
+    var fullWidth = false
+    private var singleLine: Int? { fullWidth ? nil : 1 }
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -68,22 +116,23 @@ private struct OpenMeetupCard: View {
                 if meetup.isGoing { Label("Going", systemImage: "checkmark.circle.fill").font(.caption.bold()).foregroundStyle(.green) }
                 else if meetup.isFull { Text("Full").font(.caption.bold()).foregroundStyle(.orange) }
             }
-            Text(meetup.title).font(.headline).foregroundStyle(Color.sidequestInk).lineLimit(2)
-            Text(meetup.description).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+            Text(meetup.title).font(.headline).foregroundStyle(Color.sidequestInk).lineLimit(fullWidth ? nil : 2)
+            Text(meetup.description).font(.subheadline).foregroundStyle(.secondary).lineLimit(fullWidth ? 4 : 2)
             Divider()
             VStack(alignment: .leading, spacing: 5) {
                 Label(meetup.startsAt.formatted(date: .abbreviated, time: .shortened), systemImage: "calendar")
-                Label("\(meetup.venueName), \(meetup.campusName)", systemImage: "mappin.and.ellipse").lineLimit(1)
-                HostLine(meetup: meetup)
+                Label("\(meetup.venueName), \(meetup.campusName)", systemImage: "mappin.and.ellipse").lineLimit(singleLine)
+                HostLine(meetup: meetup, lineLimit: singleLine)
                 Label("\(meetup.goingCount) / \(meetup.capacity) going", systemImage: "person.2")
-                Label(meetup.audienceLabel, systemImage: "building.columns").lineLimit(1)
+                Label(meetup.audienceLabel, systemImage: "building.columns").lineLimit(singleLine)
             }
             .font(.caption).foregroundStyle(.secondary)
             HStack { Spacer(); Text("View details").font(.caption.bold()); Image(systemName: "chevron.right").font(.caption.bold()) }
                 .foregroundStyle(Color.sidequestInk)
         }
         .padding(18)
-        .frame(width: 290, alignment: .leading)
+        .frame(width: fullWidth ? nil : 290, alignment: .leading)
+        .frame(maxWidth: fullWidth ? .infinity : nil, alignment: .leading)
         .background(.white, in: RoundedRectangle(cornerRadius: 20))
         .accessibilityElement(children: .combine)
         .accessibilityHint("Opens meetup details")
@@ -92,9 +141,10 @@ private struct OpenMeetupCard: View {
 
 private struct HostLine: View {
     let meetup: OpenMeetup
+    var lineLimit: Int? = 1
     var body: some View {
         HStack(spacing: 4) {
-            Label("Hosted by \(meetup.hostName)", systemImage: "person.crop.circle").lineLimit(1)
+            Label("Hosted by \(meetup.hostName)", systemImage: "person.crop.circle").lineLimit(lineLimit)
             if meetup.hostVerified {
                 Image(systemName: "checkmark.seal.fill").foregroundStyle(.blue).accessibilityLabel("Recognised host")
             }
@@ -108,8 +158,11 @@ struct OpenMeetupDetailView: View {
     @State private var message: String?
     @State private var errorMessage: String?
     @State private var confirmLeave = false
+    @State private var confirmCancelMeetup = false
 
     private var meetup: OpenMeetup { model.meetup(id: initial.id) ?? initial }
+    /// After a successful refresh, a meetup missing from the feed was cancelled, ended, or is no longer visible.
+    private var isUnavailable: Bool { model.meetupState == .loaded && model.meetup(id: initial.id) == nil && !initial.amHost }
     private var isWorking: Bool { model.meetupActionStates[meetup.id] == .loading }
 
     var body: some View {
@@ -128,6 +181,7 @@ struct OpenMeetupDetailView: View {
             }
             .padding(18).frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.sidequestLime, in: RoundedRectangle(cornerRadius: 20))
+            .accessibilityElement(children: .combine)
 
             GroupBox("Your host") {
                 VStack(alignment: .leading, spacing: 4) {
@@ -158,6 +212,8 @@ struct OpenMeetupDetailView: View {
 
             if let destination = meetup.destinationLandmarkId {
                 Button("Navigate to venue", systemImage: "location.north.fill") { model.prepareNavigation(to: destination) }.buttonStyle(.bordered)
+            } else {
+                Label("In-app directions aren’t set up for this venue yet.", systemImage: "location.slash").font(.footnote).foregroundStyle(.secondary)
             }
 
             registrationControls
@@ -168,6 +224,11 @@ struct OpenMeetupDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await model.reloadMeetups() }
         .task { await model.reloadMeetups() }
+        .task { if initial.amHost { await model.reloadHostedMeetups() } }
+        .confirmationDialog("Cancel this meetup?", isPresented: $confirmCancelMeetup, titleVisibility: .visible) {
+            Button("Cancel meetup", role: .destructive) { Task { await cancelMeetup() } }
+            Button("Keep meetup", role: .cancel) {}
+        } message: { Text("Everyone who’s going will lose their spot. This can’t be undone.") }
         .confirmationDialog("Give up your spot?", isPresented: $confirmLeave, titleVisibility: .visible) {
             Button("Cancel my spot", role: .destructive) { Task { await leave() } }
             Button("Keep my spot", role: .cancel) {}
@@ -175,7 +236,22 @@ struct OpenMeetupDetailView: View {
     }
 
     @ViewBuilder private var registrationControls: some View {
-        if meetup.isGoing {
+        if meetup.isCancelled {
+            Label(meetup.amHost ? "You cancelled this meetup." : "This meetup was cancelled.", systemImage: "xmark.octagon").foregroundStyle(.red)
+        } else if meetup.amHost {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("You’re hosting this meetup", systemImage: "person.crop.circle.badge.checkmark").font(.headline)
+                Text("\(meetup.goingCount) \(meetup.goingCount == 1 ? "person is" : "people are") going. Attendee names stay private.").font(.subheadline).foregroundStyle(.secondary)
+                if meetup.endsAt > .now {
+                    Button(isWorking ? "Cancelling…" : "Cancel meetup", role: .destructive) { confirmCancelMeetup = true }
+                        .buttonStyle(.bordered).disabled(isWorking)
+                }
+            }
+            .padding(18).frame(maxWidth: .infinity, alignment: .leading)
+            .background(.white, in: RoundedRectangle(cornerRadius: 20))
+        } else if isUnavailable {
+            Label("This meetup is no longer available. It may have been cancelled or already ended.", systemImage: "calendar.badge.exclamationmark").foregroundStyle(.secondary)
+        } else if meetup.isGoing {
             Label("You’re going! See you at \(meetup.venueName).", systemImage: "checkmark.seal.fill").foregroundStyle(.green).font(.headline)
             Button(isWorking ? "Cancelling…" : "Cancel my spot", role: .destructive) { confirmLeave = true }
                 .buttonStyle(.bordered).disabled(isWorking)
@@ -196,6 +272,14 @@ struct OpenMeetupDetailView: View {
         do {
             try await model.joinMeetup(meetup)
             message = "You’re in! Your spot is saved."
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    private func cancelMeetup() async {
+        message = nil; errorMessage = nil
+        do {
+            try await model.cancelHostedMeetup(meetup)
+            message = "Your meetup has been cancelled and everyone’s spot was released."
         } catch { errorMessage = error.localizedDescription }
     }
 
