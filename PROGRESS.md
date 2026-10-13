@@ -36,6 +36,7 @@ Last updated: 2026-10-12 (Asia/Kolkata)
 - [x] Students can report a specific discussion message; the source remains linked through moderation, duplicate reports are prevented, and the admin can triage, hide, or restore it.
 - [x] Event details load organizer-authored session schedules, and verified review analytics distinguish the current edition from prior-edition feedback with explicit sample sizes.
 - [x] Student Profile loads self-scoped persisted attendance history and submitted reviews, including updated review content after editing.
+- [x] Discover filters cover category, date, college, free or maximum price, and eligibility through the authoritative backend query.
 - [x] Admin website deployed to Vercel from GitHub `main` with the `admin` root and production Supabase configuration.
 - [x] Temporary college-issued username login added on top of Supabase Auth; no password is stored in source control.
 - [ ] Authenticated real-data staging journey, physical-iPhone verification, APNs worker deployment, and iOS production release authorization.
@@ -83,6 +84,7 @@ Last updated: 2026-10-12 (Asia/Kolkata)
 - Message-report integration passes locally: the exact source is linked once, outsider and self-report access checks are server-side, hidden content disappears for students but remains available to managers, and moderation is auditable.
 - Event-detail integration passes locally: the published schedule view returns the stored session/venue, the edition review view matches its real review row, iOS tests pass, and the admin production build shows edition-specific samples.
 - Profile-history integration passes locally: the student sees their three attendance transitions and one review, an unrelated account sees neither, and the iOS simulator tests pass.
+- Discover's complete filter set compiles and the iOS simulator tests pass; filtering remains server-backed and preserves honest empty/error states.
 - Expanded release suite passes cross-role denial, event update/edition/media operations, registration rosters, duplicate scans, wall-clock attendance ordering, audited corrections, assigned-report states, and complete route/review behavior.
 - Hosted advisors after the full schema: 0 security errors; 0 performance errors/warnings. All 43 security warnings are reviewed authenticated `SECURITY DEFINER` transaction endpoints under ADR-005.
 - Concurrent capacity test: 10 simultaneous requests against capacity 3 produced exactly 3 registrations and 7 waitlist entries.

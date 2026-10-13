@@ -47,6 +47,8 @@ final class AppModel {
     var categoryFilter = ""
     var collegeFilter = ""
     var freeOnly = false
+    var maxPrice = ""
+    var eligibilityFilter = ""
     var upcomingDays = 0
     var selectedTab = 0
     private(set) var pendingNavigationDestinationId: UUID?
@@ -145,6 +147,9 @@ final class AppModel {
             if !categoryFilter.isEmpty { query = query.eq("category", value: categoryFilter) }
             if !collegeFilter.isEmpty { query = query.eq("college_name", value: collegeFilter) }
             if freeOnly { query = query.eq("price_minor", value: 0) }
+            else if let maximum=Double(maxPrice),maximum>=0 { query=query.lte("price_minor",value:Int((maximum*100).rounded())) }
+            let trimmedEligibility=eligibilityFilter.trimmingCharacters(in:.whitespacesAndNewlines).replacingOccurrences(of:"%",with:"")
+            if !trimmedEligibility.isEmpty { query=query.ilike("eligibility",pattern:"%\(trimmedEligibility)%") }
             if upcomingDays > 0 {
                 let upper = Calendar.current.date(byAdding: .day, value: upcomingDays, to: .now) ?? .now
                 query = query.gte("starts_at", value: Date.now.ISO8601Format()).lte("starts_at", value: upper.ISO8601Format())

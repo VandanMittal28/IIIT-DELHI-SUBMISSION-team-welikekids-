@@ -192,9 +192,11 @@ private struct EventFiltersView: View {
             TextField("Category (exact)",text:$model.categoryFilter)
             TextField("College (exact)",text:$model.collegeFilter)
             Toggle("Free events only",isOn:$model.freeOnly)
+            TextField("Maximum price (₹)",text:$model.maxPrice).keyboardType(.decimalPad).disabled(model.freeOnly)
+            TextField("Eligibility contains",text:$model.eligibilityFilter)
             Picker("Date",selection:$model.upcomingDays){Text("Any date").tag(0);Text("Next 7 days").tag(7);Text("Next 30 days").tag(30)}
             Button("Apply filters") { Task { await model.reloadEvents(); dismiss() } }
-            Button("Clear filters",role:.destructive) { model.categoryFilter="";model.collegeFilter="";model.freeOnly=false;model.upcomingDays=0;Task{await model.reloadEvents();dismiss()} }
+            Button("Clear filters",role:.destructive) { model.categoryFilter="";model.collegeFilter="";model.freeOnly=false;model.maxPrice="";model.eligibilityFilter="";model.upcomingDays=0;Task{await model.reloadEvents();dismiss()} }
         }.navigationTitle("Filters").toolbar{ToolbarItem(placement:.cancellationAction){Button("Cancel"){dismiss()}}} }
     }
 }
