@@ -35,6 +35,7 @@ final class AppModel {
     private(set) var channels: [CommunityChannel] = []
     private(set) var profile: StudentProfile?
     private(set) var colleges: [CollegeOption] = []
+    private(set) var collegeProfiles:[CollegeProfile]=[]
     private(set) var campuses: [CampusPoint] = []
     private(set) var sessionsByEdition: [UUID:[EventSessionScheduleItem]] = [:]
     private(set) var reviewSummariesByEvent: [UUID:[EditionReviewSummary]] = [:]
@@ -460,13 +461,13 @@ final class AppModel {
         do {
             let userId = try await client.auth.session.user.id
             async let profileRows: [StudentProfile] = client.from("profiles").select("id,college_id,full_name,interests,notification_preferences").eq("id", value:userId).limit(1).execute().value
-            async let collegeRows: [CollegeOption] = client.from("colleges").select("id,name").order("name").execute().value
+            async let collegeRows: [CollegeProfile] = client.from("colleges").select("id,name,timezone,latitude,longitude").order("name").execute().value
             async let organizationRows: [OrganizationProfile] = client.from("organizations").select("id,name,description,college_id").eq("is_active",value:true).order("name").execute().value
             async let followRows: [FollowRow] = client.from("follows").select("organization_id").execute().value
             async let attendanceRows:[AttendanceHistoryItem] = client.from("my_attendance_history").select("id,edition_id,event_id,title,action,recorded_at").order("recorded_at",ascending:false).limit(100).execute().value
             async let reviewRows:[SubmittedReviewItem] = client.from("my_submitted_reviews").select("id,event_id,edition_id,title,rating,body,created_at,updated_at").order("updated_at",ascending:false).limit(100).execute().value
             let values = try await (profileRows,collegeRows,organizationRows,followRows,attendanceRows,reviewRows)
-            profile=values.0.first; colleges=values.1; organizations=values.2; followedOrganizationIds=Set(values.3.map(\.organizationId));attendanceHistory=values.4;submittedReviews=values.5
+            profile=values.0.first; collegeProfiles=values.1;colleges=values.1.map{CollegeOption(id:$0.id,name:$0.name)}; organizations=values.2; followedOrganizationIds=Set(values.3.map(\.organizationId));attendanceHistory=values.4;submittedReviews=values.5
         } catch { /* Profile form displays the current authenticated defaults. */ }
     }
 

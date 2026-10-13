@@ -38,6 +38,7 @@ Last updated: 2026-10-12 (Asia/Kolkata)
 - [x] Student Profile loads self-scoped persisted attendance history and submitted reviews, including updated review content after editing.
 - [x] Discover filters cover category, date, college, free or maximum price, and eligibility through the authoritative backend query.
 - [x] Host and co-host organizers share scoped management rights, while event staff assignment is limited to an authorized real-member selector and is retry-idempotent.
+- [x] Community includes backend-backed college and organization profile pages with persistent follow controls.
 - [x] Admin website deployed to Vercel from GitHub `main` with the `admin` root and production Supabase configuration.
 - [x] Temporary college-issued username login added on top of Supabase Auth; no password is stored in source control.
 - [ ] Authenticated real-data staging journey, physical-iPhone verification, APNs worker deployment, and iOS production release authorization.
@@ -87,6 +88,7 @@ Last updated: 2026-10-12 (Asia/Kolkata)
 - Profile-history integration passes locally: the student sees their three attendance transitions and one review, an unrelated account sees neither, and the iOS simulator tests pass.
 - Discover's complete filter set compiles and the iOS simulator tests pass; filtering remains server-backed and preserves honest empty/error states.
 - Co-host/staff integration passes locally: co-host access succeeds, a non-member assignment is denied, candidate rows come from active host memberships, retry creates no duplicate assignment/audit, and the admin build passes.
+- College and organization profile navigation compiles and the iOS simulator tests pass; profile content and follow state come from Supabase records.
 - Expanded release suite passes cross-role denial, event update/edition/media operations, registration rosters, duplicate scans, wall-clock attendance ordering, audited corrections, assigned-report states, and complete route/review behavior.
 - Hosted advisors after the full schema: 0 security errors; 0 performance errors/warnings. All 43 security warnings are reviewed authenticated `SECURITY DEFINER` transaction endpoints under ADR-005.
 - Concurrent capacity test: 10 simultaneous requests against capacity 3 produced exactly 3 registrations and 7 waitlist entries.

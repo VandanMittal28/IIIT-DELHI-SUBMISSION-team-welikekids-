@@ -47,9 +47,13 @@ struct CommunityView: View {
                             ForEach(model.channels) { channel in NavigationLink(channel.title) { ChannelView(channel:channel) } }
                             Text("Channels are persistent. Moderated messages remain auditable and may be hidden from this view.").font(.caption).foregroundStyle(.secondary)
                         }
+                        Section("Colleges") {
+                            if model.collegeProfiles.isEmpty { Text("No colleges available.").foregroundStyle(.secondary) }
+                            ForEach(model.collegeProfiles){college in NavigationLink(college.name){CollegeProfileView(college:college,organizations:model.organizations.filter{$0.collegeId==college.id})}}
+                        }
                         Section("Clubs and organizations") {
                             ForEach(model.organizations) { organization in
-                                HStack { VStack(alignment:.leading){Text(organization.name).font(.headline);if let detail=organization.description{Text(detail).font(.caption).foregroundStyle(.secondary)}};Spacer();Button(model.followedOrganizationIds.contains(organization.id) ? "Following":"Follow") { Task { try? await model.toggleOrganizationFollow(organization.id) } }.buttonStyle(.bordered) }
+                                HStack { NavigationLink{OrganizationProfileView(organization:organization,collegeName:model.collegeProfiles.first{$0.id==organization.collegeId}?.name)}label:{VStack(alignment:.leading){Text(organization.name).font(.headline);if let detail=organization.description{Text(detail).font(.caption).foregroundStyle(.secondary)}}};Spacer();Button(model.followedOrganizationIds.contains(organization.id) ? "Following":"Follow") { Task { try? await model.toggleOrganizationFollow(organization.id) } }.buttonStyle(.bordered) }
                             }
                         }
                     }
@@ -61,6 +65,17 @@ struct CommunityView: View {
             .sheet(item: $reportEdition) { ReportForm(item: $0) }
         }
     }
+}
+
+private struct CollegeProfileView:View {
+    let college:CollegeProfile;let organizations:[OrganizationProfile]
+    var body:some View { List { Section("College"){LabeledContent("Name",value:college.name);LabeledContent("Time zone",value:college.timezone);if let latitude=college.latitude,let longitude=college.longitude{LabeledContent("Coordinates",value:"\(latitude.formatted()), \(longitude.formatted())")}};Section("Clubs and organizations"){if organizations.isEmpty{Text("No active organizations yet.").foregroundStyle(.secondary)};ForEach(organizations){organization in VStack(alignment:.leading){Text(organization.name).font(.headline);if let description=organization.description{Text(description).foregroundStyle(.secondary)}}}} }.navigationTitle(college.name) }
+}
+
+private struct OrganizationProfileView:View {
+    @Environment(AppModel.self) private var model
+    let organization:OrganizationProfile;let collegeName:String?
+    var body:some View { List { Section("Organization"){LabeledContent("Name",value:organization.name);if let collegeName{LabeledContent("College",value:collegeName)};if let description=organization.description{Text(description)}};Section{Button(model.followedOrganizationIds.contains(organization.id) ? "Unfollow organization":"Follow organization"){Task{try? await model.toggleOrganizationFollow(organization.id)}}} }.navigationTitle(organization.name) }
 }
 
 private struct ChannelView: View {

@@ -306,6 +306,10 @@ struct StudentProfile: Decodable, Equatable {
 
 struct CollegeOption: Decodable, Identifiable, Equatable { let id:UUID; let name:String }
 
+struct CollegeProfile:Decodable,Identifiable,Equatable {
+    let id:UUID;let name:String;let timezone:String;let latitude:Double?;let longitude:Double?
+}
+
 struct OrganizationProfile: Decodable, Identifiable, Equatable {
     let id:UUID; let name:String; let description:String?; let collegeId:UUID
     enum CodingKeys:String,CodingKey { case id,name,description; case collegeId="college_id" }
