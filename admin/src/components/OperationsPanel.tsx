@@ -17,6 +17,7 @@ export function OperationsPanel({ eventIds }: { eventIds: string[] }) {
   const [occupancy, setOccupancy] = useState<Occupancy[]>([]);
   const [editionId, setEditionId] = useState("");
   const [title, setTitle] = useState(""); const [body, setBody] = useState("");
+  const [announcementRequestId,setAnnouncementRequestId]=useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [discussion,setDiscussion]=useState<DiscussionMessage[]>([]); const [reviews,setReviews]=useState<ReviewSummary[]>([]);
   const [staffByEdition,setStaffByEdition]=useState<Record<string,AssignableStaff[]>>({});
@@ -64,8 +65,9 @@ export function OperationsPanel({ eventIds }: { eventIds: string[] }) {
 
   async function announce(event: FormEvent) {
     event.preventDefault(); setMessage(null);
-    const { error } = await getSupabase().rpc("publish_announcement", { p_edition_id: editionId, p_title: title, p_body: body, p_kind: "official" });
-    if (error) setMessage(`Not published: ${error.message}`); else { setMessage("Announcement persisted and delivery work queued."); setTitle(""); setBody(""); }
+    const requestId=announcementRequestId||crypto.randomUUID();setAnnouncementRequestId(requestId);
+    const { error } = await getSupabase().rpc("publish_announcement", { p_edition_id: editionId, p_title: title, p_body: body, p_kind: "official",p_client_request_id:requestId });
+    if (error) setMessage(`Not published: ${error.message}`); else { setAnnouncementRequestId("");setMessage("Announcement persisted and delivery work queued."); setTitle(""); setBody(""); }
   }
 
   async function advance(report: Report) {

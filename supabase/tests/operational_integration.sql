@@ -8,7 +8,9 @@ insert into auth.users(id,email) values
 ('10000000-0000-0000-0000-000000000004','volunteer@example.invalid'),
 ('10000000-0000-0000-0000-000000000005','outsider@example.invalid'),
 ('10000000-0000-0000-0000-000000000006','cohost@example.invalid');
-insert into public.colleges(id,slug,name) values('20000000-0000-0000-0000-000000000001','test-college','Test College');
+insert into public.colleges(id,slug,name) values
+('20000000-0000-0000-0000-000000000001','test-college','Test College'),
+('20000000-0000-0000-0000-000000000002','other-college','Other College');
 insert into public.college_memberships(college_id,user_id,is_admin,status) values('20000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001',true,'active');
 insert into public.organizations(id,college_id,slug,name) values
 ('30000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001','test-org','Test Org'),
@@ -16,6 +18,8 @@ insert into public.organizations(id,college_id,slug,name) values
 insert into public.memberships(organization_id,user_id,role,status) values
 ('30000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000002','organizer','active'),
 ('30000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000006','organizer','active');
+insert into public.campuses(id,college_id,name,latitude,longitude) values('21000000-0000-0000-0000-000000000002','20000000-0000-0000-0000-000000000002','Other Campus',28.6,77.3);
+insert into public.venues(id,campus_id,name,kind) values('22000000-0000-0000-0000-000000000002','21000000-0000-0000-0000-000000000002','Other Hall','hall');
 
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000002',true);
 select set_config('request.jwt.claim.role','authenticated',true);
@@ -69,6 +73,12 @@ select public.update_edition_capacity((select value from test_state where key='e
 do $$ begin
  if (select count(*) from public.get_registration_roster((select value from test_state where key='edition')))<>1 then raise exception 'roster incorrect'; end if;
  if (select count(*) from public.get_assignable_event_staff((select value from test_state where key='edition')))<>1 then raise exception 'assignable staff directory incorrect'; end if;
+end $$;
+do $$ declare first jsonb; replay jsonb; request_id uuid:='40000000-0000-0000-0000-000000000011'; begin
+ first:=public.publish_announcement((select value from test_state where key='edition'),'Integration update','Stored announcement body','official',request_id);
+ replay:=public.publish_announcement((select value from test_state where key='edition'),'Integration update','Stored announcement body','official',request_id);
+ if (first->>'idempotent_replay')::boolean or not (replay->>'idempotent_replay')::boolean or first->>'announcement_id'<>replay->>'announcement_id' then raise exception 'announcement idempotency failed'; end if;
+ if (select count(*) from public.notifications where title='Integration update')<>1 then raise exception 'announcement notification duplicated'; end if;
 end $$;
 
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000004',true);
@@ -159,14 +169,17 @@ reset role;
 
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000001',true);
 select set_config('request.jwt.claim.role','authenticated',true);
-do $$ declare campus uuid; start_landmark uuid; finish_landmark uuid; route_version uuid; start_node uuid; finish_node uuid; edge uuid; venue uuid; session_id uuid; plan jsonb; closure_result jsonb; closure_replay jsonb; reopen_result jsonb; reopen_replay jsonb; closure_request uuid:='40000000-0000-0000-0000-000000000010'; begin
+do $$ declare campus uuid; start_landmark uuid; finish_landmark uuid; route_version uuid; start_node uuid; finish_node uuid; edge uuid; venue uuid; session_id uuid; plan jsonb; closure_result jsonb; closure_replay jsonb; reopen_result jsonb; reopen_replay jsonb; venue_result jsonb; venue_replay jsonb; closure_request uuid:='40000000-0000-0000-0000-000000000010'; venue_request uuid:='40000000-0000-0000-0000-000000000012'; begin
  campus:=(public.create_campus('20000000-0000-0000-0000-000000000001','Test Campus',28.545,77.273)->>'campus_id')::uuid;
  start_landmark:=(public.create_landmark(campus,'Gate','outdoor_geographic',28.545,77.273,null,null,null,90,'Face east',null)->>'landmark_id')::uuid;
  finish_landmark:=(public.create_landmark(campus,'Hall','outdoor_geographic',28.546,77.274,null,null,null,90,'Face east',null)->>'landmark_id')::uuid;
  venue:=(public.create_venue(campus,'Test Hall','hall',null,null,'Step-free entrance')->>'venue_id')::uuid;
  perform public.set_venue_navigation(venue,finish_landmark,start_landmark);
  session_id:=(public.create_event_session((select value from test_state where key='edition'),venue,'Main session',now()+interval '2 hours',now()+interval '3 hours')->>'session_id')::uuid;
- perform public.change_session_venue(session_id,venue,'Navigation contract test');
+ begin perform public.change_session_venue(session_id,'22000000-0000-0000-0000-000000000002','Cross-college venue must fail','40000000-0000-0000-0000-000000000013'); raise exception 'cross-college venue accepted'; exception when sqlstate 'PGRST' then null; end;
+ venue_result:=public.change_session_venue(session_id,venue,'Navigation contract test',venue_request);
+ venue_replay:=public.change_session_venue(session_id,venue,'Navigation contract test',venue_request);
+ if (venue_result->>'idempotent_replay')::boolean or not (venue_replay->>'idempotent_replay')::boolean then raise exception 'venue change idempotency failed'; end if;
  if (select destination_landmark_id from public.published_event_feed where id=(select value from test_state where key='event'))<>finish_landmark then raise exception 'published venue navigation missing'; end if;
  route_version:=(public.create_route_draft(campus)->>'route_version_id')::uuid;
  start_node:=(public.add_route_node(route_version,'landmark','outdoor_geographic',start_landmark,28.545,77.273,null,null,null,true)->>'node_id')::uuid;
@@ -256,6 +269,18 @@ do $$ begin
  if (select count(*) from public.notifications where kind='reminder')<>2 then raise exception 'event reminder inbox entry missing'; end if;
  if exists(select 1 from public.notification_delivery_jobs job join public.notifications notification on notification.id=job.notification_id where notification.kind='reminder') then raise exception 'disabled reminder push was queued'; end if;
  raise notice 'operational integration passed';
+end $$;
+
+reset role;
+select set_config('request.jwt.claim.role','authenticated',true);
+select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000002',true);
+do $$ declare first jsonb; replay jsonb; begin
+ first:=public.cancel_event((select value from test_state where key='event'),'Integration cancellation');
+ replay:=public.cancel_event((select value from test_state where key='event'),'Integration cancellation');
+ if (first->>'idempotent_replay')::boolean or not (replay->>'idempotent_replay')::boolean then raise exception 'event cancellation idempotency failed'; end if;
+ if (select count(*) from public.notifications where title='Event cancelled')<>1 then raise exception 'cancellation notification duplicated'; end if;
+ if not exists(select 1 from public.events where id=(select value from test_state where key='event') and status='cancelled' and cancelled_at is not null) then raise exception 'event cancellation state incomplete'; end if;
+ if (select count(*) from public.audit_records where action='event.cancel' and entity_id=(select value from test_state where key='event'))<>1 then raise exception 'cancellation audit duplicated'; end if;
 end $$;
 
 rollback;
