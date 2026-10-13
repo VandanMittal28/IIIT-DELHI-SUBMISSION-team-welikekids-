@@ -129,6 +129,7 @@ Last updated: 2026-10-13 (Asia/Kolkata)
 - iOS simulator Debug build passes after the change. Physical camera/AR validation remains blocked until a route is physically validated and the paired iPhone is available.
 - Camera guidance now clearly presents as live AR guidance: ARWorldTracking keeps the route arrow anchored while the student turns and moves, the current route instruction remains visible, and tracking interruptions/drift continue to offer map/text/voice fallback. This remains intentionally disabled for routes without physical validation.
 - Added an explicit demo-only camera simulation for unvalidated development routes. It is labeled `DEMO · simulated live camera guidance` in the camera view and warns that map guidance must be used for real navigation; validated routes continue to use the production camera path.
+- Hardened camera startup after the crash report: ARKit is only started when `ARWorldTrackingConfiguration.isSupported`; unsupported/denied camera cases fall back to the labeled demo surface, and demo mode always overlays a visible simulated arrow. iOS simulator build passes.
 
 - Temporary access: the requested username login is active against Supabase Auth and the scoped IIIT Delhi administrator membership is verified. Replace the temporary password before sharing the site beyond this test.
 - Security action: rotate the database password that was accidentally posted in chat; it was not stored or used by this implementation.
