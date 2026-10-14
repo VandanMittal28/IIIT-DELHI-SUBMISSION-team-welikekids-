@@ -873,14 +873,16 @@ struct ReportForm: View {
                     .pickerStyle(.segmented)
                     SQField(placeholder: "What happened?", text: $detail, axisVertical: true, lineLimit: 4...10)
 
+                    // See the note in AccountView: the label closure is nonisolated.
+                    let hasAttachment = attachment != nil
                     PhotosPicker(selection: $attachment, matching: .images) {
                         HStack(spacing: SQSpace.md) {
                             SQIconTile(systemImage: "paperclip", color: SQColor.hueBlue)
-                            Text(attachment == nil ? "Choose evidence photo" : "Evidence photo selected")
+                            Text(hasAttachment ? "Evidence photo selected" : "Choose evidence photo")
                                 .font(SQFont.rowLabel)
                                 .foregroundStyle(SQColor.textPrimary)
                             Spacer()
-                            if attachment != nil {
+                            if hasAttachment {
                                 Image(systemName: "checkmark.circle.fill").foregroundStyle(SQColor.positive)
                             }
                         }
@@ -906,7 +908,7 @@ struct ReportForm: View {
         }
     }
 
-    private func submit() async {
+    @MainActor private func submit() async {
         defer { busy = false }
         do {
             var evidence: Data?

@@ -663,14 +663,17 @@ private struct EventIssueForm: View {
                 VStack(alignment: .leading, spacing: SQSpace.md) {
                     SQField(placeholder: "What happened?", text: $detail, axisVertical: true, lineLimit: 4...8)
 
+                    // Read the state here, in the main-actor body, rather than inside the
+                    // PhotosPicker label — that closure is nonisolated under Swift 6.
+                    let hasAttachment = attachment != nil
                     PhotosPicker(selection: $attachment, matching: .images) {
                         HStack(spacing: SQSpace.md) {
                             SQIconTile(systemImage: "paperclip", color: SQColor.hueBlue)
-                            Text(attachment == nil ? "Add photo evidence" : "Evidence photo selected")
+                            Text(hasAttachment ? "Evidence photo selected" : "Add photo evidence")
                                 .font(SQFont.rowLabel)
                                 .foregroundStyle(SQColor.textPrimary)
                             Spacer()
-                            if attachment != nil {
+                            if hasAttachment {
                                 Image(systemName: "checkmark.circle.fill")
                                     .foregroundStyle(SQColor.positive)
                             }
@@ -697,7 +700,7 @@ private struct EventIssueForm: View {
         }
     }
 
-    private func submit() async {
+    @MainActor private func submit() async {
         defer { busy = false }
         do {
             var evidence: Data?

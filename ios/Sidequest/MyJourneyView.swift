@@ -405,6 +405,7 @@ private struct EventMediaView: View {
             SQCard(padding: SQSpace.cardInset) {
                 VStack(alignment: .leading, spacing: SQSpace.md) {
                     SQField(placeholder: "Optional caption", text: $caption, systemImage: "text.quote")
+                    let isUploading = loading
                     PhotosPicker(selection: $photo, matching: .images) {
                         HStack(spacing: SQSpace.sm) {
                             Image(systemName: "plus.rectangle.on.rectangle")
@@ -413,7 +414,7 @@ private struct EventMediaView: View {
                         .foregroundStyle(SQColor.onPrimary)
                         .frame(maxWidth: .infinity)
                         .frame(height: SQSize.listRow)
-                        .background(SQColor.primaryFill.opacity(loading ? 0.4 : 1), in: RoundedRectangle(cornerRadius: SQRadius.control, style: .continuous))
+                        .background(SQColor.primaryFill.opacity(isUploading ? 0.4 : 1), in: RoundedRectangle(cornerRadius: SQRadius.control, style: .continuous))
                     }
                     .disabled(loading)
                 }
@@ -473,7 +474,7 @@ private struct EventMediaView: View {
         .onChange(of: photo) { _, selected in
             guard let selected else { return }
             loading = true
-            Task {
+            Task { @MainActor in
                 defer { loading = false; photo = nil }
                 do {
                     guard let source = try await selected.loadTransferable(type: Data.self),
