@@ -4,7 +4,7 @@
 
 ### ADR-001 — PostgreSQL is the authorization and transaction boundary
 
-All contextual roles are stored in `college_memberships`, `memberships`, host/co-host relationships, and event assignments. Row-level security protects reads, and privileged mutations use narrowly granted database functions that repeat authorization checks. Co-host organizers inherit event management through the same server predicate, while staff assignment accepts only active organizer/volunteer memberships from a host organization. User-editable Auth metadata is never an authority source. This keeps the Next.js and iOS clients on one contract.
+All contextual roles are stored in `college_memberships`, `memberships`, society head assignments, host/co-host relationships, and event assignments. A student belongs to a college. College administrators create student and organizer accounts, create societies, and then assign an existing organizer ID as a society head. That assignment grants event management for the society; account creation alone does not. A new head replaces the previous head's authority. Society heads can assign active students of the event's college as volunteers without making those students society members. Row-level security protects reads, and privileged mutations repeat authorization checks. User-editable Auth metadata is never an authority source. This keeps the Next.js and iOS clients on one contract.
 
 ### ADR-002 — Events and editions are separate
 
@@ -64,7 +64,7 @@ College administrators may correct landmark metadata and edit edge geometry, ins
 
 ### ADR-016 — Sidequest administration is global; college and organization roles stay scoped
 
-The Sidequest platform administrator is represented by a trusted row in `platform_admins`, not a college membership or user-editable Auth metadata. The platform administrator can create organizations and provision student/organizer accounts across colleges through authorized server operations, but creating an organization does not grant an organizer membership. College administrators and organizers retain their existing college- and organization-scoped permissions. Initial platform-admin bootstrap is a one-time trusted database-operator action documented in `supabase/bootstrap/platform_admin.sql.example`.
+The Sidequest platform administrator is represented by a trusted row in `platform_admins`, not a college membership or user-editable Auth metadata. Platform and college administrators create societies and provision college student/organizer accounts through authorized server operations. Creating either an organizer account or a society does not grant event authoring. An administrator separately assigns an existing active organizer account from the college as `head_user_id` on a society. The assignment creates its organizer membership and permits that society's event management. Initial platform-admin bootstrap is a one-time trusted database-operator action documented in `supabase/bootstrap/platform_admin.sql.example`.
 
 ## Environments
 

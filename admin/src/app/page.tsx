@@ -37,6 +37,7 @@ export default function Home() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [organizerOrganizations, setOrganizerOrganizations] = useState<Organization[]>([]);
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [published, setPublished] = useState<EventRecord[]>([]);
   const [registrationSummaries, setRegistrationSummaries] = useState<RegistrationSummary[]>([]);
@@ -56,7 +57,7 @@ export default function Home() {
     setError(null);
     const [membershipResult, adminResult, platformAdminResult] = await Promise.all([
       supabase.from("memberships")
-        .select("organization_id, organizations!inner(id,name,college_id,is_active)")
+        .select("organization_id, organizations!inner(id,name,college_id,is_active,head_user_id)")
         .eq("user_id", activeUser.id).eq("role", "organizer").eq("status", "active"),
       supabase.from("college_memberships").select("college_id")
         .eq("user_id", activeUser.id).eq("is_admin", true).eq("status", "active"),
@@ -75,7 +76,7 @@ export default function Home() {
     setAdminCollegeIds(adminCollegeIds);
     let adminOrganizations: Organization[] = [];
     if (isPlatformAdmin || adminCollegeIds.length > 0) {
-      const organizationQuery = supabase.from("organizations").select("id,name,college_id,is_active");
+      const organizationQuery = supabase.from("organizations").select("id,name,college_id,is_active,head_user_id");
       const adminOrganizationResult = isPlatformAdmin
         ? await organizationQuery.order("name")
         : await organizationQuery.in("college_id", adminCollegeIds);
@@ -93,7 +94,9 @@ export default function Home() {
     }
     const orgs = Array.from(new Map([...memberOrgs, ...adminOrganizations].map((org) => [org.id, org])).values());
     setOrganizations(orgs);
-    const activeOrgs = orgs.filter((organization) => organization.is_active !== false);
+    const organizerOrgs = isPlatformAdmin || adminCollegeIds.length > 0 ? [] : memberOrgs.filter(org => org.head_user_id === activeUser.id);
+    setOrganizerOrganizations(organizerOrgs);
+    const activeOrgs = organizerOrgs.filter((organization) => organization.is_active !== false);
     setDraft((current) => ({ ...current, organizationId: activeOrgs.some((org) => org.id === current.organizationId) ? current.organizationId : activeOrgs[0]?.id || "" }));
     const [venueResult,campusResult]=await Promise.all([
       supabase.from("venues").select("id,name,campus_id").order("name"),
@@ -105,8 +108,8 @@ export default function Home() {
     setVenues(availableVenues);
     setVenueId((current)=>availableVenues.some((venue)=>venue.id===current)?current:availableVenues.find((venue)=>venue.college_id===activeOrgs[0]?.college_id)?.id??"");
     const [eventsResult, feedResult, registrationResult] = await Promise.all([
-      supabase.from("events").select("id,title,description,category,eligibility,price_minor,status,organization_id,college_id").order("created_at", { ascending: false }),
-      supabase.from("published_event_feed").select("*").order("starts_at", { ascending: true }).limit(8),
+      activeOrgs.length ? supabase.from("events").select("id,title,description,category,eligibility,price_minor,status,organization_id,college_id").in("organization_id", activeOrgs.map(org => org.id)).order("created_at", { ascending: false }) : Promise.resolve({data: [], error: null}),
+      activeOrgs.length ? supabase.from("published_event_feed").select("*").in("organization_id", activeOrgs.map(org => org.id)).order("starts_at", { ascending: true }).limit(8) : Promise.resolve({data: [], error: null}),
       supabase.from("edition_registration_summary").select("edition_id,event_id,capacity,registered_count,waitlisted_count,cancelled_count"),
     ]);
     if (eventsResult.error) throw eventsResult.error;
@@ -131,7 +134,7 @@ export default function Home() {
   const publishedIds = useMemo(() => new Set(published.map((event) => event.id)), [published]);
   const registrationsByEvent = useMemo(() => new Map(registrationSummaries.map((summary) => [summary.event_id, summary])), [registrationSummaries]);
   const managedEventIds = useMemo(() => events.map((item) => item.id), [events]);
-  const activeOrganizations = useMemo(() => organizations.filter((organization) => organization.is_active !== false), [organizations]);
+  const activeOrganizations = useMemo(() => organizerOrganizations.filter((organization) => organization.is_active !== false), [organizerOrganizations]);
   const selectedOrganizationCollegeId=activeOrganizations.find((organization)=>organization.id===draft.organizationId)?.college_id;
   const availableEventVenues=venues.filter((venue)=>venue.college_id===selectedOrganizationCollegeId);
 
@@ -158,8 +161,9 @@ export default function Home() {
     if (!(opens < closes && closes <= ends && starts < ends)) {
       setError("Check the schedule: registration must open before it closes, and the event must end after it starts."); setBusy(false); return;
     }
-    if (!draft.organizationId) { setError("Choose the IIIT Delhi organization first."); setBusy(false); return; }
-    const selectedOrganization=organizations.find((organization)=>organization.id===draft.organizationId);
+    if (!draft.organizationId) { setError("Choose a society you organize first."); setBusy(false); return; }
+    const selectedOrganization=activeOrganizations.find((organization)=>organization.id===draft.organizationId);
+    if (!selectedOrganization) { setError("You need organizer access for this society."); setBusy(false); return; }
     const selectedVenue=venues.find((venue)=>venue.id===venueId&&venue.college_id===selectedOrganization?.college_id);
     if(!selectedVenue){setError("Choose a venue that belongs to the selected organization’s college.");setBusy(false);return;}
     const { data, error: createError } = await getSupabase().rpc("create_event_with_venue", {
@@ -197,18 +201,18 @@ export default function Home() {
 
   if (!configured) return <main className={styles.center}><section className={styles.authCard}><Brand /><p className={styles.eyebrow}>Setup required</p><h1>Connect the Sidequest backend</h1><p>Copy <code>.env.local.example</code> to <code>.env.local</code> and add the authorized Supabase URL and publishable key. No demo data will be substituted.</p></section></main>;
   if (!authReady) return <main className={styles.center}><p>Checking your session…</p></main>;
-  if (!user) return <main className={styles.center}><section className={styles.authCard}><Brand /><p className={styles.eyebrow}>Sidequest access</p><h1>Make campus happen.</h1><p>Sign in with the username and password assigned to your Sidequest admin or college organizer account.</p><form onSubmit={signIn} className={styles.stack}><label>Username<input required autoComplete="username" value={identifier} onChange={(e) => setIdentifier(e.target.value)} /></label><label>Password<input required minLength={6} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>{error && <Alert>{error}</Alert>}<button disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button></form></section></main>;
+  if (!user) return <main className={styles.center}><section className={styles.authCard}><Brand /><p className={styles.eyebrow}>Sidequest access</p><h1>Make campus happen.</h1><p>Sign in with the username and password assigned to your Sidequest admin or society head account.</p><form onSubmit={signIn} className={styles.stack}><label>Username<input required autoComplete="username" value={identifier} onChange={(e) => setIdentifier(e.target.value)} /></label><label>Password<input required minLength={6} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>{error && <Alert>{error}</Alert>}<button disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button></form></section></main>;
 
   return <div className={styles.shell}>
-    <header className={styles.header}><Brand /><div className={styles.user}><span>{platformAdmin ? "Sidequest platform admin" : "College organizer"} · {user.email?.split("@")[0]}</span><button className={styles.ghost} onClick={() => void getSupabase().auth.signOut()}>Sign out</button></div></header>
+    <header className={styles.header}><Brand /><div className={styles.user}><span>{platformAdmin ? "Sidequest platform admin" : adminCollegeIds.length ? "College admin" : "Society organizer"} · {user.email?.split("@")[0]}</span><button className={styles.ghost} onClick={() => void getSupabase().auth.signOut()}>Sign out</button></div></header>
     <main className={styles.dashboard}>
-      <section className={styles.hero}><div><p className={styles.eyebrow}>{platformAdmin ? "Sidequest platform control" : "College operations"}</p><h1>{platformAdmin ? "One platform. Every campus." : "Campus events, made simple."}</h1><p>{platformAdmin ? "Manage colleges, organizations, and student or organizer access across Sidequest." : "Create events, choose your campus venue, assign volunteers, and publish to students."}</p></div>{!platformAdmin && <div className={styles.stats}><span><strong>{events.length}</strong> events</span><span><strong>{published.length}</strong> live</span></div>}</section>
+      <section className={styles.hero}><div><p className={styles.eyebrow}>{platformAdmin ? "Sidequest platform control" : adminCollegeIds.length ? "College administration" : "Society events"}</p><h1>{platformAdmin ? "One platform. Every campus." : adminCollegeIds.length ? "Manage your college." : "Run your society’s events."}</h1><p>{platformAdmin ? "Manage colleges, societies, and college student accounts across Sidequest." : adminCollegeIds.length ? "Create college student and organizer accounts, set up societies, and maintain campus information." : "Create events for your society and assign college students as volunteers."}</p></div>{activeOrganizations.length > 0 && <div className={styles.stats}><span><strong>{events.length}</strong> events</span><span><strong>{published.length}</strong> live</span></div>}</section>
       {error && <Alert>{error}</Alert>}{notice && <div className={styles.notice}>{notice}</div>}
-      {!platformAdmin && <nav aria-label="Dashboard sections" className={styles.dashboardNav}><a href="#create-event">Create event</a><a href="#publishing-desk">Publishing desk</a>{events.length>0&&<a href="#event-operations">Volunteer & event tools</a>}{adminCollegeIds.length>0&&<a href="#campus-data">Campus map</a>}</nav>}
+      {!platformAdmin && <nav aria-label="Dashboard sections" className={styles.dashboardNav}>{activeOrganizations.length > 0 && <><a href="#create-event">Create event</a><a href="#publishing-desk">Publishing desk</a></>}{events.length>0&&<a href="#event-operations">Volunteer & event tools</a>}{adminCollegeIds.length>0&&<a href="#campus-data">Campus map</a>}</nav>}
       {!platformAdmin && <details className={styles.panel}><summary>Have a volunteer invitation?</summary><form onSubmit={acceptInvitation} className={styles.stack}><label>One-time invitation code<input required value={inviteCode} onChange={e=>setInviteCode(e.target.value)} placeholder="Paste invitation code" /></label><button>Activate volunteer access</button></form></details>}
-      {!platformAdmin && (activeOrganizations.length === 0 ? <section className={styles.empty}><h2>{adminCollegeIds.length > 0 ? "Create your first organization" : "No organizer access yet"}</h2><p>{adminCollegeIds.length > 0 ? "Your college administrator access is active. Create an authorized organization below to begin managing events." : "Your account is valid, but it has no active organizer membership. Ask a college administrator to invite you; Sidequest will not grant access from profile metadata."}</p></section> : <div className={styles.columns}>
+      {!platformAdmin && (activeOrganizations.length === 0 ? adminCollegeIds.length === 0 && <section className={styles.empty}><h2>No society organizer access yet</h2><p>Ask your college admin to create an organizer account for your society.</p></section> : <div className={styles.columns}>
         <section className={styles.panel} id="create-event"><div className={styles.panelHead}><p className={styles.eyebrow}>New event</p><h2>Create the first edition</h2></div><form onSubmit={createEvent} className={styles.formGrid}>
-          <label className={styles.full}>Active organization<select required value={draft.organizationId} onChange={(e) => {const organizationId=e.target.value;setDraft({ ...draft, organizationId });const collegeId=activeOrganizations.find((organization)=>organization.id===organizationId)?.college_id;setVenueId(venues.find((venue)=>venue.college_id===collegeId)?.id??"")}}>{activeOrganizations.map((org) => <option value={org.id} key={org.id}>{org.name}</option>)}</select></label>
+          <label className={styles.full}>Your society<select required value={draft.organizationId} onChange={(e) => {const organizationId=e.target.value;setDraft({ ...draft, organizationId });const collegeId=activeOrganizations.find((organization)=>organization.id===organizationId)?.college_id;setVenueId(venues.find((venue)=>venue.college_id===collegeId)?.id??"")}}>{activeOrganizations.map((org) => <option value={org.id} key={org.id}>{org.name}</option>)}</select></label>
           <label className={styles.full}>Event title<input required minLength={3} maxLength={160} value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="Name students will recognize" /></label>
           <label className={styles.full}>Description<textarea required minLength={10} maxLength={10000} rows={4} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder="What will happen, and who is it for?" /></label>
           <label className={styles.full}>Campus venue<select required value={venueId} onChange={(e)=>setVenueId(e.target.value)}><option value="" disabled>{availableEventVenues.length?"Choose a venue":"No venues are configured for this college"}</option>{availableEventVenues.map((venue)=><option value={venue.id} key={venue.id}>{venue.name}</option>)}</select><small>{availableEventVenues.length?"Students will see this venue on their ticket, with a direct route when campus navigation data exists.":"Add a campus and venue in Campus map before creating this event."}</small></label>
@@ -227,10 +231,10 @@ export default function Home() {
         <aside className={styles.side}><section className={styles.panel} id="publishing-desk"><div className={styles.panelHead}><p className={styles.eyebrow}>Your events</p><h2>Publishing desk</h2></div>{events.length === 0 ? <p className={styles.muted}>No events yet. Your first confirmed draft will appear here.</p> : <div className={styles.list}>{events.map((item) => { const summary = registrationsByEvent.get(item.id); return <article key={item.id} className={styles.eventRow}><div><span className={styles.pill}>{item.status?.replace("_", " ")}</span><h3>{item.title}</h3><p>{item.category}</p>{summary && <p>{summary.registered_count}/{summary.capacity} registered · {summary.waitlisted_count} waiting</p>}</div>{item.status === "draft" && <button disabled={busy} onClick={() => void publishEvent(item.id)}>Publish</button>}{publishedIds.has(item.id) && <span className={styles.live}>Live</span>}</article>; })}</div>}</section>
         <section className={styles.panel}><div className={styles.panelHead}><p className={styles.eyebrow}>Student view</p><h2>Live discovery</h2></div>{published.length === 0 ? <p className={styles.muted}>No published events. Students see a useful empty state, never fictional recommendations.</p> : <div className={styles.list}>{published.map((item) => <article key={item.id} className={styles.feedCard}><p>{item.college_name} · {item.category}</p><h3>{item.title}</h3><span>{item.starts_at ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.starts_at)) : "Schedule pending"}</span></article>)}</div>}</section></aside>
       </div>)}
-      {!platformAdmin && events.length > 0 && <section className={styles.operations} id="event-operations"><div className={styles.sectionTitle}><p className={styles.eyebrow}>Live event operations</p><h2>Volunteer and response desk</h2><p>Every action below confirms against the authoritative backend. Realtime is only a refresh signal.</p></div><div className={styles.volunteerGrid}><VolunteerScanner onRecorded={() => user && void loadData(user)} /><OperationsPanel eventIds={managedEventIds} /></div><ManagementPanel events={events} organizations={organizations} onChanged={() => user && void loadData(user)} /></section>}
+      {!platformAdmin && events.length > 0 && <section className={styles.operations} id="event-operations"><div className={styles.sectionTitle}><p className={styles.eyebrow}>Live event operations</p><h2>Volunteer and response desk</h2><p>Every action below confirms against the authoritative backend. Realtime is only a refresh signal.</p></div><div className={styles.volunteerGrid}><VolunteerScanner onRecorded={() => user && void loadData(user)} /><OperationsPanel eventIds={managedEventIds} /></div><ManagementPanel events={events} onChanged={() => user && void loadData(user)} /></section>}
       {!platformAdmin && adminCollegeIds.length > 0 && <section className={styles.operations} id="campus-data"><CampusEditor collegeIds={adminCollegeIds} /></section>}
-      {platformAdmin && <section className={styles.operations}><ProfileProvisioningPanel platformAdmin colleges={colleges} organizations={organizations.map(({ id, name, college_id, is_active }) => ({ id, name, college_id, is_active: is_active !== false }))} onChanged={async () => { if (user) await loadData(user); }} /></section>}
-      {!platformAdmin && adminCollegeIds.length > 0 && <section className={styles.operations}><ProfileProvisioningPanel platformAdmin={false} collegeId={adminCollegeIds[0]} colleges={colleges} organizations={organizations.map(({ id, name, college_id, is_active }) => ({ id, name, college_id, is_active: is_active !== false }))} onChanged={async () => { if (user) await loadData(user); }} /></section>}
+      {platformAdmin && <section className={styles.operations}><ProfileProvisioningPanel platformAdmin colleges={colleges} organizations={organizations.map(({ id, name, college_id, is_active, head_user_id }) => ({ id, name, college_id, is_active: is_active !== false, head_user_id }))} onChanged={async () => { if (user) await loadData(user); }} /></section>}
+      {!platformAdmin && adminCollegeIds.length > 0 && <section className={styles.operations}><ProfileProvisioningPanel platformAdmin={false} collegeId={adminCollegeIds[0]} colleges={colleges} organizations={organizations.map(({ id, name, college_id, is_active, head_user_id }) => ({ id, name, college_id, is_active: is_active !== false, head_user_id }))} onChanged={async () => { if (user) await loadData(user); }} /></section>}
     </main>
   </div>;
 }
