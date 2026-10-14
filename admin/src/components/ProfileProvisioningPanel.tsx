@@ -20,7 +20,7 @@ export function ProfileProvisioningPanel({
   organizations: Organization[];
   onChanged(): void | Promise<void>;
 }) {
-  const [selectedCollegeId, setSelectedCollegeId] = useState(collegeId ?? colleges[0]?.id ?? "");
+  const [selectedCollegeId, setSelectedCollegeId] = useState(collegeId ?? "");
   const [creatingCollege, setCreatingCollege] = useState(false);
   const [newCollegeName, setNewCollegeName] = useState("");
   const [newCollegeSlug, setNewCollegeSlug] = useState("");
@@ -50,10 +50,10 @@ export function ProfileProvisioningPanel({
     setHeadUserId(current => accounts.some(account => account.user_id === current) ? current : accounts[0]?.user_id ?? "");
   }, []);
   useEffect(() => {
-    if (selectedCollegeId || !colleges[0]) return;
-    const timer = window.setTimeout(() => setSelectedCollegeId(collegeId ?? colleges[0].id), 0);
+    if (platformAdmin || selectedCollegeId || !collegeId) return;
+    const timer = window.setTimeout(() => setSelectedCollegeId(collegeId), 0);
     return () => window.clearTimeout(timer);
-  }, [collegeId, colleges, selectedCollegeId]);
+  }, [collegeId, platformAdmin, selectedCollegeId]);
   useEffect(() => {
     if (!selectedCollegeId) return;
     const timer = window.setTimeout(() => { void loadOrganizerAccounts(selectedCollegeId); }, 0);
@@ -143,12 +143,18 @@ export function ProfileProvisioningPanel({
     <p className="helper">{platformAdmin
       ? "Create colleges, societies, and college accounts, then assign an existing organizer ID as each society's head."
       : "Create student and organizer IDs for your college, create societies, then assign an organizer ID as society head."}</p>
-    <label className="field">College
-      <select required value={selectedCollegeId} disabled={!platformAdmin} onChange={event => { setSelectedCollegeId(event.target.value); setHeadSocietyId(""); setHeadUserId(""); }}>
+    <label className="field">{platformAdmin ? "Select a college" : "College"}
+      <select value={creatingCollege ? "__create__" : selectedCollegeId} disabled={!platformAdmin} onChange={event => {
+        const value = event.target.value;
+        setCreatingCollege(value === "__create__");
+        setSelectedCollegeId(value === "__create__" ? "" : value);
+        setHeadSocietyId(""); setHeadUserId("");
+      }}>
+        {platformAdmin && <option value="">Select college</option>}
         {colleges.map((college) => <option key={college.id} value={college.id}>{college.name}</option>)}
+        {platformAdmin && <option value="__create__">+ Create new college</option>}
       </select>
     </label>
-    {platformAdmin && <button type="button" className="secondary" onClick={() => setCreatingCollege((value) => !value)}>{creatingCollege ? "Cancel new college" : "Create a college"}</button>}
     {creatingCollege && <form className="ops-form" onSubmit={createCollege}>
       <h3>New college</h3>
       <label className="field">College name<input required minLength={2} maxLength={160} value={newCollegeName} onChange={event => { const value = event.target.value; setNewCollegeName(value); setNewCollegeSlug(value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")); }} placeholder="College name" /></label>
@@ -156,6 +162,8 @@ export function ProfileProvisioningPanel({
       <label className="field">Timezone<input required value={newCollegeTimezone} onChange={event => setNewCollegeTimezone(event.target.value)} placeholder="Asia/Kolkata" /></label>
       <button disabled={busy}>{busy ? "Creating…" : "Create college and continue"}</button>
     </form>}
+    {platformAdmin && !selectedCollegeId && !creatingCollege && <p className="helper">Choose an existing college above, or select “Create new college” to add one.</p>}
+    {selectedCollegeId && !creatingCollege && <>
     <h3>Active societies</h3>
     {activeOrganizations.length === 0 ? <p className="helper">No active societies for {collegeName} yet. Create one below before assigning a head.</p> : <div className="management-grid">{activeOrganizations.map((organization) => <article className="ops-form" key={organization.id}><strong>{organization.name}</strong><span>{collegeName}</span><span className="status-dot">{organization.head_user_id ? `Head: ${organizerAccounts.find(account => account.user_id === organization.head_user_id)?.full_name ?? "Assigned"}` : "Head not assigned"}</span></article>)}</div>}
     {inactiveOrganizations.filter((organization) => organization.college_id === selectedCollegeId).length > 0 && <details><summary>Inactive societies</summary><ul>{inactiveOrganizations.filter((organization) => organization.college_id === selectedCollegeId).map((organization) => <li key={organization.id}>{organization.name} · Paused</li>)}</ul></details>}
@@ -183,6 +191,7 @@ export function ProfileProvisioningPanel({
         <button disabled={busy || !selectedOrganizations.length || !organizerAccounts.length}>{busy ? "Assigning…" : "Assign head"}</button>
       </form>
     </div>
+    </>}
     {message && <p role="status" className="success-text">{message}</p>}
     {error && <p role="alert" className="error-text">{error}</p>}
   </section>;
