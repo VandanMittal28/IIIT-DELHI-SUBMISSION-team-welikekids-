@@ -113,7 +113,7 @@ struct CameraGuidanceView: View {
     }
 }
 
-struct SimulatedCameraSurface: View {
+private struct SimulatedCameraSurface: View {
     let step: RouteCameraStep
     @State private var pulse = false
 
@@ -338,7 +338,7 @@ struct CameraSimulationView: View {
     func stop() { if session.isRunning { session.stopRunning() }; isReady = false }
 }
 
-struct CameraPreviewLayer: UIViewRepresentable {
+private struct CameraPreviewLayer: UIViewRepresentable {
     let session: AVCaptureSession
     func makeUIView(context: Context) -> CameraPreviewHost {
         let view = CameraPreviewHost()
@@ -376,7 +376,7 @@ private final class CameraPreviewHost: UIView {
     }
 }
 
-struct SimulatedArrowOverlay: View {
+private struct SimulatedArrowOverlay: View {
     var body: some View {
         VStack {
             Spacer()
@@ -391,7 +391,7 @@ struct SimulatedArrowOverlay: View {
     }
 }
 
-struct AnchoredARPreview: UIViewRepresentable {
+private struct AnchoredARPreview: UIViewRepresentable {
     let bearingDegrees: Double
     let stepID: UUID
     @Binding var trackingMessage:String
