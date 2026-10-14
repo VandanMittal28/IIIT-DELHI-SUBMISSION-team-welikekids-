@@ -29,7 +29,7 @@ export function OperationsPanel({ eventIds }: { eventIds: string[] }) {
     <p className="helper">Pass scanning and reports are limited to events this organizer manages. Every report status change is saved by the backend.</p>
     <div className="metric"><strong>{eventIds.length}</strong><span>managed event{eventIds.length === 1 ? "" : "s"}</span></div>
     <h3>Student reports</h3>
-    {reports.length === 0 ? <p className="helper">No reports for your events.</p> : reports.map(report => <div className="report-row" key={report.id}><div><strong>{report.category}</strong><p>{report.description}</p><small>{report.priority} · {report.status.replaceAll("_", " ")} · {new Date(report.created_at).toLocaleString("en-IN")}</small></div>{report.status === "submitted" && <button onClick={() => void acknowledge(report)}>Acknowledge</button>}</div>)}
+    {reports.length === 0 ? <p className="helper">No reports for your events.</p> : reports.map(report => <div className="report-row" key={report.id}><div><strong>{report.category}</strong><p>{report.description}</p><small><span className="cap">{report.priority} · {report.status.replaceAll("_", " ")}</span> · {new Date(report.created_at).toLocaleString("en-IN")}</small></div>{report.status === "submitted" && <button onClick={() => void acknowledge(report)}>Acknowledge</button>}</div>)}
     {message && <p role="status" className={message.includes("saved") ? "success-text" : "error-text"}>{message}</p>}
   </section>;
 }

@@ -117,7 +117,7 @@ export function ProfileProvisioningPanel({
         {colleges.map((college) => <option key={college.id} value={college.id}>{college.name}</option>)}
       </select>
     </label>
-    {platformAdmin && <button type="button" className="secondary" onClick={() => setCreatingCollege((value) => !value)}>{creatingCollege ? "Cancel new college" : "Create a college"}</button>}
+    {platformAdmin && <button type="button" className="secondary toggle-college" onClick={() => setCreatingCollege((value) => !value)}>{creatingCollege ? "Cancel new college" : "Create a college"}</button>}
     {creatingCollege && <form className="ops-form" onSubmit={createCollege}>
       <h3>New college</h3>
       <label className="field">College name<input required minLength={2} maxLength={160} value={newCollegeName} onChange={event => { const value = event.target.value; setNewCollegeName(value); setNewCollegeSlug(value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")); }} placeholder="College name" /></label>
@@ -126,8 +126,8 @@ export function ProfileProvisioningPanel({
       <button disabled={busy}>{busy ? "Creating…" : "Create college and continue"}</button>
     </form>}
     <h3>Active organizations</h3>
-    {activeOrganizations.length === 0 ? <p className="helper">No active organizations for {collegeName} yet. Create one below before adding an organizer.</p> : <div className="management-grid">{activeOrganizations.map((organization) => <article className="ops-form" key={organization.id}><strong>{organization.name}</strong><span>{collegeName}</span><span className="status-dot">Active</span></article>)}</div>}
-    {inactiveOrganizations.filter((organization) => organization.college_id === selectedCollegeId).length > 0 && <details><summary>Inactive organizations</summary><ul>{inactiveOrganizations.filter((organization) => organization.college_id === selectedCollegeId).map((organization) => <li key={organization.id}>{organization.name} · Paused</li>)}</ul></details>}
+    {activeOrganizations.length === 0 ? <p className="helper">No active organizations for {collegeName} yet. Create one below before adding an organizer.</p> : <div className="management-grid">{activeOrganizations.map((organization) => <article className="ops-form org-card" key={organization.id}><strong>{organization.name}</strong><span>{collegeName}</span><span className="status-dot">Active</span></article>)}</div>}
+    {inactiveOrganizations.filter((organization) => organization.college_id === selectedCollegeId).length > 0 && <details className="disclosure"><summary>Inactive organizations</summary><ul>{inactiveOrganizations.filter((organization) => organization.college_id === selectedCollegeId).map((organization) => <li key={organization.id}>{organization.name} · Paused</li>)}</ul></details>}
     <div className="management-grid">
       <form className="ops-form" onSubmit={createOrganization}>
         <h3>Create organization for {collegeName}</h3>
