@@ -68,6 +68,7 @@ final class AppModel {
     private(set) var savedEventIds: Set<UUID> = []
 
     let configuration: BackendConfiguration
+    let chat: ChatModel
     private let client: SupabaseClient?
     private let pageSize = 20
     private var page = 0
@@ -81,6 +82,7 @@ final class AppModel {
         } else {
             client = nil
         }
+        chat = ChatModel(client: client)
     }
 
     func restoreSession() async {
@@ -132,6 +134,7 @@ final class AppModel {
         profile = nil
         attendanceHistory=[]
         submittedReviews=[]
+        await chat.reset()
         meetups = []
         meetupState = .idle
         meetupActionStates = [:]
@@ -537,6 +540,7 @@ final class AppModel {
         let channel = client.channel("sidequest-authoritative-refresh")
         let communityChanges = ["announcements", "messages", "reports", "notifications"].map { channel.postgresChange(AnyAction.self, schema: "public", table: $0) }
         let journeyChanges = ["registrations", "attendance_transitions", "event_sessions"].map { channel.postgresChange(AnyAction.self, schema: "public", table: $0) }
+        let chatChanges = channel.postgresChange(InsertAction.self, schema: "public", table: "messages")
         let routeChanges = channel.postgresChange(AnyAction.self, schema: "public", table: "route_closures")
         let venueChanges = channel.postgresChange(AnyAction.self, schema: "public", table: "event_sessions")
         do {
@@ -544,6 +548,8 @@ final class AppModel {
             liveChannel = channel
             for stream in communityChanges { liveUpdateTasks.append(Task { for await _ in stream { await self.reloadCommunity() } }) }
             for stream in journeyChanges { liveUpdateTasks.append(Task { for await _ in stream { await self.reloadJourney() } }) }
+            // Unread badges: RLS limits these events to rooms the student can read.
+            liveUpdateTasks.append(Task { for await _ in chatChanges { self.chat.scheduleRoomsRefresh() } })
             liveUpdateTasks.append(Task { for await _ in routeChanges { self.clearRoute(); await self.reloadLandmarks() } })
             liveUpdateTasks.append(Task { for await _ in venueChanges { self.clearRoute(); await self.reloadEvents(); await self.refreshLoadedEventDetails() } })
         } catch {
@@ -774,7 +780,7 @@ struct BackendConfiguration: Equatable {
 }
 
 enum SidequestError: LocalizedError {
-    case notConfigured, authenticationRequired, attachmentTooLarge, meetupsUnavailable, meetupDetailsIncomplete
+    case notConfigured, authenticationRequired, attachmentTooLarge, meetupsUnavailable, meetupDetailsIncomplete, chatUnavailable
     var errorDescription: String? {
         switch self {
         case .notConfigured:
@@ -787,6 +793,8 @@ enum SidequestError: LocalizedError {
             "Open Meetups isn’t available on this server yet. They’ll appear here once the database update is applied."
         case .meetupDetailsIncomplete:
             "Choose your college and a venue before publishing."
+        case .chatUnavailable:
+            "Chat rooms aren’t available on this server yet. They’ll appear once the database update is applied."
         }
     }
 }
