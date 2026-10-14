@@ -9,6 +9,7 @@ export type EventRecord = {
   status?: "draft" | "pending_approval" | "published" | "cancelled";
   organization_id: string;
   college_id?: string;
+  cover_image_path?: string | null;
   organization_name?: string;
   college_name?: string;
   starts_at?: string;

@@ -42,6 +42,8 @@
 .eventRow { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .eventRow h3, .feedCard h3 { margin: 7px 0 3px; letter-spacing: -.02em; }
 .eventRow p, .feedCard p, .feedCard span, .muted { color: #748078; font-size: 13px; line-height: 1.5; }
+.posterUpdate { display: grid; gap: 5px; margin-top: 10px; color: #526057; font-size: 12px; font-weight: 750; }
+.posterUpdate input { max-width: 100%; font-size: 12px; }
 .pill { display: inline-block; background: #edf0e9; color: #58645b; border-radius: 20px; padding: 4px 8px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
 .live { color: #297a4b; font-weight: 800; font-size: 12px; }
 .alert, .notice { border-radius: 14px; padding: 14px 16px; margin-bottom: 18px; font-size: 14px; }

@@ -16,6 +16,7 @@ enum StudentSignUpOutcome: Equatable {
 final class AppModel {
     private(set) var events: [EventFeedItem] = []
     private(set) var eventImageURLs: [UUID: URL] = [:]
+    private var eventImagePaths: [UUID: String] = [:]
     private(set) var eventState: LoadState = .idle
     private(set) var isAuthenticated = false
     private(set) var canLoadMore = false
@@ -197,12 +198,16 @@ final class AppModel {
 
     private func loadEventImages(for events: [EventFeedItem]) async {
         guard let client else { return }
-        var urls = eventImageURLs.filter { event in events.contains { $0.id == event.key } }
+        let paths = Dictionary(uniqueKeysWithValues: events.compactMap { event in
+            event.coverImagePath.map { (event.id, $0) }
+        })
+        var urls = eventImageURLs.filter { event in paths[event.key] == eventImagePaths[event.key] }
         for event in events where urls[event.id] == nil {
             guard let path = event.coverImagePath else { continue }
             urls[event.id] = try? await client.storage.from("event-media").createSignedURL(path: path, expiresIn: 3600)
         }
         eventImageURLs = urls
+        eventImagePaths = paths
     }
 
     func loadEventDetails(for event:EventFeedItem) async throws {

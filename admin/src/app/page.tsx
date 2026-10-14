@@ -30,6 +30,12 @@ function authEmail(identifier: string) {
   return normalized.includes("@") ? normalized : `${normalized.replace(/\s+/g, "")}@sidequest.local`;
 }
 
+function posterProblem(file: File) {
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) return "Choose a JPG, PNG, or WebP poster.";
+  if (file.size > 10 * 1024 * 1024) return "Poster must be 10 MB or smaller.";
+  return null;
+}
+
 export default function Home() {
   const configured = backendConfiguration().isConfigured;
   const [user, setUser] = useState<User | null>(null);
@@ -47,6 +53,8 @@ export default function Home() {
   const [venues, setVenues] = useState<{id:string;name:string;college_id:string}[]>([]);
   const [venueId, setVenueId] = useState("");
   const [draft, setDraft] = useState<EventDraft>(emptyDraft);
+  const [posterFile, setPosterFile] = useState<File | null>(null);
+  const [posterInputKey, setPosterInputKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -108,7 +116,7 @@ export default function Home() {
     setVenues(availableVenues);
     setVenueId((current)=>availableVenues.some((venue)=>venue.id===current)?current:availableVenues.find((venue)=>venue.college_id===activeOrgs[0]?.college_id)?.id??"");
     const [eventsResult, feedResult, registrationResult] = await Promise.all([
-      activeOrgs.length ? supabase.from("events").select("id,title,description,category,eligibility,price_minor,status,organization_id,college_id").in("organization_id", activeOrgs.map(org => org.id)).order("created_at", { ascending: false }) : Promise.resolve({data: [], error: null}),
+      activeOrgs.length ? supabase.from("events").select("id,title,description,category,eligibility,price_minor,status,organization_id,college_id,cover_image_path").in("organization_id", activeOrgs.map(org => org.id)).order("created_at", { ascending: false }) : Promise.resolve({data: [], error: null}),
       activeOrgs.length ? supabase.from("published_event_feed").select("*").in("organization_id", activeOrgs.map(org => org.id)).order("starts_at", { ascending: true }).limit(8) : Promise.resolve({data: [], error: null}),
       supabase.from("edition_registration_summary").select("edition_id,event_id,capacity,registered_count,waitlisted_count,cancelled_count"),
     ]);
@@ -149,6 +157,32 @@ export default function Home() {
     setBusy(false);
   }
 
+  async function uploadEventPoster(eventId: string, collegeId: string, file: File) {
+    const problem = posterProblem(file);
+    if (problem) throw new Error(problem);
+    const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+    const path = `${collegeId}/${eventId}/poster-${crypto.randomUUID()}.${extension}`;
+    const supabase = getSupabase();
+    const { error: uploadError } = await supabase.storage.from("event-media").upload(path, file, { contentType: file.type, upsert: false });
+    if (uploadError) throw uploadError;
+    const { data, error: saveError } = await supabase.rpc("set_event_cover_image", { p_event_id: eventId, p_path: path });
+    if (saveError || data?.persisted !== true) {
+      await supabase.storage.from("event-media").remove([path]);
+      throw saveError ?? new Error("The poster was uploaded but could not be linked to the event.");
+    }
+  }
+
+  async function changeEventPoster(item: EventRecord, file: File) {
+    if (!item.college_id) { setError("This event has no college. Its poster cannot be saved."); return; }
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      await uploadEventPoster(item.id, item.college_id, file);
+      setNotice(`Poster saved for ${item.title}. Students will see it above the event details after publication.`);
+      if (user) await loadData(user);
+    } catch (reason) { setError(messageFrom(reason)); }
+    finally { setBusy(false); }
+  }
+
   async function createEvent(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError(null); setNotice(null);
     const opens = new Date(draft.registrationOpensAt);
@@ -162,6 +196,10 @@ export default function Home() {
       setError("Check the schedule: registration must open before it closes, and the event must end after it starts."); setBusy(false); return;
     }
     if (!draft.organizationId) { setError("Choose a society you organize first."); setBusy(false); return; }
+    if (posterFile) {
+      const problem = posterProblem(posterFile);
+      if (problem) { setError(problem); setBusy(false); return; }
+    }
     const selectedOrganization=activeOrganizations.find((organization)=>organization.id===draft.organizationId);
     if (!selectedOrganization) { setError("You need organizer access for this society."); setBusy(false); return; }
     const selectedVenue=venues.find((venue)=>venue.id===venueId&&venue.college_id===selectedOrganization?.college_id);
@@ -178,10 +216,24 @@ export default function Home() {
       p_venue_id: selectedVenue.id,
     });
     if (createError) setError(messageFrom(createError));
+    else if (!data?.event_id) setError("The backend did not return an event ID. Check the event list before retrying.");
     else {
-      setNotice(`Draft confirmed by the backend. Event ${String(data.event_id).slice(0, 8)}…`);
+      const eventId = String(data.event_id);
+      let posterFailure: string | null = null;
+      if (posterFile) {
+        try {
+          await uploadEventPoster(eventId, selectedOrganization.college_id, posterFile);
+          setNotice("Event draft and poster saved. The poster will appear above its details when the event is published.");
+        } catch (reason) {
+          posterFailure = `Event draft was created, but the poster was not saved: ${messageFrom(reason)}. Add it from the Publishing desk below.`;
+          setNotice("Event draft created. Poster still needs to be added.");
+        }
+      } else setNotice(`Draft confirmed by the backend. Event ${eventId.slice(0, 8)}…`);
       setDraft({ ...emptyDraft, organizationId: draft.organizationId });
+      setPosterFile(null);
+      setPosterInputKey((current) => current + 1);
       if (user) await loadData(user);
+      if (posterFailure) setError(posterFailure);
     }
     setBusy(false);
   }
@@ -215,6 +267,7 @@ export default function Home() {
           <label className={styles.full}>Your society<select required value={draft.organizationId} onChange={(e) => {const organizationId=e.target.value;setDraft({ ...draft, organizationId });const collegeId=activeOrganizations.find((organization)=>organization.id===organizationId)?.college_id;setVenueId(venues.find((venue)=>venue.college_id===collegeId)?.id??"")}}>{activeOrganizations.map((org) => <option value={org.id} key={org.id}>{org.name}</option>)}</select></label>
           <label className={styles.full}>Event title<input required minLength={3} maxLength={160} value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="Name students will recognize" /></label>
           <label className={styles.full}>Description<textarea required minLength={10} maxLength={10000} rows={4} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder="What will happen, and who is it for?" /></label>
+          <label className={styles.full}>Event poster (optional)<input key={posterInputKey} type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setPosterFile(e.target.files?.[0] ?? null)} /><small>JPG, PNG, or WebP, up to 10 MB. This appears as the hero image at the top of the event page in the student app.</small></label>
           <label className={styles.full}>Campus venue<select required value={venueId} onChange={(e)=>setVenueId(e.target.value)}><option value="" disabled>{availableEventVenues.length?"Choose a venue":"No venues are configured for this college"}</option>{availableEventVenues.map((venue)=><option value={venue.id} key={venue.id}>{venue.name}</option>)}</select><small>{availableEventVenues.length?"Students will see this venue on their ticket, with a direct route when campus navigation data exists.":"Add a campus and venue in Campus map before creating this event."}</small></label>
           <label>Category<input required value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} placeholder="Workshop" /></label>
           <label>Visibility<select value={draft.visibility} onChange={(e) => setDraft({ ...draft, visibility: e.target.value as EventDraft["visibility"] })}><option value="public">Public</option><option value="college_only">College only</option><option value="organization_only">Organization only</option></select></label>
@@ -228,7 +281,7 @@ export default function Home() {
           <label className={`${styles.full} ${styles.check}`}><input type="checkbox" checked={draft.waitlistEnabled} onChange={(e) => setDraft({ ...draft, waitlistEnabled: e.target.checked })} /> Enable waitlist when capacity is reached</label>
           <button className={styles.full} disabled={busy||availableEventVenues.length===0}>{busy ? "Saving…" : "Create event draft"}</button>
         </form></section>
-        <aside className={styles.side}><section className={styles.panel} id="publishing-desk"><div className={styles.panelHead}><p className={styles.eyebrow}>Your events</p><h2>Publishing desk</h2></div>{events.length === 0 ? <p className={styles.muted}>No events yet. Your first confirmed draft will appear here.</p> : <div className={styles.list}>{events.map((item) => { const summary = registrationsByEvent.get(item.id); return <article key={item.id} className={styles.eventRow}><div><span className={styles.pill}>{item.status?.replace("_", " ")}</span><h3>{item.title}</h3><p>{item.category}</p>{summary && <p>{summary.registered_count}/{summary.capacity} registered · {summary.waitlisted_count} waiting</p>}</div>{item.status === "draft" && <button disabled={busy} onClick={() => void publishEvent(item.id)}>Publish</button>}{publishedIds.has(item.id) && <span className={styles.live}>Live</span>}</article>; })}</div>}</section>
+        <aside className={styles.side}><section className={styles.panel} id="publishing-desk"><div className={styles.panelHead}><p className={styles.eyebrow}>Your events</p><h2>Publishing desk</h2></div>{events.length === 0 ? <p className={styles.muted}>No events yet. Your first confirmed draft will appear here.</p> : <div className={styles.list}>{events.map((item) => { const summary = registrationsByEvent.get(item.id); return <article key={item.id} className={styles.eventRow}><div><span className={styles.pill}>{item.status?.replace("_", " ")}</span><h3>{item.title}</h3><p>{item.category}</p>{summary && <p>{summary.registered_count}/{summary.capacity} registered · {summary.waitlisted_count} waiting</p>}<label className={styles.posterUpdate}>{item.cover_image_path ? "Change poster" : "Add poster"}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={(e) => { const file=e.target.files?.[0]; if(file) void changeEventPoster(item,file); e.target.value=""; }} /></label></div>{item.status === "draft" && <button disabled={busy} onClick={() => void publishEvent(item.id)}>Publish</button>}{publishedIds.has(item.id) && <span className={styles.live}>Live</span>}</article>; })}</div>}</section>
         <section className={styles.panel}><div className={styles.panelHead}><p className={styles.eyebrow}>Student view</p><h2>Live discovery</h2></div>{published.length === 0 ? <p className={styles.muted}>No published events. Students see a useful empty state, never fictional recommendations.</p> : <div className={styles.list}>{published.map((item) => <article key={item.id} className={styles.feedCard}><p>{item.college_name} · {item.category}</p><h3>{item.title}</h3><span>{item.starts_at ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.starts_at)) : "Schedule pending"}</span></article>)}</div>}</section></aside>
       </div>)}
       {!platformAdmin && events.length > 0 && <section className={styles.operations} id="event-operations"><div className={styles.sectionTitle}><p className={styles.eyebrow}>Live event operations</p><h2>Volunteer and response desk</h2><p>Every action below confirms against the authoritative backend. Realtime is only a refresh signal.</p></div><div className={styles.volunteerGrid}><VolunteerScanner onRecorded={() => user && void loadData(user)} /><OperationsPanel eventIds={managedEventIds} /></div><ManagementPanel events={events} onChanged={() => user && void loadData(user)} /></section>}
