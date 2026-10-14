@@ -46,9 +46,13 @@ struct CommunityView: View {
                                     VStack(alignment: .leading) { Text(item.title).font(.headline); Text(item.body); Text(item.createdAt.formatted()).font(.caption).foregroundStyle(.secondary) }
                                 }
                             }
-                            Section("Event rooms") {
-                                if model.channels.isEmpty { Text("Register for an event to join its attendee chat room.").foregroundStyle(.secondary) }
-                                ForEach(model.channels) { channel in NavigationLink(channel.title) { ChannelView(channel:channel) } }
+                            // Same rooms, history, and composer as the Discover chat list (one ChatModel).
+                            Section("Chat rooms") {
+                                if model.chat.rooms.isEmpty {
+                                    if case .failed(let message) = model.chat.roomsState { Text(message).foregroundStyle(.secondary) }
+                                    else { Text("Chat opens once your college confirms your membership. Register for an event to join its room.").foregroundStyle(.secondary) }
+                                }
+                                ForEach(model.chat.rooms) { room in NavigationLink { ChatRoomView(room: room) } label: { ChatRoomRow(room: room) } }
                             }
                         case .discussions:
                             Section {
@@ -76,8 +80,8 @@ struct CommunityView: View {
             }
             .navigationTitle("Community")
             .toolbar { if model.isAuthenticated && section == .discussions { ToolbarItem(placement:.topBarTrailing){Button { creatingThread=true } label:{Image(systemName:"square.and.pencil").accessibilityLabel("Start a discussion")}} } }
-            .task { if model.isAuthenticated { await model.reloadCommunity() } }
-            .refreshable { await model.reloadCommunity() }
+            .task { if model.isAuthenticated { await model.reloadCommunity(); await model.chat.reloadRooms() } }
+            .refreshable { await model.reloadCommunity(); await model.chat.reloadRooms() }
             .sheet(isPresented:$creatingThread) { NewDiscussionThreadView() }
         }
     }
@@ -108,58 +112,6 @@ private struct OrganizationProfileView:View {
     @Environment(AppModel.self) private var model
     let organization:OrganizationProfile;let collegeName:String?
     var body:some View { List { Section("Organization"){LabeledContent("Name",value:organization.name);if let collegeName{LabeledContent("College",value:collegeName)};if let description=organization.description{Text(description)}};Section{Button(model.followedOrganizationIds.contains(organization.id) ? "Unfollow organization":"Follow organization"){Task{try? await model.toggleOrganizationFollow(organization.id)}}} }.navigationTitle(organization.name) }
-}
-
-struct ChannelView: View {
-    @Environment(AppModel.self) private var model
-    let channel:CommunityChannel
-    @State private var draft=""
-    @State private var error:String?
-    @State private var reporting:CommunityMessage?
-    var body: some View { List {
-        ForEach(model.communityMessages.filter{$0.channelId==channel.id}.reversed()) { message in
-            HStack(alignment:.top) {
-                VStack(alignment:.leading,spacing:4) { Text(message.body);Text(message.createdAt.formatted(date:.abbreviated,time:.shortened)).font(.caption2).foregroundStyle(.secondary) }
-                Spacer()
-                Menu { Button("Report message",systemImage:"flag"){reporting=message} } label:{Image(systemName:"ellipsis.circle").foregroundStyle(.secondary)}
-            }
-        }
-        Section { TextField("Message",text:$draft,axis:.vertical);Button("Post") { Task { do { try await model.postMessage(channelId:channel.id,body:draft);draft="" } catch { self.error=error.localizedDescription } } }.disabled(draft.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty);if let error{Text(error).foregroundStyle(.red)} }
-    }.navigationTitle(channel.title).navigationBarTitleDisplayMode(.inline).sheet(item:$reporting){MessageReportForm(message:$0)} }
-}
-
-struct EventChatSheet:View {
-    @Environment(AppModel.self) private var model
-    let eventId:UUID
-    var body:some View {
-        NavigationStack { Group {
-            if let channel=model.channels.first(where:{$0.eventId==eventId}) { ChannelView(channel:channel) }
-            else if case .failed(let message)=model.communityState { ContentUnavailableView("Couldn’t load event chat",systemImage:"wifi.exclamationmark",description:Text(message)) }
-            else { ProgressView("Opening your event room…") }
-        }.task{await model.reloadCommunity()} }
-    }
-}
-
-private struct MessageReportForm:View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
-    let message:CommunityMessage
-    @State private var reason=""
-    @State private var error:String?
-    @State private var busy=false
-    var body:some View {
-        NavigationStack {
-            Form {
-                Section("Reported message") { Text(message.body).foregroundStyle(.secondary) }
-                Section("Reason") { TextField("Why should moderators review this?",text:$reason,axis:.vertical).lineLimit(3...8) }
-                if let error { Text(error).foregroundStyle(.red) }
-                Button(busy ? "Submitting…":"Submit report") { busy=true;Task{do{try await model.reportMessage(messageId:message.id,description:reason);dismiss()}catch{self.error=error.localizedDescription;busy=false}} }
-                    .disabled(busy||reason.trimmingCharacters(in:.whitespacesAndNewlines).count<5)
-            }
-            .navigationTitle("Report message")
-            .toolbar { ToolbarItem(placement:.cancellationAction){Button("Cancel"){dismiss()}} }
-        }
-    }
 }
 
 struct ReportForm: View {

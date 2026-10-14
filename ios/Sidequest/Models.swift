@@ -278,15 +278,6 @@ struct Announcement: Decodable, Identifiable, Equatable {
     enum CodingKeys: String, CodingKey { case id, title, body, kind; case editionId = "edition_id", createdAt = "created_at" }
 }
 
-struct CommunityMessage: Decodable, Identifiable, Equatable {
-    let id: UUID
-    let channelId: UUID
-    let body: String
-    let status: String
-    let createdAt: Date
-    enum CodingKeys: String, CodingKey { case id, body, status; case channelId = "channel_id", createdAt = "created_at" }
-}
-
 struct EventReport: Decodable, Identifiable, Equatable {
     let id: UUID
     let editionId: UUID
@@ -314,7 +305,8 @@ struct StudentProfile: Decodable, Equatable {
     let fullName: String?
     let interests: [String]
     let notificationPreferences: [String: Bool]
-    enum CodingKeys:String,CodingKey { case id, interests; case collegeId="college_id", fullName="full_name", notificationPreferences="notification_preferences" }
+    let avatarPath: String?
+    enum CodingKeys:String,CodingKey { case id, interests; case collegeId="college_id", fullName="full_name", notificationPreferences="notification_preferences", avatarPath="avatar_path" }
 }
 
 struct CollegeOption: Decodable, Identifiable, Equatable { let id:UUID; let name:String }
@@ -326,11 +318,6 @@ struct CollegeProfile:Decodable,Identifiable,Equatable {
 struct OrganizationProfile: Decodable, Identifiable, Equatable {
     let id:UUID; let name:String; let description:String?; let collegeId:UUID
     enum CodingKeys:String,CodingKey { case id,name,description; case collegeId="college_id" }
-}
-
-struct CommunityChannel: Decodable, Identifiable, Equatable {
-    let id:UUID; let editionId:UUID; let eventId:UUID; let title:String; let organizationId:UUID; let organizationName:String; let startsAt:Date
-    enum CodingKeys:String,CodingKey { case id,title; case editionId="edition_id",eventId="event_id",organizationId="organization_id",organizationName="organization_name",startsAt="starts_at" }
 }
 
 struct OpenMeetup: Decodable, Identifiable, Equatable, Hashable {

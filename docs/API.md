@@ -118,7 +118,12 @@ Chat extends the event `channels`/`messages` model. `channels.kind` is `event` (
 - Moderation (`private.can_moderate_channel`, `moderate_message`): event staff for event rooms, college administrators for their lounge, platform administrators for topic rooms. `submit_message_report` works in every room; lounge/topic reports have no edition and are readable by that room's moderators.
 - Clients use Realtime `postgres_changes` on `messages` filtered by `channel_id` as an invalidation signal, then fetch by `seq`; durable rows stay authoritative.
 
-`supabase/tests/chatrooms_integration.sql` covers room access per kind, sender identity, validation, idempotency, rate limiting, pagination, unread counts, moderation, reporting, unchanged event rooms, and the forum membership fix (forum visibility now follows active college memberships).
+- Profile pictures reuse `profiles.avatar_path`. Files live in the private `profile-avatars` bucket under `<user id>/<uuid>.jpg`; students write only their own folder and set the path with `set_profile_avatar(p_path)` (null clears it; returns `previous_path`). A picture is readable by its owner and by students who share a room with them. `get_channel_messages` returns it as `author_avatar_path`; clients sign it with Storage.
+- Mentions: `send_channel_message(..., p_mentions uuid[])` accepts up to 10 student ids (`TOO_MANY_MENTIONS`); each must be an active student who can access the room (`MENTION_UNAVAILABLE`). The body stays plain text; `message_mentions` stores the id and the `@Name` as written, dropping ids whose tag is no longer in the body. `get_channel_messages` returns `mentions` (`[{user_id, display_name}]`, in body order). Each tagged student gets a `mention` inbox notification through `enqueue_notification`.
+- `search_chat_mention_candidates(p_channel_id, p_query, p_limit)` — students the caller may tag in that room, matched by name only (login usernames are never searched or returned). An empty query lists recent senders only.
+- The Community tab and the Discover chat list open the same `ChatRoomView`, so both entry points share one history and composer.
+
+`supabase/tests/chatrooms_integration.sql` covers room access per kind, sender identity, validation, idempotency, rate limiting, pagination, unread counts, moderation, reporting, unchanged event rooms, and the forum membership fix (forum visibility now follows active college memberships). `supabase/tests/chat_avatars_mentions_integration.sql` covers picture storage access, mention validation, persistence and notifications, candidate-search scoping, and that the Community entry and the chat list open the same event room.
 
 ## Management
 

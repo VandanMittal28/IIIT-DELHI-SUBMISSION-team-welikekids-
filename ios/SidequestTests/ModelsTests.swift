@@ -192,4 +192,57 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(messages.first?.seq, 42)
         XCTAssertTrue(messages.first?.isMine == true)
     }
+
+    func testChatMessageDecodesPictureAndMentionsAndStaysCompatible() throws {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let row = #"{"id":"00000000-0000-0000-0000-000000000091","seq":7,"channel_id":"00000000-0000-0000-0000-000000000080","author_id":"00000000-0000-0000-0000-000000000082","author_name":"Asha Rao","author_college":null,"body":"Hi @Bilal Khan and @Esha","created_at":"2026-10-15T10:00:00Z","is_mine":false,"author_avatar_path":"00000000-0000-0000-0000-000000000082/a.jpg","mentions":[{"user_id":"00000000-0000-0000-0000-000000000083","display_name":"Bilal Khan"},{"user_id":"00000000-0000-0000-0000-000000000084","display_name":"Esha"}]}"#
+        let message = try decoder.decode(ChatMessage.self, from: row.data(using: .utf8)!)
+        XCTAssertEqual(message.authorAvatarPath, "00000000-0000-0000-0000-000000000082/a.jpg")
+        XCTAssertEqual(message.mentions.map(\.displayName), ["Bilal Khan", "Esha"])
+        XCTAssertEqual(message.mentions.first?.userId, UUID(uuidString: "00000000-0000-0000-0000-000000000083"))
+        // Rows from before this change (no picture, no mentions) still decode with the defaults.
+        let legacy = #"{"id":"00000000-0000-0000-0000-000000000092","seq":8,"channel_id":"00000000-0000-0000-0000-000000000080","author_id":"00000000-0000-0000-0000-000000000082","author_name":"Asha","author_college":null,"body":"Old","created_at":"2026-10-14T10:00:00Z","is_mine":true}"#
+        let old = try decoder.decode(ChatMessage.self, from: legacy.data(using: .utf8)!)
+        XCTAssertNil(old.authorAvatarPath)
+        XCTAssertTrue(old.mentions.isEmpty)
+    }
+
+    func testActiveMentionQueryOnlyWhileTypingATag() {
+        XCTAssertEqual(ChatModel.activeMentionQuery(in: "@"), "")
+        XCTAssertEqual(ChatModel.activeMentionQuery(in: "hey @as"), "as")
+        XCTAssertEqual(ChatModel.activeMentionQuery(in: "hey @Asha R"), "Asha R")
+        XCTAssertNil(ChatModel.activeMentionQuery(in: "mail me at a@b.com"), "an @ inside a word is not a tag")
+        XCTAssertNil(ChatModel.activeMentionQuery(in: "hello"))
+        XCTAssertNil(ChatModel.activeMentionQuery(in: "@Asha thanks for the help today"), "finished tags followed by a sentence close the picker")
+        XCTAssertNil(ChatModel.activeMentionQuery(in: "@Asha\nnext line"))
+    }
+
+    func testInsertingMultipleMentionsKeepsIdentityAndDropsEditedOutTags() {
+        let bilal = MentionCandidate(userId: UUID(), displayName: "Bilal Khan", collegeName: nil, avatarPath: nil, recentlyActive: true)
+        let esha = MentionCandidate(userId: UUID(), displayName: "Esha Rao", collegeName: nil, avatarPath: nil, recentlyActive: false)
+        var draft = ChatModel.insertingMention(bilal.displayName, into: "Lunch? @bi")
+        XCTAssertEqual(draft, "Lunch? @Bilal Khan ")
+        draft = ChatModel.insertingMention(esha.displayName, into: draft + "and @Es")
+        XCTAssertEqual(draft, "Lunch? @Bilal Khan and @Esha Rao ")
+        XCTAssertEqual(ChatModel.mentionIds(in: draft, chosen: [bilal, esha, bilal]), [bilal.userId, esha.userId])
+        XCTAssertEqual(ChatModel.mentionIds(in: "Lunch? and @Esha Rao", chosen: [bilal, esha]), [esha.userId])
+    }
+
+    func testMentionRangesHighlightEveryTagWithoutSplittingLongerNames() {
+        let body = "@Asha Rao meet @Asha and @Asha Rao"
+        let mentions = [ChatMention(userId: UUID(), displayName: "Asha"), ChatMention(userId: UUID(), displayName: "Asha Rao")]
+        let ranges = ChatModel.mentionRanges(in: body, mentions: mentions).map { String(body[$0]) }
+        XCTAssertEqual(ranges, ["@Asha Rao", "@Asha", "@Asha Rao"])
+        XCTAssertTrue(ChatModel.mentionRanges(in: "no tags here", mentions: mentions).isEmpty)
+    }
+
+    @MainActor
+    func testInvalidAvatarDataFallsBackInsteadOfCrashing() {
+        XCTAssertNil(AvatarImageCache.downsample(Data("not an image".utf8), maxPixels: 90))
+        let pixel = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 300)).image { context in UIColor.green.setFill(); context.fill(CGRect(x: 0, y: 0, width: 400, height: 300)) }
+        let thumbnail = AvatarImageCache.downsample(pixel.pngData()!, maxPixels: 90)
+        XCTAssertNotNil(thumbnail)
+        XCTAssertLessThanOrEqual(max(thumbnail!.size.width * thumbnail!.scale, thumbnail!.size.height * thumbnail!.scale), 90)
+    }
 }

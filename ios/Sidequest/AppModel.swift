@@ -32,10 +32,8 @@ final class AppModel {
     private(set) var floorPlans: [UUID: FloorPlan] = [:]
     private(set) var floorPlanURLs: [UUID: URL] = [:]
     private(set) var announcements: [Announcement] = []
-    private(set) var communityMessages: [CommunityMessage] = []
     private(set) var reports: [EventReport] = []
     private(set) var notifications: [InboxNotification] = []
-    private(set) var channels: [CommunityChannel] = []
     private(set) var discussionThreads: [DiscussionThread] = []
     private(set) var discussionReplies: [UUID: [DiscussionReply]] = [:]
     private(set) var eventMedia: [UUID: [EventMediaPhoto]] = [:]
@@ -558,17 +556,13 @@ final class AppModel {
         do {
             async let announcementRows: [Announcement] = client.from("announcements")
                 .select("id,edition_id,title,body,kind,created_at").order("created_at", ascending: false).limit(100).execute().value
-            async let messageRows: [CommunityMessage] = client.from("messages")
-                .select("id,channel_id,body,status,created_at").eq("status", value: "visible").order("created_at", ascending: false).limit(100).execute().value
             async let reportRows: [EventReport] = client.from("reports")
                 .select("id,edition_id,category,description,priority,status,created_at").order("created_at", ascending: false).limit(100).execute().value
             async let notificationRows: [InboxNotification] = client.from("notifications")
                 .select("id,title,body,kind,read_at,created_at").order("created_at", ascending: false).limit(100).execute().value
-            async let channelRows: [CommunityChannel] = client.from("my_community_channels")
-                .select("id,edition_id,event_id,title,organization_id,organization_name,starts_at").order("starts_at").execute().value
             async let threadRows: [DiscussionThread] = client.from("discussion_threads")
                 .select("id,college_id,author_id,title,body,created_at,updated_at").order("updated_at",ascending:false).limit(100).execute().value
-            (announcements, communityMessages, reports, notifications, channels, discussionThreads) = try await (announcementRows, messageRows, reportRows, notificationRows, channelRows, threadRows)
+            (announcements, reports, notifications, discussionThreads) = try await (announcementRows, reportRows, notificationRows, threadRows)
             communityState = .loaded
         } catch { communityState = .failed(error.localizedDescription) }
     }
@@ -599,12 +593,6 @@ final class AppModel {
         liveUpdateTasks.forEach { $0.cancel() }; liveUpdateTasks = []
         if let liveChannel, let client { await client.removeChannel(liveChannel) }
         liveChannel = nil
-    }
-
-    func postMessage(channelId: UUID, body: String) async throws {
-        guard let client else { throw SidequestError.notConfigured }
-        _ = try await client.rpc("post_message", params: ["p_channel_id": channelId.uuidString, "p_body": body]).execute()
-        await reloadCommunity()
     }
 
     func createDiscussionThread(title: String, body: String) async throws {
@@ -718,7 +706,7 @@ final class AppModel {
         struct FollowRow: Decodable { let organizationId:UUID; enum CodingKeys:String,CodingKey { case organizationId="organization_id" } }
         do {
             let userId = try await client.auth.session.user.id
-            async let profileRows: [StudentProfile] = client.from("profiles").select("id,college_id,full_name,interests,notification_preferences").eq("id", value:userId).limit(1).execute().value
+            async let profileRows: [StudentProfile] = client.from("profiles").select("id,college_id,full_name,interests,notification_preferences,avatar_path").eq("id", value:userId).limit(1).execute().value
             async let collegeRows: [CollegeProfile] = client.from("colleges").select("id,name,timezone,latitude,longitude").order("name").execute().value
             async let organizationRows: [OrganizationProfile] = client.from("organizations").select("id,name,description,college_id").eq("is_active",value:true).order("name").execute().value
             async let followRows: [FollowRow] = client.from("follows").select("organization_id").execute().value
@@ -732,6 +720,38 @@ final class AppModel {
     func saveProfile(fullName:String,collegeId:UUID?,interests:[String],preferences:[String:Bool]) async throws {
         guard let client else { throw SidequestError.notConfigured }
         _ = try await client.rpc("update_profile_preferences",params:ProfilePreferenceRequest(pFullName:fullName,pCollegeId:collegeId,pInterests:interests,pNotificationPreferences:preferences)).execute()
+        await reloadProfile()
+    }
+
+    /// Stores a small JPEG in the student's own avatar folder, points the profile at it, then removes the old one.
+    func saveProfilePhoto(_ source: Data) async throws {
+        guard let client else { throw SidequestError.notConfigured }
+        guard let image = AvatarImageCache.downsample(source, maxPixels: 512), let jpeg = image.jpegData(compressionQuality: 0.82) else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        let userId = try await client.auth.session.user.id
+        let path = "\(userId.uuidString.lowercased())/\(UUID().uuidString.lowercased()).jpg"
+        let bucket = client.storage.from("profile-avatars")
+        try await bucket.upload(path, data: jpeg, options: FileOptions(contentType: "image/jpeg", upsert: false))
+        do {
+            try await replaceProfilePhoto(with: path)
+        } catch {
+            _ = try? await bucket.remove(paths: [path])
+            throw error
+        }
+    }
+
+    func removeProfilePhoto() async throws {
+        try await replaceProfilePhoto(with: nil)
+    }
+
+    private func replaceProfilePhoto(with path: String?) async throws {
+        guard let client else { throw SidequestError.notConfigured }
+        struct Result: Decodable { let previousPath: String?; enum CodingKeys: String, CodingKey { case previousPath = "previous_path" } }
+        let result: Result = try await client.rpc("set_profile_avatar", params: ["p_path": path]).execute().value
+        if let previous = result.previousPath, previous != path {
+            _ = try? await client.storage.from("profile-avatars").remove(paths: [previous])
+        }
         await reloadProfile()
     }
 

@@ -27,7 +27,7 @@ struct AccountView: View {
     @State private var reportNotifications = true
     @State private var showDeletionConfirmation = false
     @State private var avatarItem: PhotosPickerItem?
-    @State private var avatarData: Data?
+    @State private var savingAvatar = false
     @State private var reportEdition: JourneyItem?
 
     var body: some View {
@@ -38,9 +38,11 @@ struct AccountView: View {
                 } else if model.isAuthenticated {
                     Section { Label("Signed in", systemImage: "checkmark.seal.fill").foregroundStyle(.green) }
                     Section("Student profile") {
-                        HStack { Spacer(); if let avatarData, let image = UIImage(data: avatarData) { Image(uiImage: image).resizable().scaledToFill().frame(width: 78, height: 78).clipShape(Circle()) } else { Image(systemName: "person.crop.circle.fill").font(.system(size: 72)).foregroundStyle(Color.sidequestLime, Color.sidequestInk) }; Spacer() }
-                        PhotosPicker(selection: $avatarItem, matching: .images) { Label("Add profile photo", systemImage: "camera.fill") }
-                        Text("Your profile photo is kept on this device in this demo build.").font(.caption).foregroundStyle(.secondary)
+                        HStack { Spacer(); ZStack { ChatAvatar(name: fullName.isEmpty ? "?" : fullName, path: model.profile?.avatarPath, size: 78); if savingAvatar { ProgressView() } }; Spacer() }
+                        PhotosPicker(selection: $avatarItem, matching: .images) { Label(model.profile?.avatarPath == nil ? "Add profile photo" : "Change profile photo", systemImage: "camera.fill") }.disabled(savingAvatar)
+                        if model.profile?.avatarPath != nil { Button("Remove profile photo", role: .destructive) { Task { savingAvatar = true; do { try await model.removeProfilePhoto() } catch { errorMessage = error.localizedDescription }; savingAvatar = false } }.disabled(savingAvatar) }
+                        Text("Your photo appears beside your chat messages to students who share a room with you.").font(.caption).foregroundStyle(.secondary)
+                        if let errorMessage { Text(errorMessage).font(.caption).foregroundStyle(.red) }
                         TextField("Full name",text:$fullName)
                         Picker("College",selection:$collegeId) { Text("Not selected").tag(nil as UUID?);ForEach(model.colleges){college in Text(college.name).tag(Optional(college.id))} }
                         TextField("Interests, comma separated",text:$interests)
@@ -104,7 +106,19 @@ struct AccountView: View {
             .navigationTitle("Profile")
             .task { await model.restoreSession(); if model.isAuthenticated { await model.reloadCommunity() } }
             .onChange(of:model.profile) { _,profile in guard let profile else{return};fullName=profile.fullName ?? "";collegeId=profile.collegeId;interests=profile.interests.joined(separator:", ");announcementNotifications=profile.notificationPreferences["announcements"] ?? true;venueNotifications=profile.notificationPreferences["venue_changes"] ?? true;reminderNotifications=profile.notificationPreferences["reminders"] ?? true;reportNotifications=profile.notificationPreferences["reports"] ?? true }
-            .onChange(of: avatarItem) { _, item in Task { avatarData = try? await item?.loadTransferable(type: Data.self) } }
+            .onChange(of: avatarItem) { _, item in
+                guard let item else { return }
+                Task {
+                    savingAvatar = true
+                    do {
+                        guard let data = try await item.loadTransferable(type: Data.self) else { throw CocoaError(.fileReadCorruptFile) }
+                        try await model.saveProfilePhoto(data)
+                    } catch { errorMessage = "Couldn’t save your photo: \(error.localizedDescription)" }
+                    savingAvatar = false
+                    avatarItem = nil
+                }
+            }
+            .task(id: model.profile?.avatarPath) { if let path = model.profile?.avatarPath { model.chat.requestAvatarURLs(for: [path]) } }
             .onReceive(NotificationCenter.default.publisher(for: .sidequestDeviceToken)) { note in
                 if let token = note.object as? String {
                     Task { do { try await model.registerDeviceToken(token); notificationStatus = "Enabled and registered" } catch { notificationStatus = "Permission granted, but backend registration failed: \(error.localizedDescription)" } }
