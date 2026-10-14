@@ -1,12 +1,14 @@
 import { createClient } from "npm:@supabase/supabase-js@2.117.3";
+import { corsHeaders } from "npm:@supabase/supabase-js@2.117.3/cors";
 
 type ProfileType = "student" | "organizer";
 
 function json(body: Record<string, unknown>, status = 200) {
-  return Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
+  return Response.json(body, { status, headers: { ...corsHeaders, "Cache-Control": "no-store" } });
 }
 
 Deno.serve(async (request) => {
+  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
   const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
