@@ -346,7 +346,7 @@ struct EventDetailView: View {
             HStack(alignment: .top, spacing: SQSpace.lg) {
                 VStack(alignment: .leading, spacing: SQSpace.xs) {
                     Text(event.venueName ?? event.collegeName)
-                        .font(.system(size: 24, weight: .regular))
+                        .font(SQFont.subtitleLarge)
                         .foregroundStyle(tint.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
                     if event.venueName != nil {
@@ -389,7 +389,7 @@ struct EventDetailView: View {
                 SQAvatar(seed: event.organizationName, size: SQSize.avatarLarge)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(event.organizationName)
-                        .font(.system(size: 22, weight: .regular))
+                        .font(SQFont.lede)
                         .foregroundStyle(tint.textPrimary)
                     Text(event.collegeName)
                         .font(SQFont.sectionLabel)

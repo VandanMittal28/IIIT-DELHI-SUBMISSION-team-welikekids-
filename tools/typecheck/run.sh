@@ -110,6 +110,20 @@ else
     status=1
 fi
 
+# -------------------------------------------------------- stage 3: model behaviour
+say ""
+say "== stage 3: model behaviour (executed, not just type-checked) =="
+if out=$(swiftc -O -o "$WORK/model-tests" \
+        -sdk "$SDK" -target x86_64-apple-macosx14.0 -swift-version 5 \
+        "$SRC/Models.swift" "$SRC/Theme.swift" "$HARNESS/modeltests/main.swift" 2>&1) \
+        && out=$("$WORK/model-tests" 2>&1); then
+    say "$out"
+else
+    echo "MODEL TESTS FAILED"
+    echo "$out" | head -30
+    status=1
+fi
+
 say ""
 if [ "$status" -eq 0 ]; then say "ALL CHECKS PASSED"; else echo "CHECKS FAILED"; fi
 exit "$status"

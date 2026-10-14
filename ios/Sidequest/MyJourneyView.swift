@@ -48,6 +48,7 @@ struct MyJourneyView: View {
                 content
             }
             .background(SQColor.plainBackground.ignoresSafeArea())
+            .toolbar(.hidden, for: .tabBar)
             .navigationDestination(for: JourneyItem.self) { item in
                 JourneyDetailView(item: item)
             }
@@ -409,10 +410,10 @@ private struct EventMediaView: View {
                             Image(systemName: "plus.rectangle.on.rectangle")
                             Text("Share an event photo").font(SQFont.bodyEmphasis)
                         }
-                        .foregroundStyle(SQColor.lime)
+                        .foregroundStyle(SQColor.onPrimary)
                         .frame(maxWidth: .infinity)
                         .frame(height: SQSize.listRow)
-                        .background(SQColor.ink.opacity(loading ? 0.4 : 1), in: RoundedRectangle(cornerRadius: SQRadius.control, style: .continuous))
+                        .background(SQColor.primaryFill.opacity(loading ? 0.4 : 1), in: RoundedRectangle(cornerRadius: SQRadius.control, style: .continuous))
                     }
                     .disabled(loading)
                 }

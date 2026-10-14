@@ -203,7 +203,7 @@ struct SQScreenHeader<Trailing: View>: View {
                     if showsSparkle {
                         Image(systemName: "sparkle")
                             .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(SQColor.lime)
+                            .foregroundStyle(SQColor.accent)
                             .offset(y: -8)
                     }
                 }
@@ -718,17 +718,17 @@ struct SQPrimaryButton: View {
                     if isLoading {
                         ProgressView()
                             .controlSize(.small)
-                            .tint(palette.isTinted ? SQColor.ink : SQColor.lime)
+                            .tint(palette.isTinted ? SQColor.onLight : SQColor.onPrimary)
                     } else if let systemImage {
                         Image(systemName: systemImage).font(.system(size: 17, weight: .semibold))
                     }
                     Text(title).font(SQFont.bodyEmphasis)
                 }
-                .foregroundStyle(palette.isTinted ? Color(hex: 0x0B0B0C) : SQColor.lime)
+                .foregroundStyle(palette.isTinted ? SQColor.onLight : SQColor.onPrimary)
                 .frame(maxWidth: .infinity)
                 .frame(height: SQSize.listRow)
                 .background(
-                    (palette.isTinted ? Color.white : SQColor.ink).opacity(isEnabled ? 1 : 0.4),
+                    (palette.isTinted ? Color.white : SQColor.primaryFill).opacity(isEnabled ? 1 : 0.4),
                     in: RoundedRectangle(cornerRadius: SQRadius.control, style: .continuous)
                 )
             }
@@ -819,12 +819,12 @@ struct SQTallAction: View {
 
     private func foreground(_ palette: SQPalette) -> Color {
         guard prominent else { return palette.textPrimary }
-        return palette.isTinted ? Color(hex: 0x0B0B0C) : SQColor.lime
+        return palette.isTinted ? SQColor.onLight : SQColor.onPrimary
     }
 
     private func fill(_ palette: SQPalette) -> Color {
         guard prominent else { return palette.isTinted ? Color.white.opacity(0.14) : SQColor.surface }
-        return palette.isTinted ? Color.white : SQColor.ink
+        return palette.isTinted ? Color.white : SQColor.primaryFill
     }
 }
 
@@ -858,7 +858,7 @@ struct SQChip: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: SQRadius.chip, style: .continuous)
-                        .stroke(isSelected ? SQColor.ink.opacity(0.35) : SQColor.separator, lineWidth: 1)
+                        .stroke(isSelected ? SQColor.textPrimary.opacity(0.3) : SQColor.separator, lineWidth: 1)
                 )
             }
             .buttonStyle(.plain)
@@ -982,6 +982,19 @@ struct SQScreen<Content: View>: View {
 
 // MARK: - Tab bar
 
+/// Lets a pushed screen hide the floating tab bar — the chat room needs the space for its
+/// composer, which the bar would otherwise sit on top of.
+struct SQTabBarHiddenKey: PreferenceKey {
+    static let defaultValue = false
+    static func reduce(value: inout Bool, nextValue: () -> Bool) { value = value || nextValue() }
+}
+
+extension View {
+    func sqHidesTabBar(_ hidden: Bool = true) -> some View {
+        preference(key: SQTabBarHiddenKey.self, value: hidden)
+    }
+}
+
 struct SQTabItem: Identifiable {
     let id: Int
     let title: String
@@ -1027,6 +1040,7 @@ struct SQTabBar: View {
             }
             .padding(.horizontal, 6)
             .frame(height: SQSize.tabBar)
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
             .background {
                 Capsule()
                     .fill(.ultraThinMaterial)

@@ -68,6 +68,7 @@ struct CommunityView: View {
                 content
             }
             .background(SQColor.plainBackground.ignoresSafeArea())
+            .toolbar(.hidden, for: .tabBar)
             .task { if model.isAuthenticated { await model.reloadCommunity() } }
             .sheet(isPresented: $creatingThread) { NewDiscussionThreadView() }
         }
@@ -386,7 +387,7 @@ private struct FollowButton: View {
         } label: {
             Text(isFollowing ? "Following" : "Follow")
                 .font(SQFont.metaEmphasis)
-                .foregroundStyle(isFollowing ? SQColor.textSecondary : SQColor.ink)
+                .foregroundStyle(isFollowing ? SQColor.textSecondary : SQColor.onLight)
                 .padding(.horizontal, SQSpace.lg)
                 .frame(height: 36)
                 .background(
@@ -670,6 +671,7 @@ struct ChannelView: View {
         .background(SQColor.plainBackground.ignoresSafeArea())
         .navigationBarBackButtonHidden()
         .toolbar(.hidden, for: .navigationBar)
+        .sqHidesTabBar()
         .sheet(item: $reporting) { MessageReportForm(message: $0) }
     }
 
@@ -682,10 +684,10 @@ struct ChannelView: View {
                     Task { await post() }
                 } label: {
                     ZStack {
-                        Circle().fill(canSend ? SQColor.ink : SQColor.surfaceAlt)
+                        Circle().fill(canSend ? SQColor.primaryFill : SQColor.surfaceAlt)
                         Image(systemName: "arrow.up")
                             .font(.system(size: 19, weight: .bold))
-                            .foregroundStyle(canSend ? SQColor.lime : SQColor.textTertiary)
+                            .foregroundStyle(canSend ? SQColor.onPrimary : SQColor.textTertiary)
                     }
                     .frame(width: SQSize.sheetCircle, height: SQSize.sheetCircle)
                 }

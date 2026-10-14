@@ -76,6 +76,7 @@ struct AccountView: View {
                 .scrollDismissesKeyboard(.interactively)
             }
             .background(SQColor.background.ignoresSafeArea())
+            .toolbar(.hidden, for: .tabBar)
             .task {
                 await model.restoreSession()
                 if model.isAuthenticated { await model.reloadCommunity() }
@@ -318,7 +319,7 @@ struct AccountView: View {
                     PhotosPicker(selection: $avatarItem, matching: .images) {
                         Text("Change photo")
                             .font(SQFont.bodyEmphasis)
-                            .foregroundStyle(SQColor.ink)
+                            .foregroundStyle(SQColor.accent)
                     }
                 }
                 Spacer()

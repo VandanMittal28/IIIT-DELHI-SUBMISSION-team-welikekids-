@@ -42,6 +42,7 @@ struct NavigateView: View {
                 content
             }
             .background(SQColor.plainBackground.ignoresSafeArea())
+            .toolbar(.hidden, for: .tabBar)
             .task {
                 if model.landmarks.isEmpty { await model.reloadLandmarks() }
                 applyPreparedDestination()
@@ -563,7 +564,7 @@ private struct LandmarkCard: View {
             SQColor.lime.opacity(0.22)
             Image(systemName: "building.2.fill")
                 .font(.system(size: 30, weight: .regular))
-                .foregroundStyle(SQColor.ink.opacity(0.5))
+                .foregroundStyle(SQColor.textSecondary)
         }
     }
 }

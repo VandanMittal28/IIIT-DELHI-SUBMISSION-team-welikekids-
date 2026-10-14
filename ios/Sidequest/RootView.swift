@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    @State private var tabBarHidden = false
 
     /// Tags must stay 0–4: `AppModel.prepareNavigation` jumps to tab 2 to show a route.
     private static let tabs: [SQTabItem] = [
@@ -19,17 +20,25 @@ struct RootView: View {
                 // The system tab bar is hidden on every tab root and replaced by the floating
                 // capsule from screenshots 01–06. Screens reserve `SQSpace.tabBarClearance`
                 // at the bottom so content scrolls under the bar instead of being clipped.
+                // Each screen hides the system tab bar from inside its own NavigationStack,
+                // which is where the modifier reliably takes effect.
                 ZStack(alignment: .bottom) {
                     TabView(selection: $model.selectedTab) {
-                        DiscoverView().tag(0).toolbar(.hidden, for: .tabBar)
-                        MyJourneyView().tag(1).toolbar(.hidden, for: .tabBar)
-                        NavigateView().tag(2).toolbar(.hidden, for: .tabBar)
-                        CommunityView().tag(3).toolbar(.hidden, for: .tabBar)
-                        AccountView().tag(4).toolbar(.hidden, for: .tabBar)
+                        DiscoverView().tag(0)
+                        MyJourneyView().tag(1)
+                        NavigateView().tag(2)
+                        CommunityView().tag(3)
+                        AccountView().tag(4)
                     }
-                    SQTabBar(items: Self.tabs, selection: $model.selectedTab)
-                        .padding(.bottom, SQSpace.xs)
+                    .onPreferenceChange(SQTabBarHiddenKey.self) { tabBarHidden = $0 }
+
+                    if !tabBarHidden {
+                        SQTabBar(items: Self.tabs, selection: $model.selectedTab)
+                            .padding(.bottom, SQSpace.xs)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
+                .animation(.easeInOut(duration: 0.2), value: tabBarHidden)
                 .ignoresSafeArea(.keyboard, edges: .bottom)
             } else {
                 StudentLoginView()
@@ -66,7 +75,7 @@ private struct StudentLoginView: View {
                         Text("Sidequest").font(SQFont.display)
                         Image(systemName: "sparkle")
                             .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(SQColor.lime)
+                            .foregroundStyle(SQColor.accent)
                             .offset(y: -10)
                     }
                     .foregroundStyle(SQColor.textPrimary)

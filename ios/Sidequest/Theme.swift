@@ -40,6 +40,19 @@ enum SQColor {
     static let separator = adaptive(light: 0xE5E5EA, dark: 0x303033)
     static let hairline = adaptive(light: 0xE5E5EA, dark: 0x3A3A3D)
 
+    /// Brand accent for text and glyphs. Raw lime is near-invisible on white, so light mode
+    /// uses a deepened olive of the same hue and dark mode uses the lime itself.
+    static let accent = adaptive(light: 0x6F8415, dark: 0xE8FF63)
+
+    /// Primary button fill and its label. Ink-on-lime inverts in dark mode, where an ink fill
+    /// would disappear into the near-black background.
+    static let primaryFill = adaptive(light: 0x17211A, dark: 0xE8FF63)
+    static let onPrimary = adaptive(light: 0xE8FF63, dark: 0x17211A)
+
+    /// Fixed near-black for labels on a white fill inside a cover-tinted page, where the
+    /// adaptive `textPrimary` would flip to white in dark mode and vanish.
+    static let onLight = Color(hex: 0x0B0B0C)
+
     static let destructive = Color(hex: 0xFF3B30)
     static let destructiveWash = adaptive(light: 0xFFE8EA, dark: 0x3A1D1F)
     static let positive = Color(hex: 0x34C759)
@@ -101,8 +114,10 @@ enum SQFont {
     static let sectionLabel = Font.system(size: 20, weight: .regular)
     /// Event description copy, set deliberately large and heavy (screenshot 05).
     static let prose = Font.system(size: 24, weight: .semibold)
-    /// The large date line under an event title (screenshot 04).
+    /// The large date line under an event title, and host names (screenshots 04, 05).
     static let lede = Font.system(size: 22, weight: .regular)
+    /// Venue / location name on the tinted detail page (screenshot 04).
+    static let subtitleLarge = Font.system(size: 24, weight: .regular)
     /// Times, venues, "active a while ago".
     static let body = Font.system(size: 17, weight: .regular)
     static let bodyEmphasis = Font.system(size: 17, weight: .semibold)

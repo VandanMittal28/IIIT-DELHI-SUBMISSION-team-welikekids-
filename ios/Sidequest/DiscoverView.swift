@@ -66,6 +66,7 @@ struct DiscoverView: View {
                 content
             }
             .background(SQColor.plainBackground.ignoresSafeArea())
+            .toolbar(.hidden, for: .tabBar)
             .navigationDestination(for: EventFeedItem.self) { selectedEvent in
                 EventDetailView(event: selectedEvent, comparing: compareIds.contains(selectedEvent.id)) { comparing in
                     if comparing { compareIds.insert(selectedEvent.id) } else { compareIds.remove(selectedEvent.id) }
@@ -200,7 +201,7 @@ struct DiscoverView: View {
             Spacer()
             Button("Compare") { showComparison = true }
                 .font(SQFont.bodyEmphasis)
-                .foregroundStyle(SQColor.ink)
+                .foregroundStyle(SQColor.textPrimary)
             Button("Clear") { compareIds.removeAll() }
                 .font(SQFont.body)
                 .foregroundStyle(SQColor.textSecondary)
@@ -299,7 +300,7 @@ struct DiscoverView: View {
     }
 
     private func badgeForeground(for event: EventFeedItem) -> Color {
-        guard let registration = model.registration(for: event.editionId) else { return SQColor.ink }
+        guard let registration = model.registration(for: event.editionId) else { return SQColor.textPrimary }
         return registration.status == "registered" ? SQColor.positive : SQColor.warning
     }
 

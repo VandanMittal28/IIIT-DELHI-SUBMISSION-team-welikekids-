@@ -39,10 +39,10 @@ struct CameraGuidanceView: View {
                 }
                     VStack {
                         Label(step.bearingDegrees == nil ? "Spatial arrow unavailable for this transition." : (simulationMode ? "DEMO · simulated live camera guidance" : "Live camera guidance · turn your phone to follow the anchored arrow"), systemImage: step.bearingDegrees == nil ? "exclamationmark.triangle" : "location.north.line.fill")
-                            .font(.footnote).padding(8).background(.ultraThinMaterial).clipShape(Capsule()).padding(.top, 60)
+                            .font(SQFont.meta).padding(8).background(.ultraThinMaterial).clipShape(Capsule()).padding(.top, 60)
                         if simulationMode {
                             Text("Simulation only — this route is not physically validated. Use the map for real navigation.")
-                                .font(.caption.bold()).foregroundStyle(.orange).padding(8).background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
+                                .font(SQFont.badge).foregroundStyle(SQColor.warning).padding(8).background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: SQRadius.thumb, style: .continuous))
                         }
                     Spacer()
                     VStack(alignment: .leading, spacing: SQSpace.sm) {
@@ -53,9 +53,9 @@ struct CameraGuidanceView: View {
                         Text("\(Int(step.distanceMeters.rounded())) m · \(step.kind)").font(SQFont.meta)
                         if step.bearingDegrees == nil {
                             Label("No reliable spatial bearing for this transition. Follow the text, map, or voice instruction.", systemImage: "arrow.triangle.turn.up.right.diamond")
-                                .font(.caption)
+                                .font(SQFont.meta)
                         } else if let confirmedFacingDegrees {
-                            Text("Aligned from the confirmed \(Int(confirmedFacingDegrees.rounded()))° landmark reference. The arrow is anchored to the stored route bearing.").font(.caption)
+                            Text("Aligned from the confirmed \(Int(confirmedFacingDegrees.rounded()))° landmark reference. The arrow is anchored to the stored route bearing.").font(SQFont.meta)
                         }
                         HStack(spacing: SQSpace.md) {
                             SQSecondaryButton(title: "Previous", systemImage: "chevron.left", isEnabled: stepIndex > 0) {
@@ -119,7 +119,7 @@ struct SimulatedCameraSurface: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [.black, Color(red: 0.08, green: 0.12, blue: 0.10)], startPoint: .top, endPoint: .bottom)
+            LinearGradient(colors: [.black, SQColor.ink], startPoint: .top, endPoint: .bottom)
             VStack(spacing: 18) {
                 Image(systemName: "camera.viewfinder").font(.title).foregroundStyle(.white.opacity(0.7))
                 Image(systemName: "arrow.up.circle.fill")
@@ -128,8 +128,8 @@ struct SimulatedCameraSurface: View {
                     .shadow(color: .green.opacity(0.8), radius: pulse ? 20 : 8)
                     .scaleEffect(pulse ? 1.05 : 0.96)
                     .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
-                Text("SIMULATED AR ARROW").font(.caption.bold()).foregroundStyle(.orange)
-                Text(step.instruction).font(.headline).multilineTextAlignment(.center).foregroundStyle(.white).padding(.horizontal, 24)
+                Text("SIMULATED AR ARROW").font(SQFont.badge).foregroundStyle(SQColor.warning)
+                Text(step.instruction).font(SQFont.rowTitle).multilineTextAlignment(.center).foregroundStyle(.white).padding(.horizontal, 24)
             }
         }
         .onAppear { pulse = true }
@@ -187,7 +187,7 @@ struct CameraSimulationView: View {
             if camera.permission == .authorized, camera.isReady {
                 CameraPreviewLayer(session: camera.session).ignoresSafeArea()
             } else {
-                LinearGradient(colors: [Color(red: 0.03, green: 0.06, blue: 0.05), Color(red: 0.11, green: 0.17, blue: 0.13)], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
+                LinearGradient(colors: [.black, SQColor.ink], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
                 VStack(spacing: 12) {
                     Image(systemName: "camera.viewfinder").font(.system(size: 46)).foregroundStyle(.white.opacity(0.7))
                     Text(camera.permission == .denied ? "Camera access is off" : "Camera preview unavailable")
@@ -218,32 +218,32 @@ struct CameraSimulationView: View {
                 Spacer()
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Text("SIMULATED LOCATION").font(.caption.bold()).foregroundStyle(SQColor.lime)
+                        Text("SIMULATED LOCATION").font(SQFont.badge).foregroundStyle(SQColor.lime)
                         Spacer()
-                        Text("\(Int(walkedMeters.rounded())) m / \(Int(plan.totalDistanceMeters.rounded())) m").font(.caption.bold())
+                        Text("\(Int(walkedMeters.rounded())) m / \(Int(plan.totalDistanceMeters.rounded())) m").font(SQFont.badge)
                     }
                     GeometryReader { geometry in
                         ZStack(alignment: .leading) {
                             Capsule().fill(.white.opacity(0.25)).frame(height: 5)
                             Capsule().fill(SQColor.lime).frame(width: max(5, geometry.size.width * simulatedProgress), height: 5)
-                            Image(systemName: "location.fill").font(.caption).foregroundStyle(SQColor.lime)
+                            Image(systemName: "location.fill").font(SQFont.meta).foregroundStyle(SQColor.lime)
                                 .position(x: max(7, min(geometry.size.width - 7, geometry.size.width * simulatedProgress)), y: 9)
                         }
                     }
                     .frame(height: 18)
                     HStack {
-                        Text(step == nil ? "Arrived" : "Step \(stepIndex + 1) of \(demoSteps.count)").font(.caption.bold())
+                        Text(step == nil ? "Arrived" : "Step \(stepIndex + 1) of \(demoSteps.count)").font(SQFont.badge)
                         Spacer()
-                        Text("\(Int(remainingMeters.rounded())) m left").font(.caption.bold())
+                        Text("\(Int(remainingMeters.rounded())) m left").font(SQFont.badge)
                     }
-                    Text(step?.instruction ?? "You’ve arrived at \(destination)").font(.title3.bold())
+                    Text(step?.instruction ?? "You’ve arrived at \(destination)").font(SQFont.navTitle)
                     Label(accessibleRoute ? "Step-free route · lift and accessible corridors" : "Campus route · stairs and corridors", systemImage: accessibleRoute ? "figure.roll" : "figure.walk")
-                        .font(.caption).foregroundStyle(.white.opacity(0.8))
-                    if let step { Text("\(Int(step.distanceMeters.rounded())) m · \(step.kind)").font(.caption).foregroundStyle(.white.opacity(0.8)) }
+                        .font(SQFont.meta).foregroundStyle(.white.opacity(0.8))
+                    if let step { Text("\(Int(step.distanceMeters.rounded())) m · \(step.kind)").font(SQFont.meta).foregroundStyle(.white.opacity(0.8)) }
                     if let heading = compass.heading {
-                        Label("Phone compass \(Int(heading.rounded()))°", systemImage: "location.north.fill").font(.caption)
+                        Label("Phone compass \(Int(heading.rounded()))°", systemImage: "location.north.fill").font(SQFont.meta)
                     } else {
-                        Label("Compass unavailable — arrow follows the route instruction", systemImage: "location.north.line").font(.caption)
+                        Label("Compass unavailable — arrow follows the route instruction", systemImage: "location.north.line").font(SQFont.meta)
                     }
                     HStack(spacing: SQSpace.md) {
                         SQSecondaryButton(title: "Restart", systemImage: "arrow.counterclockwise") {
@@ -384,7 +384,7 @@ struct SimulatedArrowOverlay: View {
                 .font(.system(size: 92, weight: .bold))
                 .foregroundStyle(SQColor.lime)
                 .shadow(color: .black.opacity(0.8), radius: 10)
-            Text("DEMO AR ARROW").font(.caption.bold()).foregroundStyle(.orange)
+            Text("DEMO AR ARROW").font(SQFont.badge).foregroundStyle(SQColor.warning)
             Spacer().frame(height: 170)
         }
         .allowsHitTesting(false)
