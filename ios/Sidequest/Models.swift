@@ -320,6 +320,142 @@ struct CommunityChannel: Decodable, Identifiable, Equatable {
     enum CodingKeys:String,CodingKey { case id,title; case editionId="edition_id",eventId="event_id",organizationId="organization_id",organizationName="organization_name",startsAt="starts_at" }
 }
 
+struct OpenMeetup: Decodable, Identifiable, Equatable, Hashable {
+    let id: UUID
+    let title: String
+    let description: String
+    let locationNote: String?
+    let icebreaker: String
+    let audience: String
+    let capacity: Int
+    let goingCount: Int
+    let startsAt: Date
+    let endsAt: Date
+    let status: String
+    let collegeName: String
+    let hostName: String
+    let hostHeadline: String?
+    let hostVerified: Bool
+    let venueName: String
+    let campusName: String
+    let destinationLandmarkId: UUID?
+    let participatingColleges: [String]
+    let myStatus: String?
+    let isEligible: Bool
+    let isHost: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, description, icebreaker, audience, capacity, status
+        case locationNote = "location_note", goingCount = "going_count"
+        case startsAt = "starts_at", endsAt = "ends_at", collegeName = "college_name"
+        case hostName = "host_name", hostHeadline = "host_headline", hostVerified = "host_verified"
+        case venueName = "venue_name", campusName = "campus_name", destinationLandmarkId = "destination_landmark_id"
+        case participatingColleges = "participating_colleges", myStatus = "my_status", isEligible = "is_eligible", isHost = "is_host"
+    }
+
+    var isGoing: Bool { myStatus == "going" }
+    var amHost: Bool { isHost == true }
+    var isCancelled: Bool { status == "cancelled" }
+    var isFull: Bool { goingCount >= capacity }
+    var spotsLeft: Int { max(0, capacity - goingCount) }
+    var audienceLabel: String {
+        if audience == "all_colleges" { return "Open to all participating colleges" }
+        if participatingColleges.count <= 1 { return "Open to \(participatingColleges.first ?? collegeName) students" }
+        return "Open to \(participatingColleges.joined(separator: ", "))"
+    }
+}
+
+/// A campus venue a student can host a meetup at.
+struct HostVenueOption: Decodable, Identifiable, Hashable {
+    struct Campus: Decodable, Hashable { let name: String; let collegeId: UUID; enum CodingKeys: String, CodingKey { case name; case collegeId = "college_id" } }
+    let id: UUID
+    let name: String
+    let destinationLandmarkId: UUID?
+    let campus: Campus
+    enum CodingKeys: String, CodingKey { case id, name, campus; case destinationLandmarkId = "destination_landmark_id" }
+}
+
+/// Student-entered meetup details. Validation mirrors `host_open_meetup` so mistakes surface before the request.
+struct MeetupDraft: Equatable {
+    enum Audience: String, CaseIterable, Identifiable {
+        case myCollege, selectedColleges, allColleges
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .myCollege: "My college"
+            case .selectedColleges: "My college + selected colleges"
+            case .allColleges: "All participating colleges"
+            }
+        }
+    }
+    enum Field: Hashable { case title, description, hostName, college, venue, startsAt, duration, capacity, colleges, icebreaker, locationNote }
+
+    var title = ""
+    var description = ""
+    var hostName = ""
+    var collegeId: UUID?
+    var venueId: UUID?
+    var startsAt: Date
+    var durationMinutes = 60
+    var capacity = 10
+    var audience: Audience = .myCollege
+    var extraCollegeIds: Set<UUID> = []
+    var icebreaker = ""
+    var locationNote = ""
+
+    static let capacityRange = 2...500
+    static let durationRange = 15...720
+
+    init(now: Date = .now) {
+        // Default to a sociable time: tomorrow at 5 PM local time.
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: now) ?? now
+        startsAt = Calendar.current.date(bySettingHour: 17, minute: 0, second: 0, of: tomorrow) ?? tomorrow
+    }
+
+    var endsAt: Date { startsAt.addingTimeInterval(TimeInterval(durationMinutes * 60)) }
+    var serverAudience: String { audience == .allColleges ? "all_colleges" : "selected_colleges" }
+    var serverCollegeIds: [UUID] { audience == .selectedColleges ? extraCollegeIds.filter { $0 != collegeId }.sorted { $0.uuidString < $1.uuidString } : [] }
+
+    func errors(now: Date = .now) -> [Field: String] {
+        var errors: [Field: String] = [:]
+        func length(_ text: String) -> Int { text.trimmingCharacters(in: .whitespacesAndNewlines).count }
+        if !(3...120).contains(length(title)) { errors[.title] = "Give your meetup a title (3–120 characters)." }
+        if !(10...2000).contains(length(description)) { errors[.description] = "Describe the meetup in at least 10 characters." }
+        if !(2...80).contains(length(hostName)) { errors[.hostName] = "Enter the name attendees will see (2–80 characters)." }
+        if collegeId == nil { errors[.college] = "You need an active college membership to host." }
+        if venueId == nil { errors[.venue] = "Choose a venue." }
+        if startsAt <= now.addingTimeInterval(5 * 60) { errors[.startsAt] = "Pick a start time at least 5 minutes from now." }
+        else if startsAt > now.addingTimeInterval(180 * 24 * 3600) { errors[.startsAt] = "Meetups can be scheduled up to 180 days ahead." }
+        if !Self.durationRange.contains(durationMinutes) { errors[.duration] = "Meetups can last 15 minutes to 12 hours." }
+        if !Self.capacityRange.contains(capacity) { errors[.capacity] = "Capacity must be between 2 and 500." }
+        if audience == .selectedColleges && serverCollegeIds.isEmpty { errors[.colleges] = "Select at least one other college." }
+        let icebreakerLength = length(icebreaker)
+        if icebreakerLength > 0 && !(10...280).contains(icebreakerLength) { errors[.icebreaker] = "Icebreakers need 10–280 characters, or leave it blank for a suggested one." }
+        let noteLength = length(locationNote)
+        if noteLength > 0 && !(2...160).contains(noteLength) { errors[.locationNote] = "Keep the location tip to 2–160 characters." }
+        return errors
+    }
+}
+
+struct HostMeetupResult: Decodable, Equatable {
+    let meetupId: UUID
+    let status: String
+    let idempotentReplay: Bool
+    enum CodingKeys: String, CodingKey { case status; case meetupId = "meetup_id", idempotentReplay = "idempotent_replay" }
+}
+
+struct MeetupRegistrationResult: Decodable, Equatable {
+    let registrationId: UUID
+    let status: String
+    let goingCount: Int
+    let capacity: Int
+    let idempotentReplay: Bool
+    enum CodingKeys: String, CodingKey {
+        case status, capacity
+        case registrationId = "registration_id", goingCount = "going_count", idempotentReplay = "idempotent_replay"
+    }
+}
+
 struct DiscussionThread: Decodable, Identifiable, Equatable {
     let id:UUID; let collegeId:UUID; let authorId:UUID; let title:String; let body:String; let createdAt:Date; let updatedAt:Date
     enum CodingKeys:String,CodingKey { case id,title,body; case collegeId="college_id",authorId="author_id",createdAt="created_at",updatedAt="updated_at" }
