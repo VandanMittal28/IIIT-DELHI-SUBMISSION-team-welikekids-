@@ -373,7 +373,8 @@ do $$ declare first jsonb; replay jsonb; begin
  begin
    perform public.register_for_event((select value from test_state where key='edition'),'40000000-0000-0000-0000-000000000014');
    raise exception 'registration after event cancellation was accepted';
- exception when sqlstate 'PGRST' then null;
+ -- register_for_event reports HTTP status codes (PT404) since 20261014130812_registration_error_status_codes.
+ exception when sqlstate 'PT404' then null;
  end;
 end $$;
 reset role;
