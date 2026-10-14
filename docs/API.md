@@ -106,6 +106,20 @@ Clients have read-only table access; every write goes through these functions. `
 - `submit_review` requires an attendance entry, supports update-by-the-same-attendee, and enforces one review per user/event. `event_review_summary` includes the actual sample size.
 - `toggle_organization_follow`, `saved_events`, and `my_community_channels` persist student personalization without using profile metadata for authorization.
 
+## Chat rooms
+
+Chat extends the event `channels`/`messages` model. `channels.kind` is `event` (one per edition, unchanged rules), `college` (one lounge per college, created automatically), or `topic` (inter-college rooms: Commons, Coding, Music, Gaming, Plans & Events).
+
+- Access (`private.can_access_channel`): event rooms keep `can_access_edition`; college lounges need an active administrator-granted membership in that college; topic rooms need an active membership in any college. `profiles.college_id` is never trusted. The same check drives the `channels`/`messages` RLS policies, so Realtime `postgres_changes` only delivers rows the subscriber may read.
+- `get_my_chat_rooms()` — rooms the caller can read with title, last-message preview, and `unread_count` (others' messages after the caller's `channel_reads.last_read_at`).
+- `get_channel_messages(p_channel_id, p_before_seq, p_after_seq, p_limit)` — newest-first page before a `seq` cursor, or oldest-first rows after one (gap fill after reconnect). Returns `author_name` (profile name or "SideQuest student"), `author_college` (from an active membership), and `is_mine`; only callers who can read the room get rows.
+- `send_channel_message(p_channel_id, p_body, p_client_message_id)` — sender is always `auth.uid()`. Trims and rejects empty (`MESSAGE_EMPTY`) or >2000-character (`MESSAGE_TOO_LONG`) messages, limits each student to 8 messages per 30 seconds (`RATE_LIMITED`), and is idempotent by `p_client_message_id`. Returns `message_id` and `seq`. `post_message(p_channel_id, p_body)` keeps its contract and uses the same rules.
+- `mark_channel_read(p_channel_id)` — advances the caller's read marker.
+- Moderation (`private.can_moderate_channel`, `moderate_message`): event staff for event rooms, college administrators for their lounge, platform administrators for topic rooms. `submit_message_report` works in every room; lounge/topic reports have no edition and are readable by that room's moderators.
+- Clients use Realtime `postgres_changes` on `messages` filtered by `channel_id` as an invalidation signal, then fetch by `seq`; durable rows stay authoritative.
+
+`supabase/tests/chatrooms_integration.sql` covers room access per kind, sender identity, validation, idempotency, rate limiting, pagination, unread counts, moderation, reporting, unchanged event rooms, and the forum membership fix (forum visibility now follows active college memberships).
+
 ## Management
 
 `platform_admins` holds the trusted global Sidequest administrator role; clients may read only their own membership row. `create_college` is restricted to platform administrators and writes an audit record. `create_organization` authorizes either a platform administrator across colleges or a college administrator in that college. Neither is automatically added as a society organizer. The protected `create-user-profile` Edge Function provisions college student or organizer IDs for authorized admins; both receive college membership, and neither receives society access during creation. `get_college_organizer_accounts` provides an admin-scoped directory of existing organizer IDs. `assign_society_head` lets an authorized admin assign one active organizer ID from the society's college as its head, granting that society's event access and revoking the previous head's organizer membership. It never creates administrator privileges.

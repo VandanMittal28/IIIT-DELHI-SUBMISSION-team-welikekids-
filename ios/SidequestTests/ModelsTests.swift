@@ -161,4 +161,35 @@ final class ModelsTests: XCTestCase {
         let result = try JSONDecoder().decode(HostMeetupResult.self, from: #"{"meetup_id":"00000000-0000-0000-0000-000000000070","status":"published","idempotent_replay":true}"#.data(using: .utf8)!)
         XCTAssertTrue(result.idempotentReplay)
     }
+
+    private func chatMessage(_ seq: Int64, id: UUID = UUID(), body: String = "hi") -> ChatMessage {
+        ChatMessage(id: id, seq: seq, channelId: UUID(), authorId: UUID(), authorName: "Asha", authorCollege: "IIIT Delhi", body: body, createdAt: Date(timeIntervalSince1970: TimeInterval(seq)), isMine: false)
+    }
+
+    func testChatValidationRejectsEmptyAndOversizedMessages() {
+        XCTAssertNotNil(ChatModel.validationError(for: ""))
+        XCTAssertNotNil(ChatModel.validationError(for: "   \n  "))
+        XCTAssertNotNil(ChatModel.validationError(for: String(repeating: "x", count: ChatModel.maxLength + 1)))
+        XCTAssertNil(ChatModel.validationError(for: "  Hello  "))
+        XCTAssertNil(ChatModel.validationError(for: String(repeating: "x", count: ChatModel.maxLength)))
+    }
+
+    func testChatMergeDeduplicatesAndOrdersBySequence() {
+        let shared = UUID()
+        let existing = [chatMessage(2), chatMessage(5, id: shared, body: "old")]
+        let incoming = [chatMessage(7), chatMessage(5, id: shared, body: "new"), chatMessage(1)]
+        let merged = ChatModel.merge(existing, with: incoming)
+        XCTAssertEqual(merged.map(\.seq), [1, 2, 5, 7])
+        XCTAssertEqual(merged.first { $0.id == shared }?.body, "new", "a re-delivered row replaces, not duplicates")
+    }
+
+    func testChatRoomAndMessageDecode() throws {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let rooms = try decoder.decode([ChatRoom].self, from: #"[{"id":"00000000-0000-0000-0000-000000000080","kind":"topic","title":"Coding","description":"Projects","college_name":null,"starts_at":null,"last_message_body":"Anyone up for a hackathon?","last_message_author":"Asha","last_message_at":"2026-10-14T10:00:00Z","unread_count":3,"sort_order":20}]"#.data(using: .utf8)!)
+        XCTAssertEqual(rooms.first?.unreadCount, 3)
+        let messages = try decoder.decode([ChatMessage].self, from: #"[{"id":"00000000-0000-0000-0000-000000000081","seq":42,"channel_id":"00000000-0000-0000-0000-000000000080","author_id":"00000000-0000-0000-0000-000000000082","author_name":"Asha","author_college":"IIIT Delhi","body":"Hello","created_at":"2026-10-14T10:00:00Z","is_mine":true}]"#.data(using: .utf8)!)
+        XCTAssertEqual(messages.first?.seq, 42)
+        XCTAssertTrue(messages.first?.isMine == true)
+    }
 }

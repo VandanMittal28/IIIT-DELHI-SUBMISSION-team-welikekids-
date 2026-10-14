@@ -8,6 +8,7 @@ struct DiscoverView: View {
     @State private var compareIds: Set<UUID> = []
     @State private var showComparison = false
     @State private var showMap = false
+    @State private var showChat = false
 
     var body: some View {
         @Bindable var model = model
@@ -54,12 +55,16 @@ struct DiscoverView: View {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button { showFilters=true } label: { Image(systemName:"line.3.horizontal.decrease.circle") }.accessibilityLabel("Event filters")
                     Button { showMap=true } label: { Image(systemName:"map") }.accessibilityLabel("Discover colleges on map")
+                    Button { showChat=true } label: { ChatHeaderIcon(unread: model.chat.totalUnread) }
+                        .accessibilityLabel(model.chat.totalUnread > 0 ? "Chat rooms, \(model.chat.totalUnread) unread" : "Chat rooms")
                     if !compareIds.isEmpty { Button("Compare \(compareIds.count)") { showComparison=true } }
                 }
             }
             .sheet(isPresented:$showFilters) { EventFiltersView() }
             .sheet(isPresented:$showComparison) { CompareEventsView(events:model.events.filter{compareIds.contains($0.id)}) }
             .sheet(isPresented:$showMap) { CampusDiscoveryMap(campuses:model.campuses) }
+            .sheet(isPresented:$showChat, onDismiss: { Task { await model.chat.reloadRooms() } }) { ChatHomeView() }
+            .task { if model.isAuthenticated { await model.chat.reloadRooms() } }
             .searchable(text: $model.searchText, prompt: "Search published events")
             .onChange(of: model.searchText) {
                 searchTask?.cancel()
@@ -71,6 +76,26 @@ struct DiscoverView: View {
             }
             .task { if model.eventState == .idle { await model.reloadEvents() } }
         }
+    }
+}
+
+/// Header chat icon with a small unread badge that stays inside the toolbar button's bounds.
+private struct ChatHeaderIcon: View {
+    let unread: Int
+    var body: some View {
+        Image(systemName: "bubble.left.and.bubble.right")
+            .overlay(alignment: .topTrailing) {
+                if unread > 0 {
+                    Text(unread > 9 ? "9+" : "\(unread)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Color.sidequestInk)
+                        .padding(.horizontal, 4).frame(minWidth: 16, minHeight: 16)
+                        .background(Color.sidequestLime, in: Capsule())
+                        .overlay(Capsule().stroke(Color.sidequestInk, lineWidth: 1))
+                        .offset(x: 9, y: -8)
+                        .accessibilityHidden(true)
+                }
+            }
     }
 }
 
