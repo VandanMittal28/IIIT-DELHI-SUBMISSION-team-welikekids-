@@ -33,6 +33,17 @@ prove it builds for iOS, and it cannot say anything about how a screen looks.
 
 **So: every screen needs one visual pass.** Nothing here has been seen rendered.
 
+### About the simulator you were downloading
+
+It did not survive the night, and not because of anything I removed. The two in-progress
+downloads in `~/Downloads` (a ~5 GB one and a ~512 MB one) were still growing when the disk
+reached 0 bytes free; some time after I cleared space they disappeared, so the browser
+discarded the partial files. You will need to start that download again.
+
+Before you do: there is **9.9 GB free**, and installing Xcode needs roughly 30–40 GB while the
+`.xip` expands. Worth clearing space first — `~/Library/Caches/Google` alone was 6.9 GB, and I
+left it alone because it is browser profile data rather than a throwaway cache.
+
 Two things also had to be dealt with before any work was possible, both noted in `PLAN.md`:
 
 - **The disk was 100% full with 0 bytes free**, which made every tool call fail, including
