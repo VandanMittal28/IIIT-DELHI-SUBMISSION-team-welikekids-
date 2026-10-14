@@ -955,6 +955,7 @@ struct SQSheet<Content: View>: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .background(SQColor.background.ignoresSafeArea())
+        .presentationDragIndicator(.hidden)
     }
 }
 

@@ -39,10 +39,10 @@ struct CameraGuidanceView: View {
                 }
                     VStack {
                         Label(step.bearingDegrees == nil ? "Spatial arrow unavailable for this transition." : (simulationMode ? "DEMO · simulated live camera guidance" : "Live camera guidance · turn your phone to follow the anchored arrow"), systemImage: step.bearingDegrees == nil ? "exclamationmark.triangle" : "location.north.line.fill")
-                            .font(SQFont.meta).padding(8).background(.ultraThinMaterial).clipShape(Capsule()).padding(.top, 60)
+                            .font(SQFont.meta).padding(SQSpace.sm).background(.ultraThinMaterial).clipShape(Capsule()).padding(.top, SQSize.floatingCircle + SQSpace.lg)
                         if simulationMode {
                             Text("Simulation only — this route is not physically validated. Use the map for real navigation.")
-                                .font(SQFont.badge).foregroundStyle(SQColor.warning).padding(8).background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: SQRadius.thumb, style: .continuous))
+                                .font(SQFont.badge).foregroundStyle(SQColor.warning).padding(SQSpace.sm).background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: SQRadius.thumb, style: .continuous))
                         }
                     Spacer()
                     VStack(alignment: .leading, spacing: SQSpace.sm) {
@@ -129,7 +129,7 @@ struct SimulatedCameraSurface: View {
                     .scaleEffect(pulse ? 1.05 : 0.96)
                     .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
                 Text("SIMULATED AR ARROW").font(SQFont.badge).foregroundStyle(SQColor.warning)
-                Text(step.instruction).font(SQFont.rowTitle).multilineTextAlignment(.center).foregroundStyle(.white).padding(.horizontal, 24)
+                Text(step.instruction).font(SQFont.rowTitle).multilineTextAlignment(.center).foregroundStyle(.white).padding(.horizontal, SQSpace.xxl)
             }
         }
         .onAppear { pulse = true }

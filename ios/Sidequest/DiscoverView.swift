@@ -49,6 +49,15 @@ struct DiscoverView: View {
             VStack(spacing: 0) {
                 SQScreenHeader(title: "Discover", avatarSeed: "Sidequest", showsSparkle: true) {
                     SQActionCapsule {
+                        SQCapsuleGlyph(
+                            systemImage: showSearch ? "xmark" : "magnifyingglass",
+                            accessibilityTitle: showSearch ? "Close search" : "Search events"
+                        ) {
+                            showSearch.toggle()
+                            if !showSearch && !model.searchText.isEmpty {
+                                model.searchText = ""
+                            }
+                        }
                         SQCapsuleGlyph(systemImage: "map", accessibilityTitle: "Discover colleges on map") {
                             showMap = true
                         }
@@ -62,6 +71,15 @@ struct DiscoverView: View {
                     }
                 }
                 .padding(.bottom, SQSpace.lg)
+
+                if showSearch {
+                    SQField(placeholder: "Search published events", text: $model.searchText, systemImage: "magnifyingglass")
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .padding(.horizontal, SQSpace.margin)
+                        .padding(.bottom, SQSpace.lg)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
 
                 content
             }
@@ -77,7 +95,7 @@ struct DiscoverView: View {
                 CompareEventsView(events: model.events.filter { compareIds.contains($0.id) })
             }
             .sheet(isPresented: $showMap) { CampusDiscoveryMap(campuses: model.campuses) }
-            .searchable(text: $model.searchText, prompt: "Search published events")
+            .animation(.easeInOut(duration: 0.2), value: showSearch)
             .onChange(of: model.searchText) {
                 searchTask?.cancel()
                 searchTask = Task {
