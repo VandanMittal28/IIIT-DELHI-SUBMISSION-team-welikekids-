@@ -14,13 +14,14 @@ struct EventFeedItem: Decodable, Identifiable, Equatable, Hashable {
     let currency: String
     let eligibility: String?
     let coverImagePath: String?
+    let venueId: UUID?
     let venueName: String?
     let destinationLandmarkId: UUID?
     let designatedGateLandmarkId: UUID?
 
     enum CodingKeys: String, CodingKey {
         case id, title, description, category, currency, eligibility
-        case coverImagePath = "cover_image_path"
+        case coverImagePath = "cover_image_path", venueId = "venue_id"
         case venueName = "venue_name", destinationLandmarkId = "destination_landmark_id", designatedGateLandmarkId = "designated_gate_landmark_id"
         case editionId = "edition_id"
         case organizationName = "organization_name"
@@ -38,6 +39,18 @@ struct EventFeedItem: Decodable, Identifiable, Equatable, Hashable {
 
 struct CampusPoint: Decodable, Identifiable, Equatable {
     let id: UUID; let name: String; let latitude: Double; let longitude: Double
+}
+
+struct VenueMapLocation: Decodable, Identifiable, Equatable {
+    let id: UUID
+    let campusId: UUID
+    let latitude: Double?
+    let longitude: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case id, latitude, longitude
+        case campusId = "campus_id"
+    }
 }
 
 struct EventSessionScheduleItem:Decodable,Identifiable,Equatable {
@@ -336,6 +349,7 @@ struct OpenMeetup: Decodable, Identifiable, Equatable, Hashable {
     let hostName: String
     let hostHeadline: String?
     let hostVerified: Bool
+    let venueId: UUID?
     let venueName: String
     let campusName: String
     let destinationLandmarkId: UUID?
@@ -349,7 +363,7 @@ struct OpenMeetup: Decodable, Identifiable, Equatable, Hashable {
         case locationNote = "location_note", goingCount = "going_count"
         case startsAt = "starts_at", endsAt = "ends_at", collegeName = "college_name"
         case hostName = "host_name", hostHeadline = "host_headline", hostVerified = "host_verified"
-        case venueName = "venue_name", campusName = "campus_name", destinationLandmarkId = "destination_landmark_id"
+        case venueId = "venue_id", venueName = "venue_name", campusName = "campus_name", destinationLandmarkId = "destination_landmark_id"
         case participatingColleges = "participating_colleges", myStatus = "my_status", isEligible = "is_eligible", isHost = "is_host"
     }
 

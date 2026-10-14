@@ -15,6 +15,8 @@ enum StudentSignUpOutcome: Equatable {
 @Observable
 final class AppModel {
     private(set) var events: [EventFeedItem] = []
+    private(set) var mapEvents: [EventFeedItem] = []
+    private(set) var mapVenueLocations: [UUID: VenueMapLocation] = [:]
     private(set) var eventImageURLs: [UUID: URL] = [:]
     private var eventImagePaths: [UUID: String] = [:]
     private(set) var eventState: LoadState = .idle
@@ -151,6 +153,42 @@ final class AppModel {
         await loadEvents(reset: true)
     }
 
+    func reloadMapEvents() async {
+        guard let client else { mapEvents = events.filter { $0.endsAt >= .now }; return }
+        do {
+            mapEvents = try await client
+                .from("published_event_feed")
+                .select("id,edition_id,title,description,category,organization_name,college_name,starts_at,ends_at,price_minor,currency,eligibility,cover_image_path,venue_id,venue_name,destination_landmark_id,designated_gate_landmark_id")
+                .gte("ends_at", value: Date.now.ISO8601Format())
+                .order("starts_at", ascending: true)
+                .limit(500)
+                .execute()
+                .value
+        } catch {
+            mapEvents = events.filter { $0.endsAt >= .now }
+        }
+    }
+
+    func reloadMapVenueLocations() async {
+        guard let client else { mapVenueLocations = [:]; return }
+        if campuses.isEmpty {
+            campuses = (try? await client.from("campuses").select("id,name,latitude,longitude").order("name").execute().value) ?? []
+        }
+        let venueIds = Set(mapEvents.compactMap(\.venueId) + meetups.compactMap(\.venueId))
+        guard !venueIds.isEmpty else { mapVenueLocations = [:]; return }
+        do {
+            let locations: [VenueMapLocation] = try await client
+                .from("venues")
+                .select("id,campus_id,latitude,longitude")
+                .in("id", values: venueIds.map(\.uuidString))
+                .execute()
+                .value
+            mapVenueLocations = Dictionary(uniqueKeysWithValues: locations.map { ($0.id, $0) })
+        } catch {
+            mapVenueLocations = [:]
+        }
+    }
+
     func loadNextPage() async {
         guard canLoadMore, eventState != .loading else { return }
         page += 1
@@ -166,7 +204,7 @@ final class AppModel {
         do {
             var query = client
                 .from("published_event_feed")
-                .select("id,edition_id,title,description,category,organization_name,college_name,starts_at,ends_at,price_minor,currency,eligibility,cover_image_path,venue_name,destination_landmark_id,designated_gate_landmark_id")
+                .select("id,edition_id,title,description,category,organization_name,college_name,starts_at,ends_at,price_minor,currency,eligibility,cover_image_path,venue_id,venue_name,destination_landmark_id,designated_gate_landmark_id")
             let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmedSearch.isEmpty {
                 let safeSearch = trimmedSearch.replacingOccurrences(of: "%", with: "")
@@ -306,7 +344,7 @@ final class AppModel {
         meetupState = .loading
         do {
             meetups = try await client.from("open_meetup_feed")
-                .select("id,title,description,location_note,icebreaker,audience,capacity,going_count,starts_at,ends_at,status,college_name,host_name,host_headline,host_verified,venue_name,campus_name,destination_landmark_id,participating_colleges,my_status,is_eligible,is_host")
+                .select("id,title,description,location_note,icebreaker,audience,capacity,going_count,starts_at,ends_at,status,college_name,host_name,host_headline,host_verified,venue_id,venue_name,campus_name,destination_landmark_id,participating_colleges,my_status,is_eligible,is_host")
                 .eq("status", value: "published")
                 .gte("ends_at", value: Date.now.ISO8601Format())
                 .order("starts_at", ascending: true)
@@ -334,7 +372,7 @@ final class AppModel {
         guard let client, isAuthenticated else { hostedMeetups = []; return }
         do {
             hostedMeetups = try await client.from("open_meetup_feed")
-                .select("id,title,description,location_note,icebreaker,audience,capacity,going_count,starts_at,ends_at,status,college_name,host_name,host_headline,host_verified,venue_name,campus_name,destination_landmark_id,participating_colleges,my_status,is_eligible,is_host")
+                .select("id,title,description,location_note,icebreaker,audience,capacity,going_count,starts_at,ends_at,status,college_name,host_name,host_headline,host_verified,venue_id,venue_name,campus_name,destination_landmark_id,participating_colleges,my_status,is_eligible,is_host")
                 .eq("is_host", value: true)
                 .order("starts_at", ascending: false)
                 .limit(30)

@@ -119,7 +119,7 @@ private struct JourneyCard: View {
         .background(.white, in: RoundedRectangle(cornerRadius: 20))
         .sheet(isPresented: $reviewing) { ReviewForm(item: item) }
         .sheet(isPresented:$reporting) { ReportForm(item:item) }
-        .sheet(isPresented:$showingEventChat) { EventChatSheet(eventId:item.eventId) }
+        .sheet(isPresented:$showingEventChat, onDismiss: { Task { await model.chat.reloadRooms() } }) { ChatHomeView() }
         .sheet(isPresented:$showingEventMedia) { EventMediaView(item:item) }
     }
 }

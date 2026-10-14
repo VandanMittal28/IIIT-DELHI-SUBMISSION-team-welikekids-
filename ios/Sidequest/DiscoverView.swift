@@ -62,7 +62,7 @@ struct DiscoverView: View {
             }
             .sheet(isPresented:$showFilters) { EventFiltersView() }
             .sheet(isPresented:$showComparison) { CompareEventsView(events:model.events.filter{compareIds.contains($0.id)}) }
-            .sheet(isPresented:$showMap) { CampusDiscoveryMap(campuses:model.campuses) }
+            .sheet(isPresented:$showMap) { CampusDiscoveryMap() }
             .sheet(isPresented:$showChat, onDismiss: { Task { await model.chat.reloadRooms() } }) { ChatHomeView() }
             .task { if model.isAuthenticated { await model.chat.reloadRooms() } }
             .searchable(text: $model.searchText, prompt: "Search published events")
@@ -99,9 +99,77 @@ private struct ChatHeaderIcon: View {
     }
 }
 
-private struct CampusDiscoveryMap:View{
-    @Environment(\.dismiss) private var dismiss;let campuses:[CampusPoint]
-    var body:some View{NavigationStack{Group{if campuses.isEmpty{ContentUnavailableView("No mapped campuses",systemImage:"map",description:Text("Published campus coordinates will appear here."))}else{Map{ForEach(campuses){campus in Marker(campus.name,coordinate:.init(latitude:campus.latitude,longitude:campus.longitude))}}}}.navigationTitle("Campus discovery").toolbar{ToolbarItem(placement:.confirmationAction){Button("Done"){dismiss()}}}}}
+private struct CampusDiscoveryMap: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+
+    private var eventPins: [DiscoveryMapPin] {
+        model.mapEvents.filter { $0.endsAt > .now }.compactMap { event in
+            coordinate(for: event.venueId).map {
+                DiscoveryMapPin(id: event.id, title: event.title, coordinate: $0)
+            }
+        }
+    }
+
+    private var meetupPins: [DiscoveryMapPin] {
+        model.meetups.filter { $0.status == "published" && $0.endsAt > .now }.compactMap { meetup in
+            coordinate(for: meetup.venueId).map {
+                DiscoveryMapPin(id: meetup.id, title: meetup.title, coordinate: $0)
+            }
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Map(initialPosition: .automatic) {
+                ForEach(model.campuses) { campus in
+                    Marker(campus.name, systemImage: "building.columns.fill", coordinate: .init(latitude: campus.latitude, longitude: campus.longitude))
+                        .tint(.gray)
+                }
+                ForEach(eventPins) { pin in
+                    Marker(pin.title, systemImage: "calendar", coordinate: pin.coordinate)
+                        .tint(.blue)
+                }
+                ForEach(meetupPins) { pin in
+                    Marker(pin.title, systemImage: "cup.and.saucer.fill", coordinate: pin.coordinate)
+                        .tint(.orange)
+                }
+            }
+            .overlay(alignment: .topLeading) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Label("Events · ongoing and upcoming", systemImage: "calendar").foregroundStyle(.blue)
+                    Label("Open meetups", systemImage: "cup.and.saucer.fill").foregroundStyle(.orange)
+                    Label("Campuses", systemImage: "building.columns.fill").foregroundStyle(.secondary)
+                }
+                .font(.caption.bold())
+                .padding(12)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+                .padding()
+            }
+            .navigationTitle("Discover map")
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .task {
+                await model.reloadMapEvents()
+                await model.reloadMeetups()
+                await model.reloadMapVenueLocations()
+            }
+        }
+    }
+
+    private func coordinate(for venueId: UUID?) -> CLLocationCoordinate2D? {
+        guard let venueId, let location = model.mapVenueLocations[venueId] else { return nil }
+        if let latitude = location.latitude, let longitude = location.longitude {
+            return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        }
+        guard let campus = model.campuses.first(where: { $0.id == location.campusId }) else { return nil }
+        return CLLocationCoordinate2D(latitude: campus.latitude, longitude: campus.longitude)
+    }
+}
+
+private struct DiscoveryMapPin: Identifiable {
+    let id: UUID
+    let title: String
+    let coordinate: CLLocationCoordinate2D
 }
 
 private struct EventCard: View {

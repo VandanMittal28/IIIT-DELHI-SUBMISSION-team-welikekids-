@@ -53,17 +53,25 @@ declare
   day_one timestamptz := date_trunc('day', now_at) + interval '1 day';
   day_two timestamptz := date_trunc('day', now_at) + interval '2 days';
 begin
-  -- Keep the development project strictly IIIT Delhi after the earlier generic demo.
-  update public.passes p set status='revoked',revoked_at=coalesce(revoked_at,now_at)
-    where p.registration_id in (select r.id from public.registrations r join public.event_editions ee on ee.id=r.edition_id join public.events e on e.id=ee.event_id where e.college_id <> 'bc3417c0-170e-4663-b235-86efc40cebb2'::uuid);
-  update public.registrations r set status='cancelled',cancelled_at=coalesce(r.cancelled_at,now_at),updated_at=now_at
-    where r.edition_id in (select ee.id from public.event_editions ee join public.events e on e.id=ee.event_id where e.college_id <> 'bc3417c0-170e-4663-b235-86efc40cebb2'::uuid) and r.status <> 'cancelled';
-  update public.events e set status='cancelled',cancelled_at=coalesce(e.cancelled_at,now_at),updated_at=now_at where e.college_id <> 'bc3417c0-170e-4663-b235-86efc40cebb2'::uuid and e.status <> 'cancelled';
-  update public.organizations o set is_active=false,updated_at=now_at where o.college_id <> 'bc3417c0-170e-4663-b235-86efc40cebb2'::uuid;
-  update public.memberships m set status='revoked',updated_at=now_at where m.organization_id in (select o.id from public.organizations o where o.college_id <> 'bc3417c0-170e-4663-b235-86efc40cebb2'::uuid);
+  if not exists (
+    select 1 from public.colleges college
+    where college.id = 'bc3417c0-170e-4663-b235-86efc40cebb2'::uuid and college.name = 'IIIT Delhi'
+  ) then
+    raise exception 'The configured IIIT Delhi college must exist before running this seed.';
+  end if;
   if not exists (select 1 from auth.users where id in (admin_id, organizer_id, student_id) having count(*) = 3) then
     raise exception 'Create the three demo Auth users before running this seed.';
   end if;
+
+  -- Keep the development project strictly IIIT Delhi after the earlier generic demo.
+  -- Remove unrelated meetups and events first because their college references restrict deletion.
+  -- Deleting the other colleges then cascades through their campuses, venues, landmarks/checkpoints, and routes.
+  delete from public.open_meetups meetup_record
+  where meetup_record.college_id <> 'bc3417c0-170e-4663-b235-86efc40cebb2'::uuid;
+  delete from public.events event_record
+  where event_record.college_id <> 'bc3417c0-170e-4663-b235-86efc40cebb2'::uuid;
+  delete from public.colleges college
+  where college.id <> 'bc3417c0-170e-4663-b235-86efc40cebb2'::uuid;
 
   insert into public.profiles(id,college_id,full_name,status) values
     (admin_id,college_id,'IIIT Delhi Admin','active'),
