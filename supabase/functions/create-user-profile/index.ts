@@ -36,9 +36,19 @@ Deno.serve(async (request) => {
   ]);
   if (platformError || collegeError) return json({ error: platformError?.message ?? collegeError?.message }, 500);
   if (!platformAdmin && !collegeAdmin) return json({ error: "FORBIDDEN", message: "Sidequest platform administrator access or active administrator access for this college is required." }, 403);
+  const { data: existingProfile, error: lookupError } = await adminClient.from("profiles")
+    .select("account_type,college_id").eq("login_username", username).maybeSingle();
+  if (lookupError) return json({ error: lookupError.message }, 500);
+  if (existingProfile) {
+    const sameCollege = existingProfile.college_id === collegeId;
+    const message = sameCollege && existingProfile.account_type !== profileType
+      ? `This username already belongs to a ${existingProfile.account_type} account. Choose a different username for a new ${profileType} account.`
+      : "This username already has an account. Sign in with its existing password or choose a different username.";
+    return json({ error: "USERNAME_TAKEN", message }, 409);
+  }
   const email = `${username}@sidequest.local`;
   const { data: created, error: createError } = await adminClient.auth.admin.createUser({ email, password: input.password, email_confirm: true, user_metadata: { full_name: fullName } });
-  if (createError || !created.user) return json({ error: createError?.message ?? "USER_CREATE_FAILED" }, createError?.status ?? 500);
+  if (createError || !created.user) return json({ error: createError?.message ?? "USER_CREATE_FAILED", message: createError?.message ?? "The account could not be created." }, createError?.status ?? 500);
   const userId = created.user.id;
   const { error: profileError } = await adminClient.from("profiles").upsert({ id: userId, college_id: collegeId, full_name: fullName, status: "active", account_type: profileType, login_username: username });
   if (profileError) { await adminClient.auth.admin.deleteUser(userId); return json({ error: profileError.message }, 500); }

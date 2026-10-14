@@ -7,6 +7,16 @@ type College = { id: string; name: string };
 type Organization = { id: string; name: string; college_id: string; is_active: boolean; head_user_id?: string | null };
 type OrganizerAccount = { user_id: string; full_name: string; login_username: string | null };
 
+async function accountCreationError(error: unknown) {
+  if (error && typeof error === "object" && "context" in error && error.context instanceof Response) {
+    try {
+      const body = await error.context.clone().json() as { message?: string; error?: string };
+      if (body.message || body.error) return body.message ?? body.error ?? "Account creation failed.";
+    } catch { /* Keep the original error if the response has no JSON body. */ }
+  }
+  return error instanceof Error ? error.message : "Account creation failed. Please try again.";
+}
+
 export function ProfileProvisioningPanel({
   platformAdmin,
   collegeId,
@@ -37,6 +47,7 @@ export function ProfileProvisioningPanel({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [accountError, setAccountError] = useState<string | null>(null);
   const selectedOrganizations = useMemo(
     () => organizations.filter((organization) => organization.college_id === selectedCollegeId && organization.is_active),
     [organizations, selectedCollegeId],
@@ -61,7 +72,7 @@ export function ProfileProvisioningPanel({
   }, [loadOrganizerAccounts, selectedCollegeId]);
 
   async function createProfile(event: React.FormEvent) {
-    event.preventDefault(); setBusy(true); setError(null); setMessage(null);
+    event.preventDefault(); setBusy(true); setAccountError(null); setMessage(null);
     const { data, error: invokeError } = await getSupabase().functions.invoke("create-user-profile", {
       body: {
         college_id: selectedCollegeId,
@@ -71,13 +82,13 @@ export function ProfileProvisioningPanel({
         profile_type: profileType,
       },
     });
-    if (invokeError) setError(invokeError.message);
-    else if (data?.error) setError(data.message ?? data.error);
-    else {
+    if (invokeError) setAccountError(await accountCreationError(invokeError));
+    else if (data?.error) setAccountError(data.message ?? data.error);
+    else if (typeof data?.user_id === "string") {
       setMessage(`${profileType === "student" ? "Student" : "Organizer"} account created for ${collegeName}. Username: ${username}${profileType === "organizer" ? ". Assign this ID as a society head below to grant event access." : ""}`);
       setUsername(""); setFullName(""); setPassword("");
       if (profileType === "organizer") { await loadOrganizerAccounts(selectedCollegeId); setHeadUserId(data.user_id); }
-    }
+    } else setAccountError("Account creation was not confirmed. Check this username before trying again.");
     setBusy(false);
   }
 
@@ -176,11 +187,12 @@ export function ProfileProvisioningPanel({
       </form>
       <form className="ops-form" onSubmit={createProfile}>
         <h3>Create account</h3>
-        <label className="field">Account type<select value={profileType} onChange={event => setProfileType(event.target.value as "student" | "organizer") }><option value="student">Student</option><option value="organizer">Organizer ID</option></select></label>
-        <label className="field">Username<input required minLength={3} value={username} onChange={event => setUsername(event.target.value)} placeholder="student01" autoComplete="off" /></label>
+        <label className="field">Account type<select value={profileType} onChange={event => { setProfileType(event.target.value as "student" | "organizer"); setAccountError(null); }}><option value="student">Student</option><option value="organizer">Organizer ID</option></select></label>
+        <label className="field">Username<input required minLength={3} value={username} onChange={event => { setUsername(event.target.value); setAccountError(null); }} placeholder="student01" autoComplete="off" /></label>
         <label className="field">Full name<input required minLength={2} value={fullName} onChange={event => setFullName(event.target.value)} placeholder="Account holder name" /></label>
         <label className="field">Temporary password<input required minLength={8} type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="new-password" /></label>
         <button disabled={busy || !selectedCollegeId}>{busy ? "Creating…" : `Create ${profileType === "student" ? "student" : "organizer"} account`}</button>
+        {accountError && <p role="alert" className="error-text">{accountError}</p>}
         <p className="helper">Credentials are sent to Supabase Auth and are not stored in the Admin UI.</p>
       </form>
       <form className="ops-form" onSubmit={assignHead}>
