@@ -1,43 +1,575 @@
-:root { --background: #f2f3ed; --foreground: #17211a; }
+/* ============================================================================
+   Sidequest Admin — design tokens and shared primitives.
+
+   The scale below is the web port of DESIGN_NOTES.md, the measured Luma
+   reference used for the iOS redesign, so the two surfaces read as one
+   product: flat white cards on a soft grouped background, 22px radii, hairline
+   separators, grey used as a type colour rather than a border colour, and the
+   Sidequest brand (ink + lime) reserved for accents.
+
+   Nothing outside this file and page.module.css should hard-code a colour,
+   radius, shadow or space.
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces ------------------------------------------------------------- */
+  --bg: #f2f2f0;              /* grouped page background */
+  --surface: #ffffff;         /* cards, sheets, panels */
+  --surface-sunken: #ededeb;  /* input wells, icon tiles, inert chips */
+  --surface-hover: #e6e6e3;
+
+  /* Type ----------------------------------------------------------------- */
+  --text: #0b0b0c;
+  --text-secondary: #6e6e73;  /* labels, meta, helper copy */
+  --text-tertiary: #9a9a9f;   /* section headers, de-emphasised meta */
+
+  /* Lines ---------------------------------------------------------------- */
+  --separator: #e3e3e0;       /* hairline inside and between cards */
+  --border: #dcdcd8;          /* only where a true edge is needed */
+
+  /* Brand ---------------------------------------------------------------- */
+  --ink: #17211a;             /* primary fill */
+  --on-ink: #e8ff63;          /* label on primary fill */
+  --ink-hover: #243226;
+  --lime: #e8ff63;
+  --accent: #5f7312;          /* lime is unreadable on white; this is its ink twin */
+
+  /* Status --------------------------------------------------------------- */
+  --positive: #1f7a46;
+  --positive-wash: #e8f6ed;
+  --danger: #b3261e;
+  --danger-solid: #b3261e;
+  --on-danger: #ffffff;
+  --danger-wash: #fdeceb;
+  --danger-border: #f3cfcc;
+  --warning-wash: #fdf4e3;
+
+  /* Radii ---------------------------------------------------------------- */
+  --r-card: 22px;
+  --r-panel: 18px;
+  --r-control: 14px;
+  --r-tile: 10px;
+  --r-pill: 999px;
+
+  /* Fixed regardless of theme. */
+  --camera-bg: #10130f;
+
+  /* Elevation ------------------------------------------------------------ */
+  --shadow-card: 0 6px 18px rgba(11, 11, 12, 0.05);
+  --shadow-float: 0 8px 24px rgba(11, 11, 12, 0.10);
+  --ring: 0 0 0 3px rgba(23, 33, 26, 0.14);
+
+  /* Space ---------------------------------------------------------------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 44px;
+
+  --font-sans: var(--font-geist-sans), -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Sticky chrome. The header collapses on narrow screens, so its height is a
+     variable and the section nav and scroll anchors are derived from it. */
+  --header-h: 72px;
+  --nav-h: 58px;
+  --glow: 34%;
+}
+
+@media (max-width: 620px) {
+  :root { --header-h: 60px; }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #0e0f0e;
+    --surface: #1a1c1a;
+    --surface-sunken: #242724;
+    --surface-hover: #2d312d;
+    --text: #f4f4f2;
+    --text-secondary: #a0a39f;
+    --text-tertiary: #7a7d79;
+    --separator: #2b2e2b;
+    --border: #343834;
+    --ink: #e8ff63;          /* invert: on a dark page the lime is the fill */
+    --on-ink: #17211a;
+    --ink-hover: #d6ec55;
+    --accent: #cfe65a;
+    --positive: #6cc48d;
+    --positive-wash: #16301f;
+    --danger: #ff8a80;
+    --danger-solid: #c6382c;
+    --on-danger: #ffffff;
+    --danger-wash: #341a18;
+    --danger-border: #4d2623;
+    --warning-wash: #332b18;
+    --shadow-card: 0 6px 18px rgba(0, 0, 0, 0.35);
+    --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.45);
+    --ring: 0 0 0 3px rgba(232, 255, 99, 0.22);
+    --glow: 9%;
+  }
+}
+
+/* Base ---------------------------------------------------------------------*/
+
 * { box-sizing: border-box; padding: 0; margin: 0; }
+
 html, body { max-width: 100vw; min-height: 100%; overflow-x: hidden; }
-body { color: var(--foreground); background: var(--background); font-family: Arial, Helvetica, sans-serif; -webkit-font-smoothing: antialiased; }
+
+body {
+  color: var(--text);
+  background: var(--bg);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3 { letter-spacing: -0.025em; line-height: 1.15; }
+h1 { letter-spacing: -0.045em; }
+
 a { color: inherit; text-decoration: none; }
-code { background: #edf0e9; padding: 2px 5px; border-radius: 5px; }
-.ops-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 22px; }
-.ops-card { background:#fbfcf8; border:1px solid #dfe3da; border-radius:24px; padding:24px; box-shadow:0 18px 55px rgba(31,45,34,.06); color:#17211a; }
-.ops-wide { grid-column:1/-1; }
-.ops-heading,.button-row,.coordinate-row { display:flex; justify-content:space-between; gap:12px; align-items:center; }
-.ops-heading h2,.ops-card h2 { margin:0 0 14px; letter-spacing:-.035em; }
-.ops-kicker { color:#56704e; font-weight:800; font-size:11px; letter-spacing:.14em; text-transform:uppercase; margin:0 0 8px; }
-.status-dot { font-size:11px; color:#297a4b; font-weight:800; white-space:nowrap; }
-.scanner-video { width:100%; aspect-ratio:4/3; background:#17211a; border-radius:16px; object-fit:cover; }
-.helper { color:#69756b; font-size:12px; line-height:1.55; }
-.field { display:grid; gap:6px; color:#526057; font-size:12px; font-weight:750; margin:12px 0; width:100%; }
-.field input,.field select,.field textarea { width:100%; border:1px solid #cfd5ca; border-radius:12px; background:white; color:#17211a; padding:11px 12px; font:inherit; font-size:14px; }
-.ops-card button { border:0; border-radius:12px; padding:11px 15px; background:#17211a; color:white; font:inherit; font-weight:800; cursor:pointer; }
-.ops-card button.secondary { color:#17211a; background:#edf0e9; }
-.ops-card button:disabled { opacity:.55; cursor:not-allowed; }
-.ops-form { display:grid; gap:4px; }
-.metric { display:flex; align-items:center; gap:18px; padding:15px 0; border-top:1px solid #e0e4db; }
-.metric strong { font-size:42px; color:#297a4b; }.metric span { color:#69756b; font-size:12px; line-height:1.5; }
-.report-row { display:flex; justify-content:space-between; gap:14px; padding:15px 0; border-top:1px solid #e0e4db; }.report-row p{margin:5px 0;color:#526057}.report-row small{color:#69756b;text-transform:capitalize}
-.report-row blockquote{margin:10px 0;padding:10px 12px;border-left:3px solid #79a894;background:#f2f7f3;color:#344a40}
-.report-photos{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}.report-photos a{display:flex;flex-direction:column;gap:5px;color:#2c5a4c;font-size:.8rem}.report-photos img{width:150px;height:110px;object-fit:cover;border-radius:10px;border:1px solid #d8e2d8}
-.report-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.report-actions select{min-width:190px}.evidence-links{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}.evidence-links a{font-weight:700;color:#165f48}
-.success-text { color:#2f6a31; font-size:13px; }.error-text { color:#922f21; font-size:13px; }
-.leaflet-map { height:420px; border-radius:16px; overflow:hidden; border:1px solid #dfe3da; }
-.authoring-columns { display:grid; grid-template-columns:1fr 1fr; gap:24px; }.coordinate-row>*{flex:1}
-.management-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:22px; }
-.check-line { display:flex; gap:8px; align-items:center; color:#526057; font-size:13px; margin:4px 0; }
-.ops-card button.danger { background:#8f2e23; }
-.dashboardNav{position:sticky;top:76px;z-index:3;display:flex;gap:8px;overflow-x:auto;padding:10px 12px;margin:0 0 22px;border:1px solid #dfe3da;border-radius:16px;background:rgba(250,251,247,.94);backdrop-filter:blur(12px);scrollbar-width:thin}
-.dashboardNav a{flex:0 0 auto;padding:10px 14px;border-radius:999px;background:#edf0e9;color:#344238;font-size:13px;font-weight:750;white-space:nowrap}
-.dashboardNav a:hover,.dashboardNav a:focus-visible{background:#e9ff63;outline:2px solid #56704e;outline-offset:1px}
-#create-event,#publishing-desk,#event-operations,#campus-data{scroll-margin-top:150px}
-.formGrid label small{color:#69756b;font-size:11px;font-weight:500;line-height:1.45}
-.volunteerGrid + .ops-card { margin-top:22px; }
-.route-builder { margin-top:24px; border-top:1px solid #dfe3da; padding-top:18px; }
-.route-builder > summary { cursor:pointer; font-size:18px; font-weight:800; margin-bottom:18px; }
-@media(max-width:1000px){.management-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:700px){.ops-grid,.authoring-columns,.management-grid{grid-template-columns:1fr}.ops-wide{grid-column:auto}.leaflet-map{height:320px}.coordinate-row,.report-row{align-items:stretch;flex-direction:column}.report-actions{align-items:stretch}.report-actions select,.report-actions button{width:100%;min-width:0}}
+
+code {
+  font-family: var(--font-mono);
+  background: var(--surface-sunken);
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 0.92em;
+}
+
+/* One focus treatment for the whole app. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* Cards --------------------------------------------------------------------*/
+
+.ops-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5); }
+
+.ops-card {
+  background: var(--surface);
+  border: 1px solid var(--separator);
+  border-radius: var(--r-card);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-card);
+  color: var(--text);
+}
+
+.ops-wide { grid-column: 1 / -1; }
+
+.ops-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding-bottom: var(--space-5);
+  margin-bottom: var(--space-5);
+  border-bottom: 1px solid var(--separator);
+}
+
+.ops-heading h2, .ops-card h2 { font-size: 24px; margin: 0; letter-spacing: -0.03em; }
+
+/* Section label: Luma sets these in grey sentence case, not tracked caps. */
+.ops-kicker {
+  color: var(--text-tertiary);
+  font-weight: 600;
+  font-size: 13px;
+  margin: 0 0 var(--space-1);
+}
+
+.ops-card h3 {
+  font-size: 16px;
+  font-weight: 650;
+  margin-bottom: var(--space-1);
+}
+
+/* A heading that divides a card's own sections needs room above it; one that
+   opens a form in a grid well does not. */
+.ops-card > h3 { margin-top: var(--space-6); margin-bottom: var(--space-3); }
+
+/* A status chip that actually carries a dot, as its name promises. */
+.status-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--surface-sunken);
+  border-radius: var(--r-pill);
+  padding: 5px 11px;
+  white-space: nowrap;
+}
+
+.status-dot::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--positive);
+  flex: 0 0 auto;
+}
+
+.helper { color: var(--text-secondary); font-size: 13px; line-height: 1.55; }
+
+/* Forms --------------------------------------------------------------------*/
+
+.ops-form { display: grid; gap: var(--space-2); align-content: start; }
+
+.field {
+  display: grid;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  margin: var(--space-3) 0;
+  width: 100%;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: var(--r-control);
+  background: var(--surface-sunken);
+  color: var(--text);
+  padding: 11px 13px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 400;
+  outline: none;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field textarea { min-height: 86px; resize: vertical; }
+
+.field input::placeholder, .field textarea::placeholder { color: var(--text-tertiary); }
+
+.field input:hover, .field select:hover, .field textarea:hover { background: var(--surface-hover); }
+
+/* Wells lift to a plain surface on focus — the Luma field treatment. */
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  background: var(--surface);
+  border-color: var(--accent);
+  box-shadow: var(--ring);
+}
+
+.field input[type="file"] { padding: 9px 11px; font-size: 13px; }
+
+.check-line {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  margin: var(--space-1) 0;
+}
+
+.check-line input { width: 17px; height: 17px; accent-color: var(--accent); }
+
+/* Buttons ------------------------------------------------------------------*/
+
+.ops-card button {
+  border: 0;
+  border-radius: var(--r-control);
+  padding: 11px 16px;
+  background: var(--ink);
+  color: var(--on-ink);
+  font: inherit;
+  font-weight: 650;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.ops-card button:hover:not(:disabled) { background: var(--ink-hover); }
+
+.ops-card button.secondary {
+  color: var(--text);
+  background: var(--surface-sunken);
+}
+
+.ops-card button.secondary:hover:not(:disabled) { background: var(--surface-hover); }
+
+.ops-card button.danger { background: var(--danger-solid); color: var(--on-danger); }
+
+.ops-card button.danger:hover:not(:disabled) { background: var(--danger); opacity: 0.86; }
+
+.ops-card button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.button-row, .coordinate-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.coordinate-row > * { flex: 1; }
+
+/* Scanner ------------------------------------------------------------------*/
+
+.scanner-video {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: var(--camera-bg);
+  border-radius: var(--r-panel);
+  object-fit: cover;
+  display: block;
+}
+
+/* Metrics and rows ---------------------------------------------------------*/
+
+.metric {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--separator);
+}
+
+.metric strong {
+  font-size: 40px;
+  font-weight: 680;
+  letter-spacing: -0.04em;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.metric span { color: var(--text-secondary); font-size: 13px; line-height: 1.45; }
+
+.report-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--separator);
+}
+
+.report-row strong { font-size: 15px; }
+.report-row p { margin: 5px 0; color: var(--text-secondary); font-size: 14px; }
+.report-row small { color: var(--text-tertiary); font-size: 12px; }
+.report-row small .cap { text-transform: capitalize; }
+
+.report-row blockquote {
+  margin: var(--space-3) 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--r-tile) var(--r-tile) 0;
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.ops-card .report-row > button { align-self: start; flex: 0 0 auto; border-radius: var(--r-pill); padding: 9px 16px; font-size: 13px; }
+
+.report-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.report-actions select { min-width: 190px; }
+
+.evidence-links { display: flex; gap: var(--space-3); flex-wrap: wrap; margin-top: var(--space-2); }
+.evidence-links a { font-weight: 600; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+
+/* Report evidence ----------------------------------------------------------*/
+
+.report-photos { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-3); }
+
+.report-photos a {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.report-photos img {
+  width: 150px;
+  height: 110px;
+  object-fit: cover;
+  border-radius: var(--r-tile);
+  border: 1px solid var(--separator);
+  background: var(--surface-sunken);
+}
+
+/* Inline status messages ---------------------------------------------------*/
+
+.success-text, .error-text {
+  font-size: 14px;
+  border-radius: var(--r-control);
+  padding: 11px 14px;
+  margin-top: var(--space-3);
+}
+
+.success-text { color: var(--positive); background: var(--positive-wash); }
+.error-text { color: var(--danger); background: var(--danger-wash); }
+
+/* Map and authoring --------------------------------------------------------*/
+
+.leaflet-map {
+  height: 420px;
+  margin-bottom: var(--space-3);
+  border-radius: var(--r-panel);
+  overflow: hidden;
+  border: 1px solid var(--separator);
+}
+
+.authoring-columns { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-6); margin-top: var(--space-6); }
+
+.management-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-5); align-items: start; }
+
+/* Each form in a management grid is its own quiet well, so a dense grid of
+   them reads as separate tasks rather than one wall of inputs. */
+.management-grid > .ops-form,
+.management-grid > form.ops-form {
+  background: var(--bg);
+  border: 1px solid var(--separator);
+  border-radius: var(--r-panel);
+  padding: var(--space-5);
+}
+
+.route-builder { margin-top: var(--space-6); border-top: 1px solid var(--separator); padding-top: var(--space-5); }
+
+.route-builder > summary {
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 650;
+  margin-bottom: var(--space-5);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.route-builder > summary::-webkit-details-marker { display: none; }
+
+.route-builder > summary::before {
+  content: "";
+  width: 7px; height: 7px;
+  border-right: 2px solid var(--text-secondary);
+  border-bottom: 2px solid var(--text-secondary);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+}
+
+.route-builder[open] > summary::before { transform: rotate(45deg); }
+
+/* Destructive zone ---------------------------------------------------------*/
+
+/* Kept visually apart from "Save", so a destructive action is never the
+   button next to the one you meant to press. */
+.danger-zone {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--separator);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.ops-card .danger-zone button.destructive {
+  color: var(--danger);
+  background: var(--danger-wash);
+  justify-self: start;
+}
+
+.ops-card .danger-zone button.destructive:hover:not(:disabled) {
+  background: var(--danger-wash);
+  opacity: 0.8;
+}
+
+.danger-zone .button-row { justify-content: flex-start; }
+
+/* Disclosure ---------------------------------------------------------------*/
+
+.disclosure { margin-top: var(--space-4); }
+
+.disclosure > summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.disclosure > summary::-webkit-details-marker { display: none; }
+
+.disclosure > summary::before {
+  content: "";
+  width: 6px; height: 6px;
+  border-right: 2px solid var(--text-tertiary);
+  border-bottom: 2px solid var(--text-tertiary);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+  flex: 0 0 auto;
+}
+
+.disclosure[open] > summary::before { transform: rotate(45deg); }
+
+.disclosure ul { list-style: none; margin-top: var(--space-3); display: grid; gap: 6px; }
+.disclosure li { color: var(--text-secondary); font-size: 14px; }
+
+/* Organization cards -------------------------------------------------------*/
+
+.org-card { display: grid; gap: 6px; justify-items: start; }
+.org-card strong { font-size: 16px; letter-spacing: -0.02em; }
+.org-card > span:not(.status-dot) { color: var(--text-secondary); font-size: 13px; }
+
+/* Scanner frame ------------------------------------------------------------*/
+
+.scanner-frame { position: relative; }
+
+/* Corner brackets give the volunteer a target to align the pass QR against. */
+.scanner-frame::after {
+  content: "";
+  position: absolute;
+  inset: 14%;
+  border-radius: var(--r-tile);
+  background:
+    linear-gradient(var(--lime), var(--lime)) 0 0 / 22px 2px no-repeat,
+    linear-gradient(var(--lime), var(--lime)) 0 0 / 2px 22px no-repeat,
+    linear-gradient(var(--lime), var(--lime)) 100% 0 / 22px 2px no-repeat,
+    linear-gradient(var(--lime), var(--lime)) 100% 0 / 2px 22px no-repeat,
+    linear-gradient(var(--lime), var(--lime)) 0 100% / 22px 2px no-repeat,
+    linear-gradient(var(--lime), var(--lime)) 0 100% / 2px 22px no-repeat,
+    linear-gradient(var(--lime), var(--lime)) 100% 100% / 22px 2px no-repeat,
+    linear-gradient(var(--lime), var(--lime)) 100% 100% / 2px 22px no-repeat;
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+/* Responsive ---------------------------------------------------------------*/
+
+@media (max-width: 1000px) {
+  .management-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 700px) {
+  .ops-grid, .authoring-columns, .management-grid { grid-template-columns: 1fr; }
+  .ops-wide { grid-column: auto; }
+  .ops-card { padding: var(--space-5); border-radius: var(--r-panel); }
+  .leaflet-map { height: 320px; }
+  .coordinate-row, .report-row { align-items: stretch; flex-direction: column; }
+  .report-actions { align-items: stretch; }
+  .report-actions select, .report-actions button { width: 100%; min-width: 0; }
+  .ops-heading { flex-direction: column; gap: var(--space-2); }
+}

@@ -74,7 +74,7 @@ export function VolunteerScanner({ onRecorded }: ScannerProps) {
 
   return <section className="ops-card">
     <div className="ops-heading"><div><p className="ops-kicker">Volunteer mode</p><h2>Scan event pass</h2></div><span className="status-dot">Live backend</span></div>
-    <video ref={video} muted playsInline className="scanner-video" />
+    <div className="scanner-frame"><video ref={video} muted playsInline className="scanner-video" /></div>
     <p className="helper">{cameraMessage}</p>
     <div className="button-row"><button type="button" onClick={() => void startCamera()}>Start camera</button><button type="button" className="secondary" onClick={stopCamera}>Stop</button></div>
     <label className="field">Opaque pass token<input value={token} onChange={(event) => setToken(event.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" /></label>
