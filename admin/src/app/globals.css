@@ -368,6 +368,13 @@ code {
 .report-row p { margin: 5px 0; color: var(--text-secondary); font-size: 14px; }
 .report-row small { color: var(--text-tertiary); font-size: 12px; }
 .report-row small .cap { text-transform: capitalize; }
+.ai-triage { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 10px; padding: 10px 12px; border: 1px solid var(--separator); border-radius: var(--r-control); background: var(--surface-sunken); }
+.ai-triage > strong { font-size: 12px; }
+.ai-triage p { flex-basis: 100%; margin: 0; }
+.ai-triage small { flex-basis: 100%; }
+.ai-triage .triage-relevant { color: #14532d; background: #dcfce7; }
+.ai-triage .triage-uncertain { color: #854d0e; background: #fef9c3; }
+.ai-triage .triage-irrelevant { color: #475569; background: #e2e8f0; }
 
 .report-row blockquote {
   margin: var(--space-3) 0;

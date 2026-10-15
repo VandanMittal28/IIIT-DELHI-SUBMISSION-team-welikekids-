@@ -10,6 +10,7 @@ import { OperationsPanel } from "@/components/OperationsPanel";
 import { CampusEditor } from "@/components/CampusEditor";
 import { ManagementPanel } from "@/components/ManagementPanel";
 import { ProfileProvisioningPanel } from "@/components/ProfileProvisioningPanel";
+import { EVENT_CATEGORIES } from "@/lib/event-categories";
 
 const emptyDraft: EventDraft = {
   organizationId: "", title: "", description: "", category: "", visibility: "public",
@@ -269,7 +270,7 @@ export default function Home() {
           <label className={styles.full}>Description<textarea required minLength={10} maxLength={10000} rows={4} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder="What will happen, and who is it for?" /></label>
           <label className={styles.full}>Event poster (optional)<input key={posterInputKey} type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setPosterFile(e.target.files?.[0] ?? null)} /><small>JPG, PNG, or WebP, up to 10 MB. This appears as the hero image at the top of the event page in the student app.</small></label>
           <label className={styles.full}>Campus venue<select required value={venueId} onChange={(e)=>setVenueId(e.target.value)}><option value="" disabled>{availableEventVenues.length?"Choose a venue":"No venues are configured for this college"}</option>{availableEventVenues.map((venue)=><option value={venue.id} key={venue.id}>{venue.name}</option>)}</select><small>{availableEventVenues.length?"Students will see this venue on their ticket, with a direct route when campus navigation data exists.":"Add a campus and venue in Campus map before creating this event."}</small></label>
-          <label>Category<input required value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} placeholder="Workshop" /></label>
+          <label>Category<select required value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })}><option value="" disabled>Choose a category</option>{EVENT_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}</select></label>
           <label>Visibility<select value={draft.visibility} onChange={(e) => setDraft({ ...draft, visibility: e.target.value as EventDraft["visibility"] })}><option value="public">Public</option><option value="college_only">College only</option><option value="organization_only">Organization only</option></select></label>
           <label>Price (₹)<input required min={0} step="0.01" type="number" value={draft.priceRupees} onChange={(e) => setDraft({ ...draft, priceRupees: e.target.value })} /></label>
           <label>Capacity<input required min={1} type="number" value={draft.capacity} onChange={(e) => setDraft({ ...draft, capacity: e.target.value })} /></label>

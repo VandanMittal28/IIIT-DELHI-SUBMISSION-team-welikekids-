@@ -200,7 +200,8 @@ private struct JourneyDetailView: View {
     @State private var errorMessage: String?
     @State private var reviewing = false
     @State private var reporting = false
-    @State private var showingEventChat = false
+    @State private var eventChatRoom: ChatRoom?
+    @State private var isOpeningEventChat = false
     @State private var showingEventMedia = false
     @State private var confirmCancel = false
 
@@ -266,7 +267,16 @@ private struct JourneyDetailView: View {
                     .padding(.horizontal, -SQSpace.margin)
                 SQCard {
                     SQListRow(title: "Event chat", systemImage: "bubble.left.and.bubble.right.fill", iconColor: SQColor.hueBlue) {
-                        showingEventChat = true
+                        guard !isOpeningEventChat else { return }
+                        isOpeningEventChat = true
+                        Task {
+                            defer { isOpeningEventChat = false }
+                            do {
+                                eventChatRoom = try await model.chat.eventRoom(for: item.editionId, startsAt: item.startsAt)
+                            } catch {
+                                errorMessage = error.localizedDescription
+                            }
+                        }
                     }
                     SQInsetDivider()
                     SQListRow(title: "Event photos", systemImage: "photo.on.rectangle", iconColor: SQColor.huePink) {
@@ -300,7 +310,16 @@ private struct JourneyDetailView: View {
         }
         .sheet(isPresented: $reviewing) { ReviewForm(item: item) }
         .sheet(isPresented: $reporting) { ReportForm(item: item) }
-        .sheet(isPresented: $showingEventChat, onDismiss: { Task { await model.chat.reloadRooms() } }) { ChatHomeView() }
+        .sheet(item: $eventChatRoom, onDismiss: { Task { await model.chat.reloadRooms() } }) { room in
+            NavigationStack {
+                ChatRoomView(room: room)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Done") { eventChatRoom = nil }
+                        }
+                    }
+            }
+        }
         .sheet(isPresented: $showingEventMedia) { EventMediaView(item: item) }
         .alert("Cancel this registration?", isPresented: $confirmCancel) {
             Button("Keep registration", role: .cancel) {}

@@ -679,8 +679,21 @@ final class AppModel {
                 attachmentWarning = "Your report was submitted, but the evidence photo could not be attached: \(error.localizedDescription)"
             }
         }
+        var triageWarning: String?
+        do {
+            let result: ReportTriageResponse = try await client.functions.invoke(
+                "assess-report",
+                options: FunctionInvokeOptions(body: ["report_id": submitted.reportId.uuidString])
+            )
+            if result.status != "assessed" {
+                triageWarning = "Your report is saved for staff review. AI triage is unavailable, so staff will review it directly."
+            }
+        } catch {
+            triageWarning = "Your report is saved for staff review. AI triage could not be completed, so staff will review it directly."
+        }
         await reloadCommunity()
-        return attachmentWarning
+        let warnings = [attachmentWarning, triageWarning].compactMap { $0 }
+        return warnings.isEmpty ? nil : warnings.joined(separator: " ")
     }
 
     func submitReview(editionId: UUID, rating: Int, body: String) async throws {
@@ -821,6 +834,10 @@ private struct ProfilePreferenceRequest: Encodable {
 private struct SubmittedReport: Decodable {
     let reportId: UUID
     enum CodingKeys: String, CodingKey { case reportId = "report_id" }
+}
+
+private struct ReportTriageResponse: Decodable {
+    let status: String
 }
 
 struct BackendConfiguration: Equatable {

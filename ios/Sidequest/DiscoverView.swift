@@ -26,8 +26,9 @@ struct DiscoverView: View {
     /// Distinct categories present in the feed, used to build the chip rail in screenshot 03.
     private var categories: [String] {
         var seen = Set<String>()
-        return model.events.compactMap { event in
-            let name = event.category.trimmingCharacters(in: .whitespacesAndNewlines)
+        let available = EventCategory.options + model.events.map(\.category)
+        return available.compactMap { category in
+            let name = category.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty, seen.insert(name.lowercased()).inserted else { return nil }
             return name
         }
@@ -557,13 +558,29 @@ private struct EventFiltersView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
 
+    private var categories: [String] {
+        var seen = Set<String>()
+        return (EventCategory.options + model.events.map(\.category)).compactMap { category in
+            let name = category.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty, seen.insert(name.lowercased()).inserted else { return nil }
+            return name
+        }
+    }
+
     var body: some View {
         @Bindable var model = model
         SQSheet(title: "Filters", onClose: { dismiss() }) {
             SQCard(padding: SQSpace.cardInset) {
                 VStack(spacing: SQSpace.md) {
-                    SQField(placeholder: "Category (exact)", text: $model.categoryFilter)
-                        .textInputAutocapitalization(.never)
+                    Picker("Category", selection: $model.categoryFilter) {
+                        Text("Any category").tag("")
+                        ForEach(categories, id: \.self) { category in
+                            Text(category).tag(category)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, SQSpace.sm)
                     SQField(placeholder: "College (exact)", text: $model.collegeFilter)
                     SQField(placeholder: "Eligibility contains", text: $model.eligibilityFilter)
                 }

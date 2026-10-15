@@ -661,6 +661,10 @@ struct ReportForm: View {
                         .font(SQFont.meta)
                         .foregroundStyle(SQColor.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
+                    Text("Your category, note, and optional JPEG or PNG photo are sent to NVIDIA for an AI triage suggestion. This does not verify an incident; event staff review every report.")
+                        .font(SQFont.meta)
+                        .foregroundStyle(SQColor.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 

@@ -1,5 +1,12 @@
 import Foundation
 
+enum EventCategory {
+    static let options = [
+        "Academic", "Technology", "Workshop", "Cultural", "Community",
+        "Sports", "Wellness", "Career", "Competition", "Orientation"
+    ]
+}
+
 struct EventFeedItem: Decodable, Identifiable, Equatable, Hashable {
     let id: UUID
     let editionId: UUID

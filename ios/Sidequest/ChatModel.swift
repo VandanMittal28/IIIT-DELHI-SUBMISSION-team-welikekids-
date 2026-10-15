@@ -23,6 +23,13 @@ struct ChatRoom: Decodable, Identifiable, Equatable, Hashable {
     }
 }
 
+private struct EventChannelReference: Decodable {
+    let id: UUID
+    let kind: String
+    let title: String?
+    let description: String?
+}
+
 struct ChatMessage: Decodable, Identifiable, Equatable {
     let id: UUID
     let seq: Int64
@@ -182,6 +189,31 @@ final class ChatModel {
             rooms = try await client.rpc("get_my_chat_rooms").execute().value
             roomsState = .loaded
         } catch { roomsState = .failed(Self.friendly(error).localizedDescription) }
+    }
+
+    func eventRoom(for editionId: UUID, startsAt: Date) async throws -> ChatRoom {
+        guard let client else { throw SidequestError.notConfigured }
+        let channel: EventChannelReference? = try await client
+            .from("channels")
+            .select("id,kind,title,description")
+            .eq("edition_id", value: editionId.uuidString)
+            .maybeSingle()
+            .execute()
+            .value
+        guard let channel, channel.kind == "event" else { throw SidequestError.chatUnavailable }
+        return ChatRoom(
+            id: channel.id,
+            kind: channel.kind,
+            title: channel.title ?? "Event chat",
+            description: channel.description,
+            collegeName: nil,
+            startsAt: startsAt,
+            lastMessageBody: nil,
+            lastMessageAuthor: nil,
+            lastMessageAt: nil,
+            unreadCount: 0,
+            sortOrder: 100
+        )
     }
 
     /// Coalesces bursts of message events into one room-list refresh (unread badges and previews).

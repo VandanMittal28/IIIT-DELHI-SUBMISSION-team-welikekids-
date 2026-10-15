@@ -16,6 +16,14 @@ declare
   venue_b uuid := '55555555-5555-4555-8555-555555555552';
   venue_c uuid := '55555555-5555-4555-8555-555555555553';
   venue_d uuid := '55555555-5555-4555-8555-555555555554';
+  venue_e uuid := '55555555-5555-4555-8555-555555555555';
+  venue_f uuid := '55555555-5555-4555-8555-555555555556';
+  venue_g uuid := '55555555-5555-4555-8555-555555555557';
+  venue_h uuid := '55555555-5555-4555-8555-555555555558';
+  venue_i uuid := '55555555-5555-4555-8555-555555555559';
+  venue_j uuid := '55555555-5555-4555-8555-55555555555a';
+  venue_k uuid := '55555555-5555-4555-8555-55555555555b';
+  venue_l uuid := '55555555-5555-4555-8555-55555555555c';
   event_a uuid := '66666666-6666-4666-8666-666666666661';
   event_b uuid := '66666666-6666-4666-8666-666666666662';
   event_c uuid := '66666666-6666-4666-8666-666666666663';
@@ -28,6 +36,14 @@ declare
   landmark_gate uuid := '99999999-9999-4999-8999-999999999991';
   landmark_hall uuid := '99999999-9999-4999-8999-999999999992';
   landmark_lab uuid := '99999999-9999-4999-8999-999999999993';
+  landmark_academic uuid := '99999999-9999-4999-8999-999999999994';
+  landmark_library uuid := '99999999-9999-4999-8999-999999999995';
+  landmark_lecture uuid := '99999999-9999-4999-8999-999999999996';
+  landmark_amphitheatre uuid := '99999999-9999-4999-8999-999999999997';
+  landmark_cafeteria uuid := '99999999-9999-4999-8999-999999999998';
+  landmark_sports uuid := '99999999-9999-4999-8999-999999999999';
+  landmark_hub uuid := '99999999-9999-4999-8999-99999999999a';
+  landmark_auditorium uuid := '99999999-9999-4999-8999-99999999999b';
   route_id uuid := 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1';
   node_gate uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1';
   node_hall uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2';
@@ -111,13 +127,29 @@ begin
     (venue_a,campus_id,'Main Gate','outdoor',28.5457,77.2732,'Step-free entry'),
     (venue_b,campus_id,'Innovation Hall','hall',28.5459,77.2734,'Lift access from the main entrance'),
     (venue_c,campus_id,'Seminar Room 1','hall',28.5460,77.2735,'Ground-floor accessible room'),
-    (venue_d,campus_id,'Student Activity Centre','building',28.5455,77.2730,'Accessible entrance on the east side')
+    (venue_d,campus_id,'Student Activity Centre','building',28.5455,77.2730,'Accessible entrance on the east side'),
+    (venue_e,campus_id,'Academic Block','building',28.5453,77.2737,'Demo map pin; verify the entrance and access route on campus.'),
+    (venue_f,campus_id,'Learning Resource Centre','building',28.5449,77.2733,'Demo map pin; verify the entrance and access route on campus.'),
+    (venue_g,campus_id,'Lecture Hall Complex','building',28.5457,77.2741,'Demo map pin; verify the entrance and access route on campus.'),
+    (venue_h,campus_id,'Amphitheatre','outdoor',28.5450,77.2728,'Demo map pin; verify the location on campus.'),
+    (venue_i,campus_id,'Campus Cafeteria','building',28.5458,77.2728,'Demo map pin; verify the entrance and access route on campus.'),
+    (venue_j,campus_id,'Sports Complex','building',28.5461,77.2727,'Demo map pin; verify the entrance and access route on campus.'),
+    (venue_k,campus_id,'Innovation Hub','building',28.5452,77.2730,'Demo map pin; verify the entrance and access route on campus.'),
+    (venue_l,campus_id,'Auditorium','hall',28.5448,77.2738,'Demo map pin; verify the entrance and access route on campus.')
   on conflict(id) do update set name=excluded.name,kind=excluded.kind,latitude=excluded.latitude,longitude=excluded.longitude,accessibility_notes=excluded.accessibility_notes;
 
   insert into public.landmarks(id,campus_id,venue_id,floor_id,name,coordinate_kind,latitude,longitude,x_pixels,y_pixels,facing_degrees,facing_instruction) values
     (landmark_gate,campus_id,venue_a,null,'IIIT Delhi Main Gate','outdoor_geographic',28.5457,77.2732,null,null,90,'Face east along the demo campus path toward Building B.'),
     (landmark_hall,campus_id,venue_b,null,'Building B entrance · demo','outdoor_geographic',28.545592,77.273644,null,null,90,'Face east toward the demo entrance.'),
-    (landmark_lab,campus_id,venue_c,'44444444-4444-4444-8444-444444444445','Seminar Room 1 · Building B, First Floor','indoor_floor',null,null,420,180,180,'At the first-floor stair landing, face east along the corridor.')
+    (landmark_lab,campus_id,venue_c,'44444444-4444-4444-8444-444444444445','Seminar Room 1 · Building B, First Floor','indoor_floor',null,null,420,180,180,'At the first-floor stair landing, face east along the corridor.'),
+    (landmark_academic,campus_id,venue_e,null,'Academic Block · demo pin','outdoor_geographic',28.5453,77.2737,null,null,90,'Approximate demo pin. Confirm the entrance on campus.'),
+    (landmark_library,campus_id,venue_f,null,'Learning Resource Centre · demo pin','outdoor_geographic',28.5449,77.2733,null,null,90,'Approximate demo pin. Confirm the entrance on campus.'),
+    (landmark_lecture,campus_id,venue_g,null,'Lecture Hall Complex · demo pin','outdoor_geographic',28.5457,77.2741,null,null,90,'Approximate demo pin. Confirm the entrance on campus.'),
+    (landmark_amphitheatre,campus_id,venue_h,null,'Amphitheatre · demo pin','outdoor_geographic',28.5450,77.2728,null,null,90,'Approximate demo pin. Confirm the location on campus.'),
+    (landmark_cafeteria,campus_id,venue_i,null,'Campus Cafeteria · demo pin','outdoor_geographic',28.5458,77.2728,null,null,90,'Approximate demo pin. Confirm the entrance on campus.'),
+    (landmark_sports,campus_id,venue_j,null,'Sports Complex · demo pin','outdoor_geographic',28.5461,77.2727,null,null,90,'Approximate demo pin. Confirm the entrance on campus.'),
+    (landmark_hub,campus_id,venue_k,null,'Innovation Hub · demo pin','outdoor_geographic',28.5452,77.2730,null,null,90,'Approximate demo pin. Confirm the entrance on campus.'),
+    (landmark_auditorium,campus_id,venue_l,null,'Auditorium · demo pin','outdoor_geographic',28.5448,77.2738,null,null,90,'Approximate demo pin. Confirm the entrance on campus.')
   on conflict(id) do update set name=excluded.name,is_active=true,
     floor_id=case when excluded.coordinate_kind='indoor_floor' then '44444444-4444-4444-8444-444444444445'::uuid else null end,
     coordinate_kind=excluded.coordinate_kind,latitude=excluded.latitude,longitude=excluded.longitude,

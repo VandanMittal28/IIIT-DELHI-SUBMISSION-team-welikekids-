@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { getSupabase } from "@/lib/supabase";
 
-type Report = { id: string; edition_id: string; category: string; description: string; priority: string; status: string; created_at: string; photos: { url: string; name: string }[]; attachmentCount: number };
+type Report = { id: string; edition_id: string; category: string; description: string; priority: string; status: string; created_at: string; ai_triage_status: "pending" | "processing" | "assessed" | "unavailable" | "failed"; ai_triage_label: "relevant" | "uncertain" | "irrelevant" | null; ai_triage_reason: string | null; photos: { url: string; name: string }[]; attachmentCount: number };
 
 /** Volunteer scanning plus the organizer's scoped report queue. */
 export function OperationsPanel({ eventIds }: { eventIds: string[] }) {
@@ -17,7 +17,7 @@ export function OperationsPanel({ eventIds }: { eventIds: string[] }) {
     if (editionError) { setMessage(editionError.message); return; }
     const ids = (editions ?? []).map(row => row.id);
     if (!ids.length) { setReports([]); return; }
-    const { data, error } = await supabase.from("reports").select("id,edition_id,category,description,priority,status,created_at").in("edition_id", ids).order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("reports").select("id,edition_id,category,description,priority,status,created_at,ai_triage_status,ai_triage_label,ai_triage_reason").in("edition_id", ids).order("created_at", { ascending: false });
     if (error) { setMessage(error.message); return; }
     const rows = data ?? [];
     if (!rows.length) { setReports([]); setMessage(null); return; }
@@ -43,7 +43,7 @@ export function OperationsPanel({ eventIds }: { eventIds: string[] }) {
     <p className="helper">Pass scanning and reports are limited to events this organizer manages. Every report status change is saved by the backend.</p>
     <div className="metric"><strong>{eventIds.length}</strong><span>managed event{eventIds.length === 1 ? "" : "s"}</span></div>
     <h3>Student reports</h3>
-    {reports.length === 0 ? <p className="helper">No reports for your events.</p> : reports.map(report => <div className="report-row" key={report.id}><div><strong>{report.category}</strong><p>{report.description}</p><small><span className="cap">{report.priority} · {report.status.replaceAll("_", " ")}</span> · {new Date(report.created_at).toLocaleString("en-IN")}</small>{report.photos.length > 0 && <div className="report-photos">{report.photos.map(photo => <a key={photo.url} href={photo.url} target="_blank" rel="noreferrer">{/\.(jpe?g|png|webp)$/i.test(photo.name) && <Image unoptimized width={150} height={110} src={photo.url} alt={`Evidence for ${report.category}`} />}<span>Open evidence</span></a>)}</div>}{report.attachmentCount > report.photos.length && <small>Some attachments are unavailable.</small>}</div>{report.status === "submitted" && <button onClick={() => void acknowledge(report)}>Acknowledge</button>}</div>)}
+    {reports.length === 0 ? <p className="helper">No reports for your events.</p> : reports.map(report => <div className="report-row" key={report.id}><div><strong>{report.category}</strong><p>{report.description}</p><small><span className="cap">{report.priority} · {report.status.replaceAll("_", " ")}</span> · {new Date(report.created_at).toLocaleString("en-IN")}</small><div className="ai-triage"><strong>AI triage suggestion</strong>{report.ai_triage_status === "assessed" && report.ai_triage_label ? <><span className={`cap triage-${report.ai_triage_label}`}>{report.ai_triage_label}</span><p>{report.ai_triage_reason}</p></> : <p>{report.ai_triage_status === "unavailable" ? "AI is not configured; staff review required." : report.ai_triage_status === "failed" ? "AI assessment failed; staff review required." : report.ai_triage_status === "processing" ? "Assessment is in progress; staff review remains required." : "Pending assessment; staff review remains required."}</p>}<small>Suggestion only. It does not confirm that an incident occurred.</small></div>{report.photos.length > 0 && <div className="report-photos">{report.photos.map(photo => <a key={photo.url} href={photo.url} target="_blank" rel="noreferrer">{/\.(jpe?g|png|webp)$/i.test(photo.name) && <Image unoptimized width={150} height={110} src={photo.url} alt={`Evidence for ${report.category}`} />}<span>Open evidence</span></a>)}</div>}{report.attachmentCount > report.photos.length && <small>Some attachments are unavailable.</small>}</div>{report.status === "submitted" && <button onClick={() => void acknowledge(report)}>Acknowledge</button>}</div>)}
     {message && <p role="status" className={message.includes("saved") ? "success-text" : "error-text"}>{message}</p>}
   </section>;
 }
