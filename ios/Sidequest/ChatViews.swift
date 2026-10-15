@@ -14,16 +14,20 @@ struct ChatHomeView: View {
             Group {
                 switch chat.roomsState {
                 case .idle where chat.rooms.isEmpty, .loading where chat.rooms.isEmpty:
-                    ProgressView("Finding your chat rooms…")
+                    ProgressView()
                 case .failed(let message) where chat.rooms.isEmpty:
-                    ContentUnavailableView {
-                        Label("Couldn’t load chat rooms", systemImage: "wifi.exclamationmark")
-                    } description: { Text(message) } actions: {
-                        Button("Try again") { Task { await chat.reloadRooms() } }
+                    VStack(alignment: .leading, spacing: SQSpace.lg) {
+                        SQEmptyState(message: message, systemImage: "wifi.exclamationmark")
+                        SQSecondaryButton(title: "Try again") { Task { await chat.reloadRooms() } }
                     }
+                    .padding(.horizontal, SQSpace.margin)
                 default:
                     if chat.rooms.isEmpty {
-                        ContentUnavailableView("No chat rooms yet", systemImage: "bubble.left.and.bubble.right", description: Text("Chat opens once your college confirms your student membership. Event rooms appear when you register for an event."))
+                        SQEmptyState(
+                            message: "Chat opens once your college confirms your student membership. Event rooms appear when you register for an event.",
+                            systemImage: "bubble.left.and.bubble.right"
+                        )
+                        .padding(.horizontal, SQSpace.margin)
                     } else {
                         List {
                             roomSection("Your college", rooms("college"))
@@ -31,11 +35,12 @@ struct ChatHomeView: View {
                             roomSection("Your event rooms", rooms("event"))
                             Section { Text("Be kind. Long-press a message to report it to moderators.").font(.footnote).foregroundStyle(.secondary) }
                         }
-                        .listStyle(.insetGrouped)
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
                     }
                 }
             }
-            .background(Color.sidequestMist)
+            .background(SQColor.background.ignoresSafeArea())
             .navigationTitle("Chat")
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: ChatRoom.self) { room in ChatRoomView(room: room) }
@@ -64,32 +69,38 @@ struct ChatRoomRow: View {
         }
     }
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.headline).foregroundStyle(Color.sidequestInk)
-                .frame(width: 40, height: 40)
-                .background(Color.sidequestLime, in: RoundedRectangle(cornerRadius: 12))
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 3) {
-                HStack {
-                    Text(room.title).font(.headline).lineLimit(1)
-                    Spacer()
-                    if let last = room.lastMessageAt { Text(last.formatted(.relative(presentation: .numeric))).font(.caption2).foregroundStyle(.secondary) }
+        HStack(spacing: SQSpace.md) {
+            SQIconTile(systemImage: icon, color: SQColor.hueBlue)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: SQSpace.sm) {
+                    Text(room.title)
+                        .font(SQFont.rowLabel)
+                        .foregroundStyle(SQColor.textPrimary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    if let last = room.lastMessageAt {
+                        Text(last.formatted(.relative(presentation: .numeric)))
+                            .font(SQFont.meta)
+                            .foregroundStyle(SQColor.textTertiary)
+                    }
                 }
                 Group {
                     if let body = room.lastMessageBody, let author = room.lastMessageAuthor { Text("\(author): \(body)") }
                     else { Text(room.description ?? "Say hello to start the conversation.") }
                 }
-                .font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                .font(SQFont.body)
+                .foregroundStyle(SQColor.textSecondary)
+                .lineLimit(2)
             }
             if room.unreadCount > 0 {
                 Text(room.unreadCount >= 99 ? "99+" : "\(room.unreadCount)")
-                    .font(.caption.bold()).foregroundStyle(Color.sidequestInk)
+                    .font(SQFont.meta)
+                    .foregroundStyle(SQColor.onPrimary)
                     .padding(.horizontal, 7).padding(.vertical, 3)
-                    .background(Color.sidequestLime, in: Capsule())
+                    .background(SQColor.primaryFill, in: Capsule())
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, SQSpace.sm)
         .accessibilityElement(children: .combine)
         .accessibilityValue(room.unreadCount > 0 ? "\(room.unreadCount) unread" : "")
     }

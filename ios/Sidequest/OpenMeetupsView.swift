@@ -15,12 +15,14 @@ struct OpenMeetupsSection: View {
     var body: some View {
         let searching = !model.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         if !(searching && visibleMeetups.isEmpty) {
-            VStack(alignment: .leading, spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Open Meetups").font(.title3.bold()).foregroundStyle(Color.sidequestInk).accessibilityAddTraits(.isHeader)
-                    Text("Casual hangouts to meet new people — no club or friend group needed.").font(.footnote).foregroundStyle(.secondary)
-                }
-                hostActions
+            VStack(alignment: .leading, spacing: SQSpace.lg) {
+                SQSectionHeader(title: "Open Meetups")
+                Text("Casual hangouts to meet new people — no club or friend group needed.")
+                    .font(SQFont.body)
+                    .foregroundStyle(SQColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, SQSpace.margin)
+                hostActions.padding(.horizontal, SQSpace.margin)
                 content
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -34,18 +36,18 @@ struct OpenMeetupsSection: View {
 
     private var hostActions: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 10) { hostButton; myMeetupsLink }
-            VStack(alignment: .leading, spacing: 8) { hostButton; myMeetupsLink }
+            HStack(spacing: SQSpace.sm) { hostButton; myMeetupsLink }
+            VStack(alignment: .leading, spacing: SQSpace.sm) { hostButton; myMeetupsLink }
         }
     }
 
     private var hostButton: some View {
         Button { showHostForm = true } label: {
             Label("Host a Meetup", systemImage: "plus.bubble.fill")
-                .font(.subheadline.bold())
-                .padding(.horizontal, 16).padding(.vertical, 10)
-                .foregroundStyle(Color.sidequestInk)
-                .background(Color.sidequestLime, in: Capsule())
+                .font(SQFont.bodyEmphasis)
+                .padding(.horizontal, SQSpace.lg).padding(.vertical, SQSpace.sm + 2)
+                .foregroundStyle(SQColor.onPrimary)
+                .background(SQColor.primaryFill, in: Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityHint("Opens a form to publish your own meetup")
@@ -55,10 +57,10 @@ struct OpenMeetupsSection: View {
         if !model.hostedMeetups.isEmpty {
             NavigationLink { MyHostedMeetupsView() } label: {
                 Label("My meetups (\(model.hostedMeetups.count))", systemImage: "person.crop.circle.badge.checkmark")
-                    .font(.subheadline.bold())
-                    .padding(.horizontal, 14).padding(.vertical, 10)
-                    .foregroundStyle(Color.sidequestInk)
-                    .background(.white, in: Capsule())
+                    .font(SQFont.bodyEmphasis)
+                    .padding(.horizontal, SQSpace.lg).padding(.vertical, SQSpace.sm + 2)
+                    .foregroundStyle(SQColor.textPrimary)
+                    .background(SQColor.surfaceAlt, in: Capsule())
             }
             .buttonStyle(.plain)
         }
@@ -67,35 +69,36 @@ struct OpenMeetupsSection: View {
     @ViewBuilder private var content: some View {
         switch model.meetupState {
         case .idle where model.meetups.isEmpty, .loading where model.meetups.isEmpty:
-            ProgressView("Finding open meetups…").frame(maxWidth: .infinity, minHeight: 90)
+            ProgressView().frame(maxWidth: .infinity, minHeight: 90)
         case .failed(let message) where model.meetups.isEmpty:
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Couldn’t load meetups", systemImage: "wifi.exclamationmark").font(.subheadline.bold())
-                Text(message).font(.caption).foregroundStyle(.secondary)
-                Button("Try again") { Task { await model.reloadMeetups() } }.buttonStyle(.bordered)
+            VStack(alignment: .leading, spacing: SQSpace.md) {
+                SQEmptyState(message: message, systemImage: "wifi.exclamationmark")
+                SQSecondaryButton(title: "Try again") { Task { await model.reloadMeetups() } }
             }
-            .padding(18).frame(maxWidth: .infinity, alignment: .leading)
-            .background(.white, in: RoundedRectangle(cornerRadius: 20))
+            .padding(.horizontal, SQSpace.margin)
         default:
             if visibleMeetups.isEmpty {
-                Label("No open meetups yet. Be the first — tap Host a Meetup.", systemImage: "cup.and.saucer")
-                    .font(.subheadline).foregroundStyle(.secondary)
-                    .padding(18).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.white, in: RoundedRectangle(cornerRadius: 20))
+                SQEmptyState(
+                    message: "No open meetups yet. Be the first — tap Host a Meetup.",
+                    systemImage: "cup.and.saucer"
+                )
+                .padding(.horizontal, SQSpace.margin)
             } else if typeSize.isAccessibilitySize {
                 // Large text: stack full-width cards so nothing is truncated.
-                VStack(spacing: 12) {
+                VStack(spacing: SQSpace.md) {
                     ForEach(visibleMeetups) { meetup in
                         NavigationLink(value: meetup) { OpenMeetupCard(meetup: meetup, fullWidth: true) }.buttonStyle(.plain)
                     }
                 }
+                .padding(.horizontal, SQSpace.margin)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 12) {
+                    LazyHStack(spacing: SQSpace.md) {
                         ForEach(visibleMeetups) { meetup in
                             NavigationLink(value: meetup) { OpenMeetupCard(meetup: meetup) }.buttonStyle(.plain)
                         }
                     }
+                    .padding(.horizontal, SQSpace.margin)
                     .scrollTargetLayout()
                 }
                 .scrollTargetBehavior(.viewAligned)
@@ -109,16 +112,27 @@ private struct OpenMeetupCard: View {
     var fullWidth = false
     private var singleLine: Int? { fullWidth ? nil : 1 }
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("OPEN MEETUP").font(.caption.bold()).foregroundStyle(.secondary)
-                Spacer()
-                if meetup.isGoing { Label("Going", systemImage: "checkmark.circle.fill").font(.caption.bold()).foregroundStyle(.green) }
-                else if meetup.isFull { Text("Full").font(.caption.bold()).foregroundStyle(.orange) }
+        VStack(alignment: .leading, spacing: SQSpace.sm + 2) {
+            HStack(spacing: SQSpace.sm) {
+                Text("Open meetup")
+                    .font(SQFont.meta)
+                    .foregroundStyle(SQColor.textTertiary)
+                Spacer(minLength: 0)
+                if meetup.isGoing {
+                    SQBadge(text: "Going", foreground: SQColor.positive, background: SQColor.positiveWash)
+                } else if meetup.isFull {
+                    SQBadge(text: "Full", foreground: SQColor.destructive, background: SQColor.destructiveWash)
+                }
             }
-            Text(meetup.title).font(.headline).foregroundStyle(Color.sidequestInk).lineLimit(fullWidth ? nil : 2)
-            Text(meetup.description).font(.subheadline).foregroundStyle(.secondary).lineLimit(fullWidth ? 4 : 2)
-            Divider()
+            Text(meetup.title)
+                .font(SQFont.rowTitle)
+                .foregroundStyle(SQColor.textPrimary)
+                .lineLimit(fullWidth ? nil : 2)
+            Text(meetup.description)
+                .font(SQFont.body)
+                .foregroundStyle(SQColor.textSecondary)
+                .lineLimit(fullWidth ? 4 : 2)
+            SQInsetDivider(leading: 0)
             VStack(alignment: .leading, spacing: 5) {
                 Label(meetup.startsAt.formatted(date: .abbreviated, time: .shortened), systemImage: "calendar")
                 Label("\(meetup.venueName), \(meetup.campusName)", systemImage: "mappin.and.ellipse").lineLimit(singleLine)
@@ -126,14 +140,20 @@ private struct OpenMeetupCard: View {
                 Label("\(meetup.goingCount) / \(meetup.capacity) going", systemImage: "person.2")
                 Label(meetup.audienceLabel, systemImage: "building.columns").lineLimit(singleLine)
             }
-            .font(.caption).foregroundStyle(.secondary)
-            HStack { Spacer(); Text("View details").font(.caption.bold()); Image(systemName: "chevron.right").font(.caption.bold()) }
-                .foregroundStyle(Color.sidequestInk)
+            .font(SQFont.meta)
+            .foregroundStyle(SQColor.textSecondary)
+            HStack(spacing: 4) {
+                Spacer(minLength: 0)
+                Text("View details").font(SQFont.bodyEmphasis)
+                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold))
+            }
+            .foregroundStyle(SQColor.accent)
         }
-        .padding(18)
+        .padding(SQSpace.cardInset)
         .frame(width: fullWidth ? nil : 290, alignment: .leading)
         .frame(maxWidth: fullWidth ? .infinity : nil, alignment: .leading)
-        .background(.white, in: RoundedRectangle(cornerRadius: 20))
+        .background(SQColor.surface, in: RoundedRectangle(cornerRadius: SQRadius.card, style: .continuous))
+        .sqShadow(SQShadow.card)
         .accessibilityElement(children: .combine)
         .accessibilityHint("Opens meetup details")
     }

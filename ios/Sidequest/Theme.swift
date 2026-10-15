@@ -56,6 +56,7 @@ enum SQColor {
     static let destructive = Color(hex: 0xFF3B30)
     static let destructiveWash = adaptive(light: 0xFFE8EA, dark: 0x3A1D1F)
     static let positive = Color(hex: 0x34C759)
+    static let positiveWash = adaptive(light: 0xE4F7E9, dark: 0x16301F)
     static let warning = Color(hex: 0xFF9500)
 
     // Categorical hues for settings tiles and category chips (screenshots 01 and 03).
