@@ -12,6 +12,11 @@ insert into public.colleges(id,slug,name) values
 ('20000000-0000-0000-0000-000000000001','test-college','Test College'),
 ('20000000-0000-0000-0000-000000000002','other-college','Other College');
 insert into public.college_memberships(college_id,user_id,is_admin,status) values('20000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001',true,'active');
+insert into public.college_memberships(college_id,user_id,is_admin,status) values
+('20000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000002',false,'active'),
+('20000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000003',false,'active'),
+('20000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000004',false,'active'),
+('20000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000006',false,'active');
 insert into public.platform_admins(user_id) values('10000000-0000-0000-0000-000000000001');
 insert into public.organizations(id,college_id,slug,name) values
 ('30000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001','test-org','Test Org'),
@@ -19,6 +24,12 @@ insert into public.organizations(id,college_id,slug,name) values
 insert into public.memberships(organization_id,user_id,role,status) values
 ('30000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000002','organizer','active'),
 ('30000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000006','organizer','active');
+update public.profiles set account_type='organizer'
+where id in ('10000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000006');
+update public.organizations set head_user_id='10000000-0000-0000-0000-000000000002'
+where id='30000000-0000-0000-0000-000000000001';
+update public.organizations set head_user_id='10000000-0000-0000-0000-000000000006'
+where id='30000000-0000-0000-0000-000000000002';
 insert into public.campuses(id,college_id,name,latitude,longitude) values('21000000-0000-0000-0000-000000000002','20000000-0000-0000-0000-000000000002','Other Campus',28.6,77.3);
 insert into public.venues(id,campus_id,name,kind) values('22000000-0000-0000-0000-000000000002','21000000-0000-0000-0000-000000000002','Other Hall','hall');
 
@@ -54,7 +65,7 @@ end $$;
 
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000006',true);
 do $$ begin
- if (select count(*) from public.get_event_staff_candidates((select value from test_state where key='edition')))<>2 then raise exception 'cohost organizer management access failed'; end if;
+ if (select count(*) from public.get_event_staff_candidates((select value from test_state where key='edition')))<>4 then raise exception 'cohost organizer management access failed'; end if;
 end $$;
 
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000003',true);
@@ -77,7 +88,7 @@ do $$ begin if not exists(select 1 from public.memberships where organization_id
 
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000002',true);
 do $$ declare assigned jsonb; replay jsonb; begin
- if (select count(*) from public.get_event_staff_candidates((select value from test_state where key='edition')))<>3 then raise exception 'staff candidate directory incorrect'; end if;
+ if (select count(*) from public.get_event_staff_candidates((select value from test_state where key='edition')))<>4 then raise exception 'staff candidate directory incorrect'; end if;
  begin perform public.assign_event_staff((select value from test_state where key='edition'),'10000000-0000-0000-0000-000000000005','event_volunteer'); raise exception 'non-member assigned as staff'; exception when sqlstate 'PGRST' then null; end;
  assigned:=public.assign_event_staff((select value from test_state where key='edition'),'10000000-0000-0000-0000-000000000004','event_volunteer');
  replay:=public.assign_event_staff((select value from test_state where key='edition'),'10000000-0000-0000-0000-000000000004','event_volunteer');
@@ -179,6 +190,11 @@ do $$ begin
  if exists(select 1 from public.messages where id=(select value from test_state where key='message')) then raise exception 'student read hidden message'; end if;
  if not (public.submit_message_report((select value from test_state where key='message'),'Retry after moderation')->>'idempotent_replay')::boolean then raise exception 'hidden message report retry was not idempotent'; end if;
 end $$;
+select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000002',true);
+do $$ begin
+ if (select count(*) from public.report_attachments where report_id=(select value from test_state where key='report'))<>1 then raise exception 'organizer could not read report attachment'; end if;
+ if (select count(*) from storage.objects where bucket_id='report-attachments')<>1 then raise exception 'organizer could not read report photo'; end if;
+end $$;
 reset role;
 set role anon;
 select set_config('request.jwt.claim.role','anon',true);
@@ -199,6 +215,7 @@ do $$ declare campus uuid; start_landmark uuid; finish_landmark uuid; route_vers
  if not exists(select 1 from public.landmarks where id=finish_landmark and name='Main Hall' and facing_degrees=95) then raise exception 'landmark editing failed'; end if;
  venue:=(public.create_venue(campus,'Test Hall','hall',null,null,'Step-free entrance')->>'venue_id')::uuid;
  perform public.set_venue_navigation(venue,finish_landmark,start_landmark);
+ perform set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000002',true);
  session_id:=(public.create_event_session((select value from test_state where key='edition'),venue,'Main session',now()+interval '2 hours',now()+interval '3 hours')->>'session_id')::uuid;
  perform public.update_event_session(session_id,'Opening session',venue,now()+interval '2 hours 5 minutes',now()+interval '3 hours 5 minutes');
  if not exists(select 1 from public.event_sessions where id=session_id and title='Opening session') then raise exception 'session editing failed'; end if;
@@ -207,6 +224,7 @@ do $$ declare campus uuid; start_landmark uuid; finish_landmark uuid; route_vers
  venue_replay:=public.change_session_venue(session_id,venue,'Navigation contract test',venue_request);
  if (venue_result->>'idempotent_replay')::boolean or not (venue_replay->>'idempotent_replay')::boolean then raise exception 'venue change idempotency failed'; end if;
  if (select destination_landmark_id from public.published_event_feed where id=(select value from test_state where key='event'))<>finish_landmark then raise exception 'published venue navigation missing'; end if;
+ perform set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000001',true);
  route_version:=(public.create_route_draft(campus)->>'route_version_id')::uuid;
  start_node:=(public.add_route_node(route_version,'landmark','outdoor_geographic',start_landmark,28.545,77.273,null,null,null,true)->>'node_id')::uuid;
  finish_node:=(public.add_route_node(route_version,'landmark','outdoor_geographic',finish_landmark,28.546,77.274,null,null,null,true)->>'node_id')::uuid;
@@ -355,7 +373,8 @@ do $$ declare first jsonb; replay jsonb; begin
  begin
    perform public.register_for_event((select value from test_state where key='edition'),'40000000-0000-0000-0000-000000000014');
    raise exception 'registration after event cancellation was accepted';
- exception when sqlstate 'PGRST' then null;
+ -- register_for_event reports HTTP status codes (PT404) since 20261014130812_registration_error_status_codes.
+ exception when sqlstate 'PT404' then null;
  end;
 end $$;
 reset role;

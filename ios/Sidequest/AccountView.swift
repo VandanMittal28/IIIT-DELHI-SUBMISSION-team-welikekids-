@@ -30,7 +30,7 @@ struct AccountView: View {
     @State private var reportNotifications = true
     @State private var showDeletionConfirmation = false
     @State private var avatarItem: PhotosPickerItem?
-    @State private var avatarData: Data?
+    @State private var savingAvatar = false
     @State private var reportEdition: JourneyItem?
     @State private var showEditProfile = false
     @State private var saveNotice: String?
@@ -83,7 +83,23 @@ struct AccountView: View {
             }
             .onChange(of: model.profile) { _, profile in applyProfile(profile) }
             .onChange(of: avatarItem) { _, item in
-                Task { avatarData = try? await item?.loadTransferable(type: Data.self) }
+                guard let item else { return }
+                Task {
+                    savingAvatar = true
+                    do {
+                        guard let data = try await item.loadTransferable(type: Data.self) else {
+                            throw CocoaError(.fileReadCorruptFile)
+                        }
+                        try await model.saveProfilePhoto(data)
+                    } catch {
+                        errorMessage = "Couldn’t save your photo: \(error.localizedDescription)"
+                    }
+                    savingAvatar = false
+                    avatarItem = nil
+                }
+            }
+            .task(id: model.profile?.avatarPath) {
+                if let path = model.profile?.avatarPath { model.chat.requestAvatarURLs(for: [path]) }
             }
             .onReceive(NotificationCenter.default.publisher(for: .sidequestDeviceToken)) { note in
                 handleDeviceToken(note)
@@ -306,26 +322,42 @@ struct AccountView: View {
             HStack {
                 Spacer()
                 VStack(spacing: SQSpace.md) {
-                    Group {
-                        if let avatarData, let image = UIImage(data: avatarData) {
-                            Image(uiImage: image).resizable().scaledToFill()
-                        } else {
-                            SQAvatar(seed: displayName, size: 96)
-                        }
+                    // Read the state here, in the main-actor body, rather than
+                    // inside the PhotosPicker label — that closure is
+                    // nonisolated under Swift 6.
+                    let hasPhoto = model.profile?.avatarPath != nil
+                    ZStack {
+                        ChatAvatar(name: displayName, path: model.profile?.avatarPath, size: 96)
+                        if savingAvatar { ProgressView().tint(SQColor.onPrimary) }
                     }
                     .frame(width: 96, height: 96)
                     .clipShape(Circle())
 
                     PhotosPicker(selection: $avatarItem, matching: .images) {
-                        Text("Change photo")
+                        Text(hasPhoto ? "Change photo" : "Add photo")
                             .font(SQFont.bodyEmphasis)
                             .foregroundStyle(SQColor.accent)
+                    }
+                    .disabled(savingAvatar)
+
+                    if hasPhoto {
+                        Button("Remove photo") {
+                            Task {
+                                savingAvatar = true
+                                do { try await model.removeProfilePhoto() }
+                                catch { errorMessage = error.localizedDescription }
+                                savingAvatar = false
+                            }
+                        }
+                        .font(SQFont.meta)
+                        .foregroundStyle(SQColor.destructive)
+                        .disabled(savingAvatar)
                     }
                 }
                 Spacer()
             }
 
-            Text("Your profile photo is kept on this device in this demo build.")
+            Text("Your photo appears beside your chat messages to students who share a room with you.")
                 .font(SQFont.meta)
                 .foregroundStyle(SQColor.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .center)

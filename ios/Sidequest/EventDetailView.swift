@@ -236,24 +236,9 @@ struct EventDetailView: View {
     /// Cover image with the "Featured" strip joined to its bottom corners (screenshot 04).
     private var coverBlock: some View {
         VStack(spacing: 0) {
-            Group {
-                if let url = model.eventImageURLs[event.id] {
-                    AsyncImage(url: url) { phase in
-                        if let image = phase.image {
-                            image.resizable().scaledToFill()
-                        } else if phase.error != nil {
-                            coverPlaceholder
-                        } else {
-                            coverPlaceholder.overlay(ProgressView().tint(.white))
-                        }
-                    }
-                } else {
-                    coverPlaceholder
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .aspectRatio(1, contentMode: .fit)
-            .clipped()
+            SQRemoteImage(url: model.eventImageURLs[event.id], radius: 0) { coverPlaceholder }
+                .frame(maxWidth: .infinity)
+                .aspectRatio(1, contentMode: .fit)
 
             HStack(spacing: SQSpace.sm) {
                 Image(systemName: "laurel.leading")

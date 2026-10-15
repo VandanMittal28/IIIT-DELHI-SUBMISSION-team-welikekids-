@@ -183,17 +183,9 @@ struct NavigateView: View {
                     SQInsetDivider()
                     VStack(alignment: .leading, spacing: SQSpace.md) {
                         if let photo = model.landmarkPhotoURLs[start.id] {
-                            AsyncImage(url: photo) { phase in
-                                if let image = phase.image {
-                                    image.resizable().scaledToFill()
-                                } else {
-                                    ZStack { SQColor.surfaceAlt; ProgressView().controlSize(.small) }
-                                }
-                            }
-                            .frame(height: 140)
-                            .frame(maxWidth: .infinity)
-                            .clipped()
-                            .clipShape(RoundedRectangle(cornerRadius: SQRadius.thumb, style: .continuous))
+                            SQRemoteImage(url: photo) { SQColor.surfaceAlt }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 140)
                             .accessibilityLabel("Reference photo for \(start.name)")
                         }
 

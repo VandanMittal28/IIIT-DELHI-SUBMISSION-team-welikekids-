@@ -300,7 +300,7 @@ private struct JourneyDetailView: View {
         }
         .sheet(isPresented: $reviewing) { ReviewForm(item: item) }
         .sheet(isPresented: $reporting) { ReportForm(item: item) }
-        .sheet(isPresented: $showingEventChat) { EventChatSheet(eventId: item.eventId) }
+        .sheet(isPresented: $showingEventChat, onDismiss: { Task { await model.chat.reloadRooms() } }) { ChatHomeView() }
         .sheet(isPresented: $showingEventMedia) { EventMediaView(item: item) }
         .alert("Cancel this registration?", isPresented: $confirmCancel) {
             Button("Keep registration", role: .cancel) {}
@@ -432,26 +432,15 @@ private struct EventMediaView: View {
                 LazyVGrid(columns: columns, spacing: SQSpace.md) {
                     ForEach(photos) { image in
                         VStack(alignment: .leading, spacing: 6) {
-                            AsyncImage(url: image.url) { phase in
-                                if let content = phase.image {
-                                    content.resizable().scaledToFill()
-                                } else if phase.error != nil {
-                                    ZStack {
-                                        SQColor.surfaceAlt
-                                        Image(systemName: "photo.badge.exclamationmark")
-                                            .foregroundStyle(SQColor.textTertiary)
-                                    }
-                                } else {
-                                    ZStack {
-                                        SQColor.surfaceAlt
-                                        ProgressView().controlSize(.small)
-                                    }
+                            SQRemoteImage(url: image.url) {
+                                ZStack {
+                                    SQColor.surfaceAlt
+                                    Image(systemName: "photo")
+                                        .foregroundStyle(SQColor.textTertiary)
                                 }
                             }
-                            .frame(height: 150)
                             .frame(maxWidth: .infinity)
-                            .clipped()
-                            .clipShape(RoundedRectangle(cornerRadius: SQRadius.thumb, style: .continuous))
+                            .frame(height: 150)
 
                             if let caption = image.caption, !caption.isEmpty {
                                 Text(caption)

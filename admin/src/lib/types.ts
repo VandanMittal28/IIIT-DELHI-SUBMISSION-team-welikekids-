@@ -1,4 +1,4 @@
-export type Organization = { id: string; name: string; college_id: string; is_active?: boolean };
+export type Organization = { id: string; name: string; college_id: string; is_active?: boolean; head_user_id?: string | null };
 
 export type EventRecord = {
   id: string;
@@ -9,6 +9,7 @@ export type EventRecord = {
   status?: "draft" | "pending_approval" | "published" | "cancelled";
   organization_id: string;
   college_id?: string;
+  cover_image_path?: string | null;
   organization_name?: string;
   college_name?: string;
   starts_at?: string;

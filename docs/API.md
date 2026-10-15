@@ -14,7 +14,7 @@ Clients must show an honest failure state and may retry idempotent requests. The
 
 ## `create_event`
 
-Authenticated RPC. Requires an active organizer membership for the target organization or active college-administrator membership. Creates an event and its initial edition in one transaction.
+Authenticated RPC. Requires an active organizer membership for the target society; college administration alone does not grant event authoring. Creates an event and its initial edition in one transaction.
 
 The caller creates and persists `p_client_request_id` before the first attempt and reuses it for retries. The `(created_by, client_request_id)` uniqueness constraint prevents duplicates.
 
@@ -62,6 +62,20 @@ Authenticated, security-invoker view of the caller’s registrations, registrati
 
 Authenticated, security-invoker organizer/volunteer projection of capacity and actual registered, waitlisted, and cancelled counts. RLS prevents unrelated organizations and colleges from seeing an edition’s counts.
 
+## Open Meetups
+
+Casual social meetups are separate from events: no organization, pass, waitlist, attendance scan, or event channel.
+
+- `open_meetup_feed` — authenticated security-invoker view. Returns meetups the caller is eligible for, hosts, or has joined, with venue/landmark, public host card (`host_name`, `host_headline`, `host_verified`), `participating_colleges`, `going_count`/`capacity`, `icebreaker`, `my_status`, `is_eligible`, and `is_host` (the caller hosts it). Student hosts without a host card show their chosen `host_display_name`. Attendee identities are never exposed.
+- `join_open_meetup(p_meetup_id)` / `leave_open_meetup(p_meetup_id)` — act only for `auth.uid()`. Join locks the meetup row, is idempotent, enforces capacity (`MEETUP_FULL`) and college eligibility (`NOT_ELIGIBLE`). Returns `{"registration_id","status":"going|cancelled","going_count","capacity","idempotent_replay"}`.
+- Eligibility uses active `college_memberships` (administrator-granted), not the self-editable `profiles.college_id`. `all_colleges` admits any student with an active college membership; `selected_colleges` always includes the host college.
+- `set_meetup_host` / `revoke_meetup_host` — college administrators recognise an active member of their college as a host. Creating a meetup never grants recognition; `host_verified` becomes false when recognition is revoked or the host’s account/membership is inactive.
+- `create_open_meetup(...)` — idempotent by `p_client_request_id`; allowed for the recognised host or the host college’s administrator. Venue must be on the host college campus. A predefined icebreaker is assigned when none is supplied.
+- `host_open_meetup(p_client_request_id, p_college_id, p_venue_id, p_title, p_description, p_starts_at, p_ends_at, p_capacity, p_host_display_name, p_audience, p_college_ids, p_icebreaker, p_location_note)` — any active student with an active membership in `p_college_id` publishes a meetup they host. The host is always `auth.uid()` (no host parameter). Validates venue campus (`INVALID_VENUE`), schedule (future start, at most 12 hours long, within 180 days), capacity 2–500 (`INVALID_CAPACITY`), field lengths, and colleges. Idempotent by `p_client_request_id`. Students who are not recognised hosts may have at most 3 upcoming meetups (`HOSTING_LIMIT`). Never grants recognition.
+- `set_open_meetup_status(p_meetup_id, 'published'|'cancelled')` — the meetup's own host (active account) or the home college administrator; cancelling releases every spot. Deleting an account cancels the upcoming meetups it hosts.
+
+Clients have read-only table access; every write goes through these functions. `supabase/tests/open_meetups_integration.sql` covers the authorization, duplicate, capacity, and eligibility rules; `supabase/tests/student_hosted_meetups_integration.sql` covers student hosting, ownership, validation, idempotency, the hosting limit, and cancellation. `supabase/open_meetups_demo_seed.sql` is development-only demo content.
+
 ## Navigation
 
 - `create_campus`, `create_building`, `create_floor`, and `create_landmark` require contextual college-administrator authority.
@@ -92,11 +106,30 @@ Authenticated, security-invoker organizer/volunteer projection of capacity and a
 - `submit_review` requires an attendance entry, supports update-by-the-same-attendee, and enforces one review per user/event. `event_review_summary` includes the actual sample size.
 - `toggle_organization_follow`, `saved_events`, and `my_community_channels` persist student personalization without using profile metadata for authorization.
 
+## Chat rooms
+
+Chat extends the event `channels`/`messages` model. `channels.kind` is `event` (one per edition, unchanged rules), `college` (one lounge per college, created automatically), or `topic` (inter-college rooms: Commons, Coding, Music, Gaming, Plans & Events).
+
+- Access (`private.can_access_channel`): event rooms keep `can_access_edition`; college lounges need an active administrator-granted membership in that college; topic rooms need an active membership in any college. `profiles.college_id` is never trusted. The same check drives the `channels`/`messages` RLS policies, so Realtime `postgres_changes` only delivers rows the subscriber may read.
+- `get_my_chat_rooms()` — rooms the caller can read with title, last-message preview, and `unread_count` (others' messages after the caller's `channel_reads.last_read_at`).
+- `get_channel_messages(p_channel_id, p_before_seq, p_after_seq, p_limit)` — newest-first page before a `seq` cursor, or oldest-first rows after one (gap fill after reconnect). Returns `author_name` (profile name or "SideQuest student"), `author_college` (from an active membership), and `is_mine`; only callers who can read the room get rows.
+- `send_channel_message(p_channel_id, p_body, p_client_message_id)` — sender is always `auth.uid()`. Trims and rejects empty (`MESSAGE_EMPTY`) or >2000-character (`MESSAGE_TOO_LONG`) messages, limits each student to 8 messages per 30 seconds (`RATE_LIMITED`), and is idempotent by `p_client_message_id`. Returns `message_id` and `seq`. `post_message(p_channel_id, p_body)` keeps its contract and uses the same rules.
+- `mark_channel_read(p_channel_id)` — advances the caller's read marker.
+- Moderation (`private.can_moderate_channel`, `moderate_message`): event staff for event rooms, college administrators for their lounge, platform administrators for topic rooms. `submit_message_report` works in every room; lounge/topic reports have no edition and are readable by that room's moderators.
+- Clients use Realtime `postgres_changes` on `messages` filtered by `channel_id` as an invalidation signal, then fetch by `seq`; durable rows stay authoritative.
+
+- Profile pictures reuse `profiles.avatar_path`. Files live in the private `profile-avatars` bucket under `<user id>/<uuid>.jpg`; students write only their own folder and set the path with `set_profile_avatar(p_path)` (null clears it; returns `previous_path`). A picture is readable by its owner and by students who share a room with them. `get_channel_messages` returns it as `author_avatar_path`; clients sign it with Storage.
+- Mentions: `send_channel_message(..., p_mentions uuid[])` accepts up to 10 student ids (`TOO_MANY_MENTIONS`); each must be an active student who can access the room (`MENTION_UNAVAILABLE`). The body stays plain text; `message_mentions` stores the id and the `@Name` as written, dropping ids whose tag is no longer in the body. `get_channel_messages` returns `mentions` (`[{user_id, display_name}]`, in body order). Each tagged student gets a `mention` inbox notification through `enqueue_notification`.
+- `search_chat_mention_candidates(p_channel_id, p_query, p_limit)` — students the caller may tag in that room, matched by name only (login usernames are never searched or returned). An empty query lists recent senders only.
+- The Community tab and the Discover chat list open the same `ChatRoomView`, so both entry points share one history and composer.
+
+`supabase/tests/chatrooms_integration.sql` covers room access per kind, sender identity, validation, idempotency, rate limiting, pagination, unread counts, moderation, reporting, unchanged event rooms, and the forum membership fix (forum visibility now follows active college memberships). `supabase/tests/chat_avatars_mentions_integration.sql` covers picture storage access, mention validation, persistence and notifications, candidate-search scoping, and that the Community entry and the chat list open the same event room.
+
 ## Management
 
-`platform_admins` holds the trusted global Sidequest administrator role; clients may read only their own membership row. `create_college` is restricted to platform administrators and writes an audit record. `create_organization` authorizes either a platform administrator across colleges or a college administrator in that college. A platform administrator is not automatically added as an organization organizer. The protected `create-user-profile` Edge Function provisions students and organization organizers for platform admins, or in-scope accounts for a college administrator; it never creates administrator privileges.
+`platform_admins` holds the trusted global Sidequest administrator role; clients may read only their own membership row. `create_college` is restricted to platform administrators and writes an audit record. `create_organization` authorizes either a platform administrator across colleges or a college administrator in that college. Neither is automatically added as a society organizer. The protected `create-user-profile` Edge Function provisions college student or organizer IDs for authorized admins; both receive college membership, and neither receives society access during creation. `get_college_organizer_accounts` provides an admin-scoped directory of existing organizer IDs. `assign_society_head` lets an authorized admin assign one active organizer ID from the society's college as its head, granting that society's event access and revoking the previous head's organizer membership. It never creates administrator privileges.
 
-`assign_context_role`, `assign_event_staff`, `add_event_cohost`, `update_event_details`, `approve_event`, `update_edition_capacity`, `create_event_edition`, `create_event_session`, `update_event_session`, `set_event_cover_image`, `cancel_event`, and campus/venue authoring RPCs repeat contextual authorization server-side and write audit records for sensitive actions. Session edits must remain inside their edition schedule and use a venue in the event's college. Host and co-host organizers receive the same event-management boundary. `get_event_staff_candidates(edition_id)` returns only active organizers and volunteers from those organizations; assignment rejects arbitrary account IDs and is retry-idempotent. Event cancellation locks the event and its editions, records `cancelled_at`, cancels every confirmed or waitlisted registration, cancels waitlist entries, revokes active passes, and treats every later call as a replay so notifications and audit work cannot be duplicated.
+`assign_context_role`, `assign_event_staff`, `add_event_cohost`, `update_event_details`, `approve_event`, `update_edition_capacity`, `create_event_edition`, `create_event_session`, `update_event_session`, `set_event_cover_image`, `cancel_event`, and campus/venue authoring RPCs repeat contextual authorization server-side and write audit records for sensitive actions. Session edits must remain inside their edition schedule and use a venue in the event's college. Host and co-host organizers receive the same event-management boundary. `get_event_staff_candidates(edition_id)` returns active students from the event's college. Only a host or co-host society organizer may assign one of those students as an event volunteer; assignment rejects cross-college accounts and is retry-idempotent. Event cancellation locks the event and its editions, records `cancelled_at`, cancels every confirmed or waitlisted registration, cancels waitlist entries, revokes active passes, and treats every later call as a replay so notifications and audit work cannot be duplicated.
 
 Edition discussion and announcement access also rechecks `profiles.status = 'active'` in PostgreSQL. Suspending or deleting an account therefore removes access even if its existing Auth token has not yet expired.
 

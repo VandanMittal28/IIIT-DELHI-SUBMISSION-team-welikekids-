@@ -582,6 +582,45 @@ struct SQBadge: View {
 }
 
 /// Square cover thumbnail with a branded placeholder for events that have no artwork.
+/// A remote image that cannot change its own layout size.
+///
+/// `scaledToFill()` lets an image report a size larger than the frame it was
+/// handed, and `.clipped()` only clips the drawing — the oversized width is
+/// still what the parent lays out against. In a `ScrollView` that shows up as
+/// a page that visibly widens, or "bulges", the moment a cover or photo
+/// finishes loading, which is exactly what a tall or very wide poster does.
+///
+/// Drawing the image in an `overlay` keeps it out of layout entirely: the
+/// clear shape underneath fixes the size from the caller's frame, and the
+/// image is clipped to it. Callers must give this a size, the same as they
+/// would any image.
+struct SQRemoteImage<Placeholder: View>: View {
+    var url: URL?
+    var radius: CGFloat = SQRadius.thumb
+    @ViewBuilder var placeholder: () -> Placeholder
+
+    var body: some View {
+        Color.clear
+            .overlay {
+                if let url {
+                    AsyncImage(url: url) { phase in
+                        if let image = phase.image {
+                            image.resizable().scaledToFill()
+                        } else if phase.error != nil {
+                            placeholder()
+                        } else {
+                            placeholder().overlay(ProgressView().controlSize(.small))
+                        }
+                    }
+                } else {
+                    placeholder()
+                }
+            }
+            .clipped()
+            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+    }
+}
+
 struct SQThumbnail: View {
     var url: URL?
     var seed: String

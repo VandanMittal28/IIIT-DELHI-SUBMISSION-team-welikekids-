@@ -301,6 +301,24 @@
 
 .eventRow button { flex: 0 0 auto; padding: 9px 16px; font-size: 13px; border-radius: var(--r-pill); }
 
+.posterUpdate { display: grid; gap: 6px; margin-top: var(--space-3); color: var(--text-secondary); font-size: 12px; font-weight: 600; }
+
+.posterUpdate input {
+  max-width: 100%;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: var(--r-control);
+  background: var(--surface-sunken);
+  color: var(--text);
+  padding: 9px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  outline: none;
+}
+
+.posterUpdate input:focus { background: var(--surface); border-color: var(--accent); box-shadow: var(--ring); }
+
 .pill {
   display: inline-block;
   background: var(--surface-sunken);

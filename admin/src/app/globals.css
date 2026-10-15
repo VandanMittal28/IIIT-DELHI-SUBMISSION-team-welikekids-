@@ -387,6 +387,28 @@ code {
 .evidence-links { display: flex; gap: var(--space-3); flex-wrap: wrap; margin-top: var(--space-2); }
 .evidence-links a { font-weight: 600; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 
+/* Report evidence ----------------------------------------------------------*/
+
+.report-photos { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-3); }
+
+.report-photos a {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.report-photos img {
+  width: 150px;
+  height: 110px;
+  object-fit: cover;
+  border-radius: var(--r-tile);
+  border: 1px solid var(--separator);
+  background: var(--surface-sunken);
+}
+
 /* Inline status messages ---------------------------------------------------*/
 
 .success-text, .error-text {
@@ -474,15 +496,6 @@ code {
 
 .danger-zone .button-row { justify-content: flex-start; }
 
-.info-text {
-  font-size: 14px;
-  border-radius: var(--r-control);
-  padding: 11px 14px;
-  margin-top: var(--space-3);
-  color: var(--text-secondary);
-  background: var(--surface-sunken);
-}
-
 /* Disclosure ---------------------------------------------------------------*/
 
 .disclosure { margin-top: var(--space-4); }
@@ -520,8 +533,6 @@ code {
 .org-card { display: grid; gap: 6px; justify-items: start; }
 .org-card strong { font-size: 16px; letter-spacing: -0.02em; }
 .org-card > span:not(.status-dot) { color: var(--text-secondary); font-size: 13px; }
-
-.ops-card button.toggle-college { margin: var(--space-1) 0 var(--space-5); }
 
 /* Scanner frame ------------------------------------------------------------*/
 

@@ -182,4 +182,10 @@ Last updated: 2026-10-13 (Asia/Kolkata)
 - Community now separates official updates, searchable organization directory, and college-scoped discussion forum. Students can create threads and replies; registered attendees can share event photos in a private bucket. Existing event chat and message-reporting flows remain available; Profile now links report status and clearer student account details.
 - Hosted migrations `20261013174433` and `20261013174621` are applied. Forum thread/reply persistence and college visibility, RPC authorization, event/venue atomicity and retry idempotency were exercised using rollback-only transactions. Media bucket is private and restricted to confirmed attendees/event staff.
 - Latest iPhone simulator test suite passes; admin production build and edited-file lint passed earlier in this turn’s implementation. Full repository lint still has the two documented pre-existing hook-effect errors in `ManagementPanel.tsx` and `OperationsPanel.tsx`. Physical camera/AR behavior remains unverified.
-- Pending push and Vercel production deployment verification for this changeset. No global-role changes were made to the `testing01` account; its authority remains unchanged.
+- Community workflow changes pushed as `b0ea997` and deployed to Vercel production. No global-role changes were made to the `testing01` account; its authority remains unchanged.
+
+### Open Meetups pull request #1 (2026-10-14)
+
+- Merged `feature/open-meetups` into `main` without conflicts. Adds a separate student-hosted meetup discovery and hosting flow, join/leave/cancel, eligibility/capacity enforcement, recognized hosts, and authorization/RLS-backed database contracts. The branch included the latest `main`, preserving the existing event, community, and navigation features.
+- Verification on the merged tree: full migration chain applies on a disposable PostgreSQL 17 instance; existing operational integration plus both Open Meetups integration suites pass; clean-derived-data iOS simulator tests pass; `git diff --check` passes.
+- Supabase migrations are included in the repository but have not been applied to the hosted project as part of merging this PR.

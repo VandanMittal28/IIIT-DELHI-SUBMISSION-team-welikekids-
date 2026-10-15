@@ -51,4 +51,198 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(steps[1].bearingDegrees!, 120, accuracy: 0.1)
         XCTAssertEqual(steps[0].bearingRelativeToConfirmedFacing(30)!, 60, accuracy: 0.1)
     }
+
+    func testOpenMeetupFeedAndRegistrationDecode() throws {
+        let json = #"[{"id":"00000000-0000-0000-0000-000000000050","title":"Canteen Chai Meetup","description":"Grab chai and meet someone new.","location_note":null,"icebreaker":"What's been the best part of your week?","audience":"selected_colleges","capacity":12,"going_count":12,"starts_at":"2026-10-14T10:30:00+00:00","ends_at":"2026-10-14T11:30:00+00:00","status":"published","college_name":"IIIT Delhi","host_name":"Aarav","host_headline":"Final-year CSE","host_verified":true,"venue_name":"Student Activity Centre","campus_name":"IIIT Delhi Campus","destination_landmark_id":null,"participating_colleges":["DTU","IIIT Delhi"],"my_status":null,"is_eligible":true}]"#.data(using: .utf8)!
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let meetup = try XCTUnwrap(decoder.decode([OpenMeetup].self, from: json).first)
+        XCTAssertTrue(meetup.hostVerified)
+        XCTAssertTrue(meetup.isFull)
+        XCTAssertFalse(meetup.isGoing)
+        XCTAssertEqual(meetup.spotsLeft, 0)
+        XCTAssertEqual(meetup.audienceLabel, "Open to DTU, IIIT Delhi")
+
+        let resultJSON = #"{"registration_id":"00000000-0000-0000-0000-000000000051","status":"going","going_count":5,"capacity":12,"idempotent_replay":false}"#.data(using: .utf8)!
+        let result = try JSONDecoder().decode(MeetupRegistrationResult.self, from: resultJSON)
+        XCTAssertEqual(result.status, "going")
+        XCTAssertEqual(result.goingCount, 5)
+    }
+
+    func testOpenMeetupAudienceAndCapacityLabels() throws {
+        func meetup(audience: String, colleges: [String], going: Int, capacity: Int) throws -> OpenMeetup {
+            let json = #"{"id":"00000000-0000-0000-0000-000000000060","title":"Just Talk","description":"No agenda.","location_note":null,"icebreaker":"What's been the best part of your week?","audience":"\#(audience)","capacity":\#(capacity),"going_count":\#(going),"starts_at":"2026-10-14T10:30:00Z","ends_at":"2026-10-14T11:30:00Z","status":"published","college_name":"IIIT Delhi","host_name":"Aarav","host_headline":null,"host_verified":false,"venue_name":"Canteen","campus_name":"Main","destination_landmark_id":null,"participating_colleges":\#(colleges.description),"my_status":"going","is_eligible":true}"#.data(using: .utf8)!
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            return try decoder.decode(OpenMeetup.self, from: json)
+        }
+        XCTAssertEqual(try meetup(audience: "all_colleges", colleges: [], going: 1, capacity: 5).audienceLabel, "Open to all participating colleges")
+        XCTAssertEqual(try meetup(audience: "selected_colleges", colleges: [], going: 1, capacity: 5).audienceLabel, "Open to IIIT Delhi students")
+        XCTAssertEqual(try meetup(audience: "selected_colleges", colleges: ["IIIT Delhi"], going: 1, capacity: 5).audienceLabel, "Open to IIIT Delhi students")
+        let overfull = try meetup(audience: "all_colleges", colleges: [], going: 6, capacity: 5)
+        XCTAssertEqual(overfull.spotsLeft, 0)
+        XCTAssertTrue(overfull.isFull)
+        XCTAssertTrue(overfull.isGoing)
+        XCTAssertFalse(overfull.hostVerified)
+    }
+
+    func testMissingMeetupBackendCodesAreRecognised() {
+        XCTAssertTrue(AppModel.isMissingMeetupBackend(code: "PGRST205"))
+        XCTAssertTrue(AppModel.isMissingMeetupBackend(code: "PGRST202"))
+        XCTAssertFalse(AppModel.isMissingMeetupBackend(code: "PGRST116"))
+        XCTAssertFalse(AppModel.isMissingMeetupBackend(code: nil))
+        XCTAssertNotNil(SidequestError.meetupsUnavailable.errorDescription)
+    }
+
+    private func validDraft(now: Date) -> MeetupDraft {
+        var draft = MeetupDraft(now: now)
+        draft.title = "Canteen Chai Meetup"
+        draft.description = "Grab chai and meet someone new."
+        draft.hostName = "Riya"
+        draft.collegeId = UUID()
+        draft.venueId = UUID()
+        return draft
+    }
+
+    func testMeetupDraftValidationAcceptsCompleteDraft() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let draft = validDraft(now: now)
+        XCTAssertTrue(draft.errors(now: now).isEmpty)
+        XCTAssertGreaterThan(draft.startsAt, now)
+        XCTAssertEqual(draft.endsAt.timeIntervalSince(draft.startsAt), 3600)
+        XCTAssertEqual(draft.serverAudience, "selected_colleges")
+        XCTAssertTrue(draft.serverCollegeIds.isEmpty)
+    }
+
+    func testMeetupDraftValidationRejectsInvalidFields() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        var draft = validDraft(now: now)
+        draft.title = "  "
+        draft.description = "short"
+        draft.hostName = ""
+        draft.venueId = nil
+        draft.collegeId = nil
+        draft.startsAt = now.addingTimeInterval(60)
+        draft.capacity = 1
+        draft.icebreaker = "Hi?"
+        let errors = draft.errors(now: now)
+        for field in [MeetupDraft.Field.title, .description, .hostName, .venue, .college, .startsAt, .capacity, .icebreaker] {
+            XCTAssertNotNil(errors[field], "expected error for \(field)")
+        }
+        draft = validDraft(now: now)
+        draft.capacity = 501
+        draft.startsAt = now.addingTimeInterval(200 * 24 * 3600)
+        XCTAssertNotNil(draft.errors(now: now)[.capacity])
+        XCTAssertNotNil(draft.errors(now: now)[.startsAt])
+    }
+
+    func testMeetupDraftCollegeAudiences() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        var draft = validDraft(now: now)
+        let partner = UUID()
+        draft.audience = .selectedColleges
+        XCTAssertNotNil(draft.errors(now: now)[.colleges], "selected colleges needs at least one other college")
+        draft.extraCollegeIds = [partner, draft.collegeId!]
+        XCTAssertEqual(draft.serverCollegeIds, [partner], "host college is added by the server, not duplicated")
+        XCTAssertNil(draft.errors(now: now)[.colleges])
+        draft.audience = .allColleges
+        XCTAssertEqual(draft.serverAudience, "all_colleges")
+        XCTAssertTrue(draft.serverCollegeIds.isEmpty)
+    }
+
+    func testHostedMeetupFlagsAndResultDecode() throws {
+        let json = #"{"id":"00000000-0000-0000-0000-000000000070","title":"Campus walk","description":"A casual campus walk.","location_note":null,"icebreaker":"What's been the best part of your week?","audience":"all_colleges","capacity":10,"going_count":0,"starts_at":"2026-10-14T10:30:00Z","ends_at":"2026-10-14T11:30:00Z","status":"cancelled","college_name":"IIIT Delhi","host_name":"Riya","host_headline":null,"host_verified":false,"venue_name":"Canteen","campus_name":"Main","destination_landmark_id":null,"participating_colleges":[],"my_status":null,"is_eligible":true,"is_host":true}"#.data(using: .utf8)!
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let meetup = try decoder.decode(OpenMeetup.self, from: json)
+        XCTAssertTrue(meetup.amHost)
+        XCTAssertTrue(meetup.isCancelled)
+        XCTAssertFalse(meetup.hostVerified, "hosting never implies recognition")
+        let result = try JSONDecoder().decode(HostMeetupResult.self, from: #"{"meetup_id":"00000000-0000-0000-0000-000000000070","status":"published","idempotent_replay":true}"#.data(using: .utf8)!)
+        XCTAssertTrue(result.idempotentReplay)
+    }
+
+    private func chatMessage(_ seq: Int64, id: UUID = UUID(), body: String = "hi") -> ChatMessage {
+        ChatMessage(id: id, seq: seq, channelId: UUID(), authorId: UUID(), authorName: "Asha", authorCollege: "IIIT Delhi", body: body, createdAt: Date(timeIntervalSince1970: TimeInterval(seq)), isMine: false)
+    }
+
+    func testChatValidationRejectsEmptyAndOversizedMessages() {
+        XCTAssertNotNil(ChatModel.validationError(for: ""))
+        XCTAssertNotNil(ChatModel.validationError(for: "   \n  "))
+        XCTAssertNotNil(ChatModel.validationError(for: String(repeating: "x", count: ChatModel.maxLength + 1)))
+        XCTAssertNil(ChatModel.validationError(for: "  Hello  "))
+        XCTAssertNil(ChatModel.validationError(for: String(repeating: "x", count: ChatModel.maxLength)))
+    }
+
+    func testChatMergeDeduplicatesAndOrdersBySequence() {
+        let shared = UUID()
+        let existing = [chatMessage(2), chatMessage(5, id: shared, body: "old")]
+        let incoming = [chatMessage(7), chatMessage(5, id: shared, body: "new"), chatMessage(1)]
+        let merged = ChatModel.merge(existing, with: incoming)
+        XCTAssertEqual(merged.map(\.seq), [1, 2, 5, 7])
+        XCTAssertEqual(merged.first { $0.id == shared }?.body, "new", "a re-delivered row replaces, not duplicates")
+    }
+
+    func testChatRoomAndMessageDecode() throws {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let rooms = try decoder.decode([ChatRoom].self, from: #"[{"id":"00000000-0000-0000-0000-000000000080","kind":"topic","title":"Coding","description":"Projects","college_name":null,"starts_at":null,"last_message_body":"Anyone up for a hackathon?","last_message_author":"Asha","last_message_at":"2026-10-14T10:00:00Z","unread_count":3,"sort_order":20}]"#.data(using: .utf8)!)
+        XCTAssertEqual(rooms.first?.unreadCount, 3)
+        let messages = try decoder.decode([ChatMessage].self, from: #"[{"id":"00000000-0000-0000-0000-000000000081","seq":42,"channel_id":"00000000-0000-0000-0000-000000000080","author_id":"00000000-0000-0000-0000-000000000082","author_name":"Asha","author_college":"IIIT Delhi","body":"Hello","created_at":"2026-10-14T10:00:00Z","is_mine":true}]"#.data(using: .utf8)!)
+        XCTAssertEqual(messages.first?.seq, 42)
+        XCTAssertTrue(messages.first?.isMine == true)
+    }
+
+    func testChatMessageDecodesPictureAndMentionsAndStaysCompatible() throws {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let row = #"{"id":"00000000-0000-0000-0000-000000000091","seq":7,"channel_id":"00000000-0000-0000-0000-000000000080","author_id":"00000000-0000-0000-0000-000000000082","author_name":"Asha Rao","author_college":null,"body":"Hi @Bilal Khan and @Esha","created_at":"2026-10-15T10:00:00Z","is_mine":false,"author_avatar_path":"00000000-0000-0000-0000-000000000082/a.jpg","mentions":[{"user_id":"00000000-0000-0000-0000-000000000083","display_name":"Bilal Khan"},{"user_id":"00000000-0000-0000-0000-000000000084","display_name":"Esha"}]}"#
+        let message = try decoder.decode(ChatMessage.self, from: row.data(using: .utf8)!)
+        XCTAssertEqual(message.authorAvatarPath, "00000000-0000-0000-0000-000000000082/a.jpg")
+        XCTAssertEqual(message.mentions.map(\.displayName), ["Bilal Khan", "Esha"])
+        XCTAssertEqual(message.mentions.first?.userId, UUID(uuidString: "00000000-0000-0000-0000-000000000083"))
+        // Rows from before this change (no picture, no mentions) still decode with the defaults.
+        let legacy = #"{"id":"00000000-0000-0000-0000-000000000092","seq":8,"channel_id":"00000000-0000-0000-0000-000000000080","author_id":"00000000-0000-0000-0000-000000000082","author_name":"Asha","author_college":null,"body":"Old","created_at":"2026-10-14T10:00:00Z","is_mine":true}"#
+        let old = try decoder.decode(ChatMessage.self, from: legacy.data(using: .utf8)!)
+        XCTAssertNil(old.authorAvatarPath)
+        XCTAssertTrue(old.mentions.isEmpty)
+    }
+
+    func testActiveMentionQueryOnlyWhileTypingATag() {
+        XCTAssertEqual(ChatModel.activeMentionQuery(in: "@"), "")
+        XCTAssertEqual(ChatModel.activeMentionQuery(in: "hey @as"), "as")
+        XCTAssertEqual(ChatModel.activeMentionQuery(in: "hey @Asha R"), "Asha R")
+        XCTAssertNil(ChatModel.activeMentionQuery(in: "mail me at a@b.com"), "an @ inside a word is not a tag")
+        XCTAssertNil(ChatModel.activeMentionQuery(in: "hello"))
+        XCTAssertNil(ChatModel.activeMentionQuery(in: "@Asha thanks for the help today"), "finished tags followed by a sentence close the picker")
+        XCTAssertNil(ChatModel.activeMentionQuery(in: "@Asha\nnext line"))
+    }
+
+    func testInsertingMultipleMentionsKeepsIdentityAndDropsEditedOutTags() {
+        let bilal = MentionCandidate(userId: UUID(), displayName: "Bilal Khan", collegeName: nil, avatarPath: nil, recentlyActive: true)
+        let esha = MentionCandidate(userId: UUID(), displayName: "Esha Rao", collegeName: nil, avatarPath: nil, recentlyActive: false)
+        var draft = ChatModel.insertingMention(bilal.displayName, into: "Lunch? @bi")
+        XCTAssertEqual(draft, "Lunch? @Bilal Khan ")
+        draft = ChatModel.insertingMention(esha.displayName, into: draft + "and @Es")
+        XCTAssertEqual(draft, "Lunch? @Bilal Khan and @Esha Rao ")
+        XCTAssertEqual(ChatModel.mentionIds(in: draft, chosen: [bilal, esha, bilal]), [bilal.userId, esha.userId])
+        XCTAssertEqual(ChatModel.mentionIds(in: "Lunch? and @Esha Rao", chosen: [bilal, esha]), [esha.userId])
+    }
+
+    func testMentionRangesHighlightEveryTagWithoutSplittingLongerNames() {
+        let body = "@Asha Rao meet @Asha and @Asha Rao"
+        let mentions = [ChatMention(userId: UUID(), displayName: "Asha"), ChatMention(userId: UUID(), displayName: "Asha Rao")]
+        let ranges = ChatModel.mentionRanges(in: body, mentions: mentions).map { String(body[$0]) }
+        XCTAssertEqual(ranges, ["@Asha Rao", "@Asha", "@Asha Rao"])
+        XCTAssertTrue(ChatModel.mentionRanges(in: "no tags here", mentions: mentions).isEmpty)
+    }
+
+    @MainActor
+    func testInvalidAvatarDataFallsBackInsteadOfCrashing() {
+        XCTAssertNil(AvatarImageCache.downsample(Data("not an image".utf8), maxPixels: 90))
+        let pixel = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 300)).image { context in UIColor.green.setFill(); context.fill(CGRect(x: 0, y: 0, width: 400, height: 300)) }
+        let thumbnail = AvatarImageCache.downsample(pixel.pngData()!, maxPixels: 90)
+        XCTAssertNotNil(thumbnail)
+        XCTAssertLessThanOrEqual(max(thumbnail!.size.width * thumbnail!.scale, thumbnail!.size.height * thumbnail!.scale), 90)
+    }
 }

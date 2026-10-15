@@ -13,6 +13,7 @@ struct DiscoverView: View {
     @State private var showComparison = false
     @State private var showMap = false
     @State private var showSearch = false
+    @State private var showChat = false
 
     /// Events bucketed by calendar day, in chronological order — the "17 October / Saturday"
     /// grouping from screenshot 02.
@@ -62,6 +63,15 @@ struct DiscoverView: View {
                             showMap = true
                         }
                         SQCapsuleGlyph(
+                            systemImage: "bubble.left.and.bubble.right",
+                            showsBadge: model.chat.totalUnread > 0,
+                            accessibilityTitle: model.chat.totalUnread > 0
+                                ? "Chat rooms, \(model.chat.totalUnread) unread"
+                                : "Chat rooms"
+                        ) {
+                            showChat = true
+                        }
+                        SQCapsuleGlyph(
                             systemImage: activeFilterCount > 0 ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle",
                             showsBadge: activeFilterCount > 0,
                             accessibilityTitle: "Event filters"
@@ -85,6 +95,9 @@ struct DiscoverView: View {
             }
             .background(SQColor.plainBackground.ignoresSafeArea())
             .toolbar(.hidden, for: .tabBar)
+            .navigationDestination(for: OpenMeetup.self) { meetup in
+                OpenMeetupDetailView(initial: meetup)
+            }
             .navigationDestination(for: EventFeedItem.self) { selectedEvent in
                 EventDetailView(event: selectedEvent, comparing: compareIds.contains(selectedEvent.id)) { comparing in
                     if comparing { compareIds.insert(selectedEvent.id) } else { compareIds.remove(selectedEvent.id) }
@@ -94,7 +107,10 @@ struct DiscoverView: View {
             .sheet(isPresented: $showComparison) {
                 CompareEventsView(events: model.events.filter { compareIds.contains($0.id) })
             }
-            .sheet(isPresented: $showMap) { CampusDiscoveryMap(campuses: model.campuses) }
+            .sheet(isPresented: $showMap) { CampusDiscoveryMap() }
+            .sheet(isPresented: $showChat, onDismiss: { Task { await model.chat.reloadRooms() } }) {
+                ChatHomeView()
+            }
             .animation(.easeInOut(duration: 0.2), value: showSearch)
             .onChange(of: model.searchText) {
                 searchTask?.cancel()
@@ -105,6 +121,7 @@ struct DiscoverView: View {
                 }
             }
             .task { if model.eventState == .idle { await model.reloadEvents() } }
+            .task { if model.isAuthenticated { await model.chat.reloadRooms() } }
         }
     }
 
@@ -161,6 +178,8 @@ struct DiscoverView: View {
                     compareBanner
                 }
 
+                OpenMeetupsSection()
+
                 SQSectionHeader(
                     title: "Picked for You",
                     subtitle: model.searchText.isEmpty ? "Nearby" : "Matching “\(model.searchText)”",
@@ -208,7 +227,7 @@ struct DiscoverView: View {
             }
             .padding(.bottom, SQSpace.tabBarClearance)
         }
-        .refreshable { await model.reloadEvents() }
+        .refreshable { await model.reloadEvents(); await model.reloadMeetups() }
     }
 
     private var compareBanner: some View {
@@ -285,7 +304,7 @@ struct DiscoverView: View {
                 .padding(.bottom, SQSpace.tabBarClearance)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .refreshable { await model.reloadEvents() }
+        .refreshable { await model.reloadEvents(); await model.reloadMeetups() }
     }
 
     private func toggleCategory(_ category: String) {
@@ -407,27 +426,51 @@ private struct CampusCard: View {
 
 /// Full-bleed map with floating circular chrome — screenshot 06.
 private struct CampusDiscoveryMap: View {
+    @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
-    let campuses: [CampusPoint]
+
+    private var eventPins: [DiscoveryMapPin] {
+        model.mapEvents.filter { $0.endsAt > .now }.compactMap { event in
+            coordinate(for: event.venueId).map { DiscoveryMapPin(id: event.id, title: event.title, coordinate: $0) }
+        }
+    }
+
+    private var meetupPins: [DiscoveryMapPin] {
+        model.meetups.filter { $0.status == "published" && $0.endsAt > .now }.compactMap { meetup in
+            coordinate(for: meetup.venueId).map { DiscoveryMapPin(id: meetup.id, title: meetup.title, coordinate: $0) }
+        }
+    }
+
+    private var isEmpty: Bool { model.campuses.isEmpty && eventPins.isEmpty && meetupPins.isEmpty }
 
     var body: some View {
         ZStack(alignment: .top) {
-            if campuses.isEmpty {
+            if isEmpty {
                 SQColor.background.ignoresSafeArea()
                 VStack {
                     Spacer()
                     SQEmptyState(
-                        message: "Published campus coordinates will appear here.",
+                        message: "Published campuses, events and meetups will appear here.",
                         systemImage: "map"
                     )
                     .padding(.horizontal, SQSpace.margin)
                     Spacer()
                 }
             } else {
-                Map {
-                    ForEach(campuses) { campus in
+                Map(initialPosition: .automatic) {
+                    ForEach(model.campuses) { campus in
                         Annotation(campus.name, coordinate: CLLocationCoordinate2D(latitude: campus.latitude, longitude: campus.longitude)) {
                             MapThumbnailPin(title: campus.name)
+                        }
+                    }
+                    ForEach(eventPins) { pin in
+                        Annotation(pin.title, coordinate: pin.coordinate) {
+                            MapThumbnailPin(title: pin.title, systemImage: "calendar")
+                        }
+                    }
+                    ForEach(meetupPins) { pin in
+                        Annotation(pin.title, coordinate: pin.coordinate) {
+                            MapThumbnailPin(title: pin.title, systemImage: "cup.and.saucer.fill")
                         }
                     }
                 }
@@ -441,7 +484,28 @@ private struct CampusDiscoveryMap: View {
             .padding(.horizontal, SQSpace.margin)
             .padding(.top, SQSpace.sm)
         }
+        .task {
+            await model.reloadMapEvents()
+            await model.reloadMeetups()
+            await model.reloadMapVenueLocations()
+        }
     }
+
+    /// A venue's own coordinate when it has one, otherwise its campus centre.
+    private func coordinate(for venueId: UUID?) -> CLLocationCoordinate2D? {
+        guard let venueId, let location = model.mapVenueLocations[venueId] else { return nil }
+        if let latitude = location.latitude, let longitude = location.longitude {
+            return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        }
+        guard let campus = model.campuses.first(where: { $0.id == location.campusId }) else { return nil }
+        return CLLocationCoordinate2D(latitude: campus.latitude, longitude: campus.longitude)
+    }
+}
+
+private struct DiscoveryMapPin: Identifiable {
+    let id: UUID
+    let title: String
+    let coordinate: CLLocationCoordinate2D
 }
 
 /// Luma's map annotation (screenshot 06): a small thumbnail tile with a white border and a
@@ -450,10 +514,24 @@ struct MapThumbnailPin: View {
     let title: String
     var imageURL: URL?
     var overflow: Int = 0
+    /// Set for pins that are not campuses, so events and meetups stay
+    /// distinguishable without colour-coded markers.
+    var systemImage: String?
 
     var body: some View {
         VStack(spacing: 6) {
             SQThumbnail(url: imageURL, seed: title, size: 56, radius: SQRadius.tile)
+                .overlay {
+                    if let systemImage {
+                        ZStack {
+                            SQColor.primaryFill
+                            Image(systemName: systemImage)
+                                .font(.system(size: 22, weight: .semibold))
+                                .foregroundStyle(SQColor.onPrimary)
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: SQRadius.tile, style: .continuous))
+                    }
+                }
                 .overlay(
                     RoundedRectangle(cornerRadius: SQRadius.tile, style: .continuous)
                         .stroke(.white, lineWidth: 2)

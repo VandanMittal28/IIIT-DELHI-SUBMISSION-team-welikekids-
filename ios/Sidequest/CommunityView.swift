@@ -69,7 +69,7 @@ struct CommunityView: View {
             }
             .background(SQColor.plainBackground.ignoresSafeArea())
             .toolbar(.hidden, for: .tabBar)
-            .task { if model.isAuthenticated { await model.reloadCommunity() } }
+            .task { if model.isAuthenticated { await model.reloadCommunity(); await model.chat.reloadRooms() } }
             .sheet(isPresented: $creatingThread) { NewDiscussionThreadView() }
         }
     }
@@ -118,7 +118,7 @@ struct CommunityView: View {
                 .padding(.horizontal, SQSpace.margin)
                 .padding(.bottom, SQSpace.tabBarClearance)
             }
-            .refreshable { await model.reloadCommunity() }
+            .refreshable { await model.reloadCommunity(); await model.chat.reloadRooms() }
         }
     }
 
@@ -198,37 +198,24 @@ struct CommunityView: View {
         }
 
         // Chat list, styled like screenshot 07: avatar, title, subtitle, no dividers.
-        group("Event rooms") {
-            if model.channels.isEmpty {
-                SQEmptyState(
-                    message: "Register for an event to join its attendee chat room.",
-                    systemImage: "bubble.left.and.bubble.right"
-                )
+        // Rooms, history and the composer all come from the shared ChatModel.
+        group("Chat rooms") {
+            if model.chat.rooms.isEmpty {
+                if case .failed(let message) = model.chat.roomsState {
+                    SQEmptyState(message: message, systemImage: "exclamationmark.triangle")
+                } else {
+                    SQEmptyState(
+                        message: "Chat opens once your college confirms your membership. Register for an event to join its room.",
+                        systemImage: "bubble.left.and.bubble.right"
+                    )
+                }
             } else {
                 VStack(spacing: 0) {
-                    ForEach(model.channels) { channel in
+                    ForEach(model.chat.rooms) { room in
                         NavigationLink {
-                            ChannelView(channel: channel)
+                            ChatRoomView(room: room)
                         } label: {
-                            HStack(spacing: SQSpace.lg) {
-                                SQAvatar(seed: channel.title, size: SQSize.avatarLarge)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(channel.title)
-                                        .font(SQFont.rowLabel)
-                                        .foregroundStyle(SQColor.textPrimary)
-                                        .lineLimit(1)
-                                    Text("\(channel.organizationName) · \(channel.startsAt.formatted(date: .abbreviated, time: .shortened))")
-                                        .font(SQFont.body)
-                                        .foregroundStyle(SQColor.textSecondary)
-                                        .lineLimit(1)
-                                }
-                                Spacer(minLength: SQSpace.sm)
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundStyle(SQColor.chevron)
-                            }
-                            .frame(height: 68)
-                            .contentShape(Rectangle())
+                            ChatRoomRow(room: room)
                         }
                         .buttonStyle(.plain)
                     }
@@ -617,225 +604,7 @@ private struct OrganizationProfileView: View {
 
 // MARK: - Channel
 
-struct ChannelView: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
-    let channel: CommunityChannel
-
-    @State private var draft = ""
-    @State private var error: String?
-    @State private var reporting: CommunityMessage?
-    @State private var sending = false
-
-    /// Oldest first, so the room reads bottom-up like any chat.
-    private var messages: [CommunityMessage] {
-        model.communityMessages.filter { $0.channelId == channel.id }.sorted { $0.createdAt < $1.createdAt }
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            SQNavBar(title: channel.title) {
-                SQCircleButton(systemImage: "chevron.left") { dismiss() }
-                    .accessibilityLabel("Back")
-            } trailing: {
-                Color.clear.frame(width: SQSize.floatingCircle, height: SQSize.floatingCircle)
-            }
-            .padding(.bottom, SQSpace.md)
-
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: SQSpace.md) {
-                        if messages.isEmpty {
-                            SQEmptyState(
-                                message: "No messages yet. Say hello to the other attendees.",
-                                systemImage: "bubble.left.and.bubble.right"
-                            )
-                            .padding(.top, SQSpace.xl)
-                        }
-                        ForEach(messages) { message in
-                            MessageBubble(message: message) { reporting = message }
-                                .id(message.id)
-                        }
-                    }
-                    .padding(.horizontal, SQSpace.margin)
-                    .padding(.bottom, SQSpace.lg)
-                }
-                .onChange(of: messages.count) {
-                    guard let last = messages.last else { return }
-                    withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(last.id, anchor: .bottom) }
-                }
-            }
-
-            composer
-        }
-        .background(SQColor.plainBackground.ignoresSafeArea())
-        .navigationBarBackButtonHidden()
-        .toolbar(.hidden, for: .navigationBar)
-        .sqHidesTabBar()
-        .sheet(item: $reporting) { MessageReportForm(message: $0) }
-    }
-
-    private var composer: some View {
-        VStack(spacing: SQSpace.sm) {
-            if let error { SQNotice(text: error, kind: .error) }
-            HStack(spacing: SQSpace.md) {
-                SQField(placeholder: "Message", text: $draft, axisVertical: true, lineLimit: 1...5)
-                Button {
-                    Task { await post() }
-                } label: {
-                    ZStack {
-                        Circle().fill(canSend ? SQColor.primaryFill : SQColor.surfaceAlt)
-                        Image(systemName: "arrow.up")
-                            .font(.system(size: 19, weight: .bold))
-                            .foregroundStyle(canSend ? SQColor.onPrimary : SQColor.textTertiary)
-                    }
-                    .frame(width: SQSize.sheetCircle, height: SQSize.sheetCircle)
-                }
-                .buttonStyle(.plain)
-                .disabled(!canSend)
-                .accessibilityLabel("Send message")
-            }
-        }
-        .padding(.horizontal, SQSpace.margin)
-        .padding(.top, SQSpace.md)
-        .padding(.bottom, SQSpace.sm)
-        .background(.ultraThinMaterial)
-    }
-
-    private var canSend: Bool {
-        !sending && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private func post() async {
-        sending = true
-        defer { sending = false }
-        do {
-            try await model.postMessage(channelId: channel.id, body: draft)
-            draft = ""
-            error = nil
-        } catch {
-            self.error = error.localizedDescription
-        }
-    }
-}
-
-private struct MessageBubble: View {
-    let message: CommunityMessage
-    let report: () -> Void
-
-    var body: some View {
-        HStack(alignment: .top, spacing: SQSpace.md) {
-            VStack(alignment: .leading, spacing: SQSpace.xs) {
-                Text(message.body)
-                    .font(SQFont.body)
-                    .foregroundStyle(SQColor.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .multilineTextAlignment(.leading)
-                Text(message.createdAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(SQFont.badge)
-                    .foregroundStyle(SQColor.textTertiary)
-            }
-            .padding(.horizontal, SQSpace.lg)
-            .padding(.vertical, SQSpace.md)
-            .background(SQColor.surfaceAlt, in: RoundedRectangle(cornerRadius: SQRadius.map, style: .continuous))
-
-            Menu {
-                Button("Report message", systemImage: "flag") { report() }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(SQColor.textTertiary)
-                    .frame(width: 32, height: 32)
-            }
-            .accessibilityLabel("Message actions")
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-struct EventChatSheet: View {
-    @Environment(AppModel.self) private var model
-    let eventId: UUID
-
-    var body: some View {
-        Group {
-            if let channel = model.channels.first(where: { $0.eventId == eventId }) {
-                ChannelView(channel: channel)
-            } else if case .failed(let message) = model.communityState {
-                VStack {
-                    SQEmptyState(
-                        message: "Couldn’t load event chat. \(message)",
-                        systemImage: "wifi.exclamationmark"
-                    )
-                    .padding(.horizontal, SQSpace.margin)
-                    Spacer()
-                }
-                .padding(.top, SQSpace.xxxl)
-                .background(SQColor.plainBackground.ignoresSafeArea())
-            } else {
-                VStack {
-                    SQEmptyState(message: "Opening your event room…", systemImage: "bubble.left.and.bubble.right")
-                        .padding(.horizontal, SQSpace.margin)
-                    Spacer()
-                }
-                .padding(.top, SQSpace.xxxl)
-                .background(SQColor.plainBackground.ignoresSafeArea())
-            }
-        }
-        .task { await model.reloadCommunity() }
-    }
-}
-
 // MARK: - Reporting
-
-private struct MessageReportForm: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
-    let message: CommunityMessage
-
-    @State private var reason = ""
-    @State private var error: String?
-    @State private var busy = false
-
-    var body: some View {
-        SQSheet(title: "Report Message", onClose: { dismiss() }) {
-            SQGroupHeader(title: "Reported message")
-                .padding(.horizontal, -SQSpace.margin)
-            SQCard(padding: SQSpace.cardInset) {
-                Text(message.body)
-                    .font(SQFont.body)
-                    .foregroundStyle(SQColor.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            SQGroupHeader(title: "Reason")
-                .padding(.horizontal, -SQSpace.margin)
-            SQCard(padding: SQSpace.cardInset) {
-                SQField(placeholder: "Why should moderators review this?", text: $reason, axisVertical: true, lineLimit: 3...8)
-            }
-
-            if let error { SQNotice(text: error, kind: .error) }
-
-            SQPrimaryButton(
-                title: busy ? "Submitting…" : "Submit report",
-                systemImage: "flag.fill",
-                isLoading: busy,
-                isEnabled: !busy && reason.trimmingCharacters(in: .whitespacesAndNewlines).count >= 5
-            ) {
-                busy = true
-                Task {
-                    do {
-                        try await model.reportMessage(messageId: message.id, description: reason)
-                        dismiss()
-                    } catch {
-                        self.error = error.localizedDescription
-                        busy = false
-                    }
-                }
-            }
-        }
-    }
-}
 
 struct ReportForm: View {
     @Environment(AppModel.self) private var model
